@@ -19,9 +19,9 @@ import (
 	"context"
 	"strings"
 
-	ackv1alpha1 "github.com/aws/aws-controllers-k8s/apis/core/v1alpha1"
-	ackcompare "github.com/aws/aws-controllers-k8s/pkg/compare"
-	ackerr "github.com/aws/aws-controllers-k8s/pkg/errors"
+	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
+	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	"github.com/aws/aws-sdk-go/aws"
 	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
 	corev1 "k8s.io/api/core/v1"
@@ -73,6 +73,8 @@ func (rm *resourceManager) sdkFind(
 
 	if resp.GlobalTableDescription.CreationDateTime != nil {
 		ko.Status.CreationDateTime = &metav1.Time{*resp.GlobalTableDescription.CreationDateTime}
+	} else {
+		ko.Status.CreationDateTime = nil
 	}
 	if ko.Status.ACKResourceMetadata == nil {
 		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
@@ -83,9 +85,13 @@ func (rm *resourceManager) sdkFind(
 	}
 	if resp.GlobalTableDescription.GlobalTableName != nil {
 		ko.Spec.GlobalTableName = resp.GlobalTableDescription.GlobalTableName
+	} else {
+		ko.Spec.GlobalTableName = nil
 	}
 	if resp.GlobalTableDescription.GlobalTableStatus != nil {
 		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	} else {
+		ko.Status.GlobalTableStatus = nil
 	}
 	if resp.GlobalTableDescription.ReplicationGroup != nil {
 		f4 := []*svcapitypes.Replica{}
@@ -97,14 +103,17 @@ func (rm *resourceManager) sdkFind(
 			f4 = append(f4, f4elem)
 		}
 		ko.Spec.ReplicationGroup = f4
+	} else {
+		ko.Spec.ReplicationGroup = nil
 	}
 
 	rm.setStatusDefaults(ko)
+
 	return &resource{ko}, nil
 }
 
 // requiredFieldsMissingFromReadOneInput returns true if there are any fields
-// for the ReadOne Input shape that are required by not present in the
+// for the ReadOne Input shape that are required but not present in the
 // resource's Spec or Status
 func (rm *resourceManager) requiredFieldsMissingFromReadOneInput(
 	r *resource,
@@ -133,7 +142,7 @@ func (rm *resourceManager) sdkCreate(
 	ctx context.Context,
 	r *resource,
 ) (*resource, error) {
-	input, err := rm.newCreateRequestPayload(r)
+	input, err := rm.newCreateRequestPayload(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +158,8 @@ func (rm *resourceManager) sdkCreate(
 
 	if resp.GlobalTableDescription.CreationDateTime != nil {
 		ko.Status.CreationDateTime = &metav1.Time{*resp.GlobalTableDescription.CreationDateTime}
+	} else {
+		ko.Status.CreationDateTime = nil
 	}
 	if ko.Status.ACKResourceMetadata == nil {
 		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
@@ -159,6 +170,8 @@ func (rm *resourceManager) sdkCreate(
 	}
 	if resp.GlobalTableDescription.GlobalTableStatus != nil {
 		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	} else {
+		ko.Status.GlobalTableStatus = nil
 	}
 
 	rm.setStatusDefaults(ko)
@@ -169,6 +182,7 @@ func (rm *resourceManager) sdkCreate(
 // newCreateRequestPayload returns an SDK-specific struct for the HTTP request
 // payload of the Create API call for the resource
 func (rm *resourceManager) newCreateRequestPayload(
+	ctx context.Context,
 	r *resource,
 ) (*svcsdk.CreateGlobalTableInput, error) {
 	res := &svcsdk.CreateGlobalTableInput{}
@@ -197,10 +211,10 @@ func (rm *resourceManager) sdkUpdate(
 	ctx context.Context,
 	desired *resource,
 	latest *resource,
-	diffReporter *ackcompare.Reporter,
+	delta *ackcompare.Delta,
 ) (*resource, error) {
 
-	input, err := rm.newUpdateRequestPayload(desired)
+	input, err := rm.newUpdateRequestPayload(ctx, desired)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +230,8 @@ func (rm *resourceManager) sdkUpdate(
 
 	if resp.GlobalTableDescription.CreationDateTime != nil {
 		ko.Status.CreationDateTime = &metav1.Time{*resp.GlobalTableDescription.CreationDateTime}
+	} else {
+		ko.Status.CreationDateTime = nil
 	}
 	if ko.Status.ACKResourceMetadata == nil {
 		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
@@ -226,6 +242,8 @@ func (rm *resourceManager) sdkUpdate(
 	}
 	if resp.GlobalTableDescription.GlobalTableStatus != nil {
 		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	} else {
+		ko.Status.GlobalTableStatus = nil
 	}
 
 	rm.setStatusDefaults(ko)
@@ -236,6 +254,7 @@ func (rm *resourceManager) sdkUpdate(
 // newUpdateRequestPayload returns an SDK-specific struct for the HTTP request
 // payload of the Update API call for the resource
 func (rm *resourceManager) newUpdateRequestPayload(
+	ctx context.Context,
 	r *resource,
 ) (*svcsdk.UpdateGlobalTableInput, error) {
 	res := &svcsdk.UpdateGlobalTableInput{}
@@ -283,10 +302,13 @@ func (rm *resourceManager) updateConditions(
 
 	// Terminal condition
 	var terminalCondition *ackv1alpha1.Condition = nil
+	var recoverableCondition *ackv1alpha1.Condition = nil
 	for _, condition := range ko.Status.Conditions {
 		if condition.Type == ackv1alpha1.ConditionTypeTerminal {
 			terminalCondition = condition
-			break
+		}
+		if condition.Type == ackv1alpha1.ConditionTypeRecoverable {
+			recoverableCondition = condition
 		}
 	}
 
@@ -301,11 +323,34 @@ func (rm *resourceManager) updateConditions(
 		awsErr, _ := ackerr.AWSError(err)
 		errorMessage := awsErr.Message()
 		terminalCondition.Message = &errorMessage
-	} else if terminalCondition != nil {
-		terminalCondition.Status = corev1.ConditionFalse
-		terminalCondition.Message = nil
+	} else {
+		// Clear the terminal condition if no longer present
+		if terminalCondition != nil {
+			terminalCondition.Status = corev1.ConditionFalse
+			terminalCondition.Message = nil
+		}
+		// Handling Recoverable Conditions
+		if err != nil {
+			if recoverableCondition == nil {
+				// Add a new Condition containing a non-terminal error
+				recoverableCondition = &ackv1alpha1.Condition{
+					Type: ackv1alpha1.ConditionTypeRecoverable,
+				}
+				ko.Status.Conditions = append(ko.Status.Conditions, recoverableCondition)
+			}
+			recoverableCondition.Status = corev1.ConditionTrue
+			awsErr, _ := ackerr.AWSError(err)
+			errorMessage := err.Error()
+			if awsErr != nil {
+				errorMessage = awsErr.Message()
+			}
+			recoverableCondition.Message = &errorMessage
+		} else if recoverableCondition != nil {
+			recoverableCondition.Status = corev1.ConditionFalse
+			recoverableCondition.Message = nil
+		}
 	}
-	if terminalCondition != nil {
+	if terminalCondition != nil || recoverableCondition != nil {
 		return &resource{ko}, true // updated
 	}
 	return nil, false // not updated

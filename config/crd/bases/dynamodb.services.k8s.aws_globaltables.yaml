@@ -37,9 +37,12 @@ spec:
             description: GlobalTableSpec defines the desired state of GlobalTable
             properties:
               globalTableName:
+                description: The global table name.
                 type: string
               replicationGroup:
+                description: The Regions where the global table needs to be created.
                 items:
+                  description: Represents the properties of a replica.
                   properties:
                     regionName:
                       type: string
@@ -109,9 +112,14 @@ spec:
                   type: object
                 type: array
               creationDateTime:
+                description: The creation time of the global table.
                 format: date-time
                 type: string
               globalTableStatus:
+                description: "The current state of the global table: \n    * CREATING
+                  - The global table is being created. \n    * UPDATING - The global
+                  table is being updated. \n    * DELETING - The global table is being
+                  deleted. \n    * ACTIVE - The global table is ready for use."
                 type: string
             required:
             - ackResourceMetadata
