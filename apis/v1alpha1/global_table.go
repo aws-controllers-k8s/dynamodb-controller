@@ -16,14 +16,16 @@
 package v1alpha1
 
 import (
-	ackv1alpha1 "github.com/aws/aws-controllers-k8s/apis/core/v1alpha1"
+	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GlobalTableSpec defines the desired state of GlobalTable
 type GlobalTableSpec struct {
+	// The global table name.
 	// +kubebuilder:validation:Required
 	GlobalTableName *string `json:"globalTableName"`
+	// The Regions where the global table needs to be created.
 	// +kubebuilder:validation:Required
 	ReplicationGroup []*Replica `json:"replicationGroup"`
 }
@@ -38,9 +40,19 @@ type GlobalTableStatus struct {
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
-	Conditions        []*ackv1alpha1.Condition `json:"conditions"`
-	CreationDateTime  *metav1.Time             `json:"creationDateTime,omitempty"`
-	GlobalTableStatus *string                  `json:"globalTableStatus,omitempty"`
+	Conditions []*ackv1alpha1.Condition `json:"conditions"`
+	// The creation time of the global table.
+	CreationDateTime *metav1.Time `json:"creationDateTime,omitempty"`
+	// The current state of the global table:
+	//
+	//    * CREATING - The global table is being created.
+	//
+	//    * UPDATING - The global table is being updated.
+	//
+	//    * DELETING - The global table is being deleted.
+	//
+	//    * ACTIVE - The global table is ready for use.
+	GlobalTableStatus *string `json:"globalTableStatus,omitempty"`
 }
 
 // GlobalTable is the Schema for the GlobalTables API

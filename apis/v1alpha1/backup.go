@@ -16,14 +16,16 @@
 package v1alpha1
 
 import (
-	ackv1alpha1 "github.com/aws/aws-controllers-k8s/apis/core/v1alpha1"
+	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // BackupSpec defines the desired state of Backup
 type BackupSpec struct {
+	// Specified name for the backup.
 	// +kubebuilder:validation:Required
 	BackupName *string `json:"backupName"`
+	// The name of the table.
 	// +kubebuilder:validation:Required
 	TableName *string `json:"tableName"`
 }
@@ -38,12 +40,27 @@ type BackupStatus struct {
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
-	Conditions             []*ackv1alpha1.Condition `json:"conditions"`
-	BackupCreationDateTime *metav1.Time             `json:"backupCreationDateTime,omitempty"`
-	BackupExpiryDateTime   *metav1.Time             `json:"backupExpiryDateTime,omitempty"`
-	BackupSizeBytes        *int64                   `json:"backupSizeBytes,omitempty"`
-	BackupStatus           *string                  `json:"backupStatus,omitempty"`
-	BackupType             *string                  `json:"backupType,omitempty"`
+	Conditions []*ackv1alpha1.Condition `json:"conditions"`
+	// Time at which the backup was created. This is the request time of the backup.
+	BackupCreationDateTime *metav1.Time `json:"backupCreationDateTime,omitempty"`
+	// Time at which the automatic on-demand backup created by DynamoDB will expire.
+	// This SYSTEM on-demand backup expires automatically 35 days after its creation.
+	BackupExpiryDateTime *metav1.Time `json:"backupExpiryDateTime,omitempty"`
+	// Size of the backup in bytes.
+	BackupSizeBytes *int64 `json:"backupSizeBytes,omitempty"`
+	// Backup can be in one of the following states: CREATING, ACTIVE, DELETED.
+	BackupStatus *string `json:"backupStatus,omitempty"`
+	// BackupType:
+	//
+	//    * USER - You create and manage these using the on-demand backup feature.
+	//
+	//    * SYSTEM - If you delete a table with point-in-time recovery enabled,
+	//    a SYSTEM backup is automatically created and is retained for 35 days (at
+	//    no additional cost). System backups allow you to restore the deleted table
+	//    to the state it was in just before the point of deletion.
+	//
+	//    * AWS_BACKUP - On-demand backup created by you from AWS Backup service.
+	BackupType *string `json:"backupType,omitempty"`
 }
 
 // Backup is the Schema for the Backups API
