@@ -4,6 +4,17 @@ resources:
       errors:
         404:
           code: ResourceNotFoundException
+      terminal_codes:
+        - InternalServerError
+        - LimitExceededException
+        - ResourceInUseException
+    hooks:
+      sdk_read_one_post_set_output:
+        template_path: hooks/table/sdk_read_one_post_set_output.go.tpl
+      sdk_update_pre_build_request:
+        template_path: hooks/table/sdk_update_pre_build_request.go.tpl
+      sdk_delete_pre_build_request:
+        template_path: hooks/table/sdk_delete_pre_build_request.go.tpl
   GlobalTable:
     exceptions:
       errors:

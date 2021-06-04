@@ -394,6 +394,12 @@ func (rm *resourceManager) sdkFind(
 
 	rm.setStatusDefaults(ko)
 
+	if isTableCreating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileCreating
+	}
+	if isTableUpdating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
 	return &resource{ko}, nil
 }
 
@@ -803,6 +809,27 @@ func (rm *resourceManager) sdkUpdate(
 	latest *resource,
 	delta *ackcompare.Delta,
 ) (*resource, error) {
+	if isTableDeleting(latest) {
+		msg := "table is currently being deleted"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileDeleting
+	}
+	if isTableCreating(latest) {
+		msg := "table is currently being created"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileCreating
+	}
+	if isTableUpdating(latest) {
+		msg := "table is currently being updated"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileUpdating
+	}
+	if tableHasTerminalStatus(latest) {
+		msg := "table is in '" + *latest.ko.Status.TableStatus + "' status"
+		setTerminalCondition(desired, corev1.ConditionTrue, &msg, nil)
+		setSyncedCondition(desired, corev1.ConditionTrue, nil, nil)
+		return desired, nil
+	}
 
 	input, err := rm.newUpdateRequestPayload(ctx, desired)
 	if err != nil {
@@ -1057,6 +1084,12 @@ func (rm *resourceManager) sdkDelete(
 	ctx context.Context,
 	r *resource,
 ) error {
+	if isTableDeleting(r) {
+		return requeueWaitWhileDeleting
+	}
+	if isTableUpdating(r) {
+		return requeueWaitWhileUpdating
+	}
 
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
@@ -1165,6 +1198,19 @@ func (rm *resourceManager) updateConditions(
 // and if the exception indicates that it is a Terminal exception
 // 'Terminal' exception are specified in generator configuration
 func (rm *resourceManager) terminalAWSError(err error) bool {
-	// No terminal_errors specified for this resource in generator config
-	return false
+	if err == nil {
+		return false
+	}
+	awsErr, ok := ackerr.AWSError(err)
+	if !ok {
+		return false
+	}
+	switch awsErr.Code() {
+	case "InternalServerError",
+		"LimitExceededException",
+		"ResourceInUseException":
+		return true
+	default:
+		return false
+	}
 }
