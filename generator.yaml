@@ -1,3 +1,7 @@
+operations:
+  UpdateGlobalTable:
+    operation_type: Delete
+    resource_name: GlobalTable
 resources:
   Table:
     exceptions:
@@ -20,6 +24,9 @@ resources:
       errors:
         404:
           code: GlobalTableNotFoundException
+    hooks:
+      sdk_delete_post_build_request:
+        code: customSetDeleteInput(r, input)
   Backup:
     exceptions:
       errors:

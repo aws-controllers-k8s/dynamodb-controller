@@ -213,48 +213,29 @@ func (rm *resourceManager) sdkUpdate(
 	latest *resource,
 	delta *ackcompare.Delta,
 ) (*resource, error) {
-
-	input, err := rm.newUpdateRequestPayload(ctx, desired)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, respErr := rm.sdkapi.UpdateGlobalTableWithContext(ctx, input)
-	rm.metrics.RecordAPICall("UPDATE", "UpdateGlobalTable", respErr)
-	if respErr != nil {
-		return nil, respErr
-	}
-	// Merge in the information we read from the API call above to the copy of
-	// the original Kubernetes object we passed to the function
-	ko := desired.ko.DeepCopy()
-
-	if resp.GlobalTableDescription.CreationDateTime != nil {
-		ko.Status.CreationDateTime = &metav1.Time{*resp.GlobalTableDescription.CreationDateTime}
-	} else {
-		ko.Status.CreationDateTime = nil
-	}
-	if ko.Status.ACKResourceMetadata == nil {
-		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
-	}
-	if resp.GlobalTableDescription.GlobalTableArn != nil {
-		arn := ackv1alpha1.AWSResourceName(*resp.GlobalTableDescription.GlobalTableArn)
-		ko.Status.ACKResourceMetadata.ARN = &arn
-	}
-	if resp.GlobalTableDescription.GlobalTableStatus != nil {
-		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
-	} else {
-		ko.Status.GlobalTableStatus = nil
-	}
-
-	rm.setStatusDefaults(ko)
-
-	return &resource{ko}, nil
+	// TODO(jaypipes): Figure this out...
+	return nil, ackerr.NotImplemented
 }
 
-// newUpdateRequestPayload returns an SDK-specific struct for the HTTP request
-// payload of the Update API call for the resource
-func (rm *resourceManager) newUpdateRequestPayload(
+// sdkDelete deletes the supplied resource in the backend AWS service API
+func (rm *resourceManager) sdkDelete(
 	ctx context.Context,
+	r *resource,
+) error {
+
+	input, err := rm.newDeleteRequestPayload(r)
+	if err != nil {
+		return err
+	}
+	customSetDeleteInput(r, input)
+	_, respErr := rm.sdkapi.UpdateGlobalTableWithContext(ctx, input)
+	rm.metrics.RecordAPICall("DELETE", "UpdateGlobalTable", respErr)
+	return respErr
+}
+
+// newDeleteRequestPayload returns an SDK-specific struct for the HTTP request
+// payload of the Delete API call for the resource
+func (rm *resourceManager) newDeleteRequestPayload(
 	r *resource,
 ) (*svcsdk.UpdateGlobalTableInput, error) {
 	res := &svcsdk.UpdateGlobalTableInput{}
@@ -264,16 +245,6 @@ func (rm *resourceManager) newUpdateRequestPayload(
 	}
 
 	return res, nil
-}
-
-// sdkDelete deletes the supplied resource in the backend AWS service API
-func (rm *resourceManager) sdkDelete(
-	ctx context.Context,
-	r *resource,
-) error {
-	// TODO(jaypipes): Figure this out...
-	return nil
-
 }
 
 // setStatusDefaults sets default properties into supplied custom resource

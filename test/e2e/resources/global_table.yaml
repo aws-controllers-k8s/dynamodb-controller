@@ -1,0 +1,8 @@
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: GlobalTable
+metadata:
+  name: $GLOBAL_TABLE_NAME
+spec:
+  globalTableName: $GLOBAL_TABLE_NAME
+  replicationGroup:
+    - regionName: $REGION_NAME
