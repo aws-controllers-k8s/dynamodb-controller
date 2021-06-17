@@ -58,7 +58,7 @@ func (rm *resourceManager) sdkFind(
 		return nil, err
 	}
 
-	_, respErr := rm.sdkapi.DescribeBackupWithContext(ctx, input)
+	resp, respErr := rm.sdkapi.DescribeBackupWithContext(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "DescribeBackup", respErr)
 	if respErr != nil {
 		if awsErr, ok := ackerr.AWSError(respErr); ok && awsErr.Code() == "BackupNotFoundException" {
@@ -71,8 +71,49 @@ func (rm *resourceManager) sdkFind(
 	// the original Kubernetes object we passed to the function
 	ko := r.ko.DeepCopy()
 
+	if ko.Status.ACKResourceMetadata == nil {
+		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
+	}
+	if resp.BackupDescription.BackupDetails.BackupArn != nil {
+		arn := ackv1alpha1.AWSResourceName(*resp.BackupDescription.BackupDetails.BackupArn)
+		ko.Status.ACKResourceMetadata.ARN = &arn
+	}
+	if resp.BackupDescription.BackupDetails.BackupCreationDateTime != nil {
+		ko.Status.BackupCreationDateTime = &metav1.Time{*resp.BackupDescription.BackupDetails.BackupCreationDateTime}
+	} else {
+		ko.Status.BackupCreationDateTime = nil
+	}
+	if resp.BackupDescription.BackupDetails.BackupExpiryDateTime != nil {
+		ko.Status.BackupExpiryDateTime = &metav1.Time{*resp.BackupDescription.BackupDetails.BackupExpiryDateTime}
+	} else {
+		ko.Status.BackupExpiryDateTime = nil
+	}
+	if resp.BackupDescription.BackupDetails.BackupName != nil {
+		ko.Spec.BackupName = resp.BackupDescription.BackupDetails.BackupName
+	} else {
+		ko.Spec.BackupName = nil
+	}
+	if resp.BackupDescription.BackupDetails.BackupSizeBytes != nil {
+		ko.Status.BackupSizeBytes = resp.BackupDescription.BackupDetails.BackupSizeBytes
+	} else {
+		ko.Status.BackupSizeBytes = nil
+	}
+	if resp.BackupDescription.BackupDetails.BackupStatus != nil {
+		ko.Status.BackupStatus = resp.BackupDescription.BackupDetails.BackupStatus
+	} else {
+		ko.Status.BackupStatus = nil
+	}
+	if resp.BackupDescription.BackupDetails.BackupType != nil {
+		ko.Status.BackupType = resp.BackupDescription.BackupDetails.BackupType
+	} else {
+		ko.Status.BackupType = nil
+	}
+
 	rm.setStatusDefaults(ko)
 
+	if isBackupCreating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileCreating
+	}
 	return &resource{ko}, nil
 }
 

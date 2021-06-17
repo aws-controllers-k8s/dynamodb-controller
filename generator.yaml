@@ -2,6 +2,8 @@ operations:
   UpdateGlobalTable:
     operation_type: Delete
     resource_name: GlobalTable
+  DescribeBackup:
+    output_wrapper_field_path: BackupDescription.BackupDetails
 resources:
   Table:
     exceptions:
@@ -32,3 +34,6 @@ resources:
       errors:
         404:
           code: BackupNotFoundException
+    hooks:
+      sdk_read_one_post_set_output:
+        template_path: hooks/backup/sdk_read_one_post_set_output.go.tpl
