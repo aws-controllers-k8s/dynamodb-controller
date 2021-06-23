@@ -34,7 +34,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: GlobalTableSpec defines the desired state of GlobalTable
+            description: "GlobalTableSpec defines the desired state of GlobalTable.
+              \n Represents the properties of a global table."
             properties:
               globalTableName:
                 description: The global table name.
