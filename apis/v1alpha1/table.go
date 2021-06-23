@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// TableSpec defines the desired state of Table
+// TableSpec defines the desired state of Table.
 type TableSpec struct {
 	// An array of attributes that describe the key schema for the table and indexes.
 	// +kubebuilder:validation:Required

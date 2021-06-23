@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: TableSpec defines the desired state of Table
+            description: TableSpec defines the desired state of Table.
             properties:
               attributeDefinitions:
                 description: An array of attributes that describe the key schema for

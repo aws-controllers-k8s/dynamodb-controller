@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// BackupSpec defines the desired state of Backup
+// BackupSpec defines the desired state of Backup.
 type BackupSpec struct {
 	// Specified name for the backup.
 	// +kubebuilder:validation:Required

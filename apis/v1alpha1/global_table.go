@@ -20,7 +20,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GlobalTableSpec defines the desired state of GlobalTable
+// GlobalTableSpec defines the desired state of GlobalTable.
+//
+// Represents the properties of a global table.
 type GlobalTableSpec struct {
 	// The global table name.
 	// +kubebuilder:validation:Required
