@@ -122,9 +122,6 @@ spec:
                   table is being updated. \n    * DELETING - The global table is being
                   deleted. \n    * ACTIVE - The global table is ready for use."
                 type: string
-            required:
-            - ackResourceMetadata
-            - conditions
             type: object
         type: object
     served: true

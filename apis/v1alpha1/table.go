@@ -157,27 +157,35 @@ type TableStatus struct {
 	// All CRs managed by ACK have a common `Status.ACKResourceMetadata` member
 	// that is used to contain resource sync state, account ownership,
 	// constructed ARN for the resource
+	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
 	// All CRS managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
+	// +kubebuilder:validation:Optional
 	Conditions []*ackv1alpha1.Condition `json:"conditions"`
 	// Contains information about the table archive.
+	// +kubebuilder:validation:Optional
 	ArchivalSummary *ArchivalSummary `json:"archivalSummary,omitempty"`
 	// Contains the details for the read/write capacity mode.
+	// +kubebuilder:validation:Optional
 	BillingModeSummary *BillingModeSummary `json:"billingModeSummary,omitempty"`
 	// The date and time when the table was created, in UNIX epoch time (http://www.epochconverter.com/)
 	// format.
+	// +kubebuilder:validation:Optional
 	CreationDateTime *metav1.Time `json:"creationDateTime,omitempty"`
 	// Represents the version of global tables (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html)
 	// in use, if the table is replicated across AWS Regions.
+	// +kubebuilder:validation:Optional
 	GlobalTableVersion *string `json:"globalTableVersion,omitempty"`
 	// The number of items in the specified table. DynamoDB updates this value approximately
 	// every six hours. Recent changes might not be reflected in this value.
+	// +kubebuilder:validation:Optional
 	ItemCount *int64 `json:"itemCount,omitempty"`
 	// The Amazon Resource Name (ARN) that uniquely identifies the latest stream
 	// for this table.
+	// +kubebuilder:validation:Optional
 	LatestStreamARN *string `json:"latestStreamARN,omitempty"`
 	// A timestamp, in ISO 8601 format, for this stream.
 	//
@@ -191,18 +199,24 @@ type TableStatus struct {
 	//    * Table name
 	//
 	//    * StreamLabel
+	// +kubebuilder:validation:Optional
 	LatestStreamLabel *string `json:"latestStreamLabel,omitempty"`
 	// Represents replicas of the table.
+	// +kubebuilder:validation:Optional
 	Replicas []*ReplicaDescription `json:"replicas,omitempty"`
 	// Contains details for the restore.
+	// +kubebuilder:validation:Optional
 	RestoreSummary *RestoreSummary `json:"restoreSummary,omitempty"`
 	// The description of the server-side encryption status on the specified table.
+	// +kubebuilder:validation:Optional
 	SSEDescription *SSEDescription `json:"sseDescription,omitempty"`
 	// Unique identifier for the table for which the backup was created.
+	// +kubebuilder:validation:Optional
 	TableID *string `json:"tableID,omitempty"`
 	// The total size of the specified table, in bytes. DynamoDB updates this value
 	// approximately every six hours. Recent changes might not be reflected in this
 	// value.
+	// +kubebuilder:validation:Optional
 	TableSizeBytes *int64 `json:"tableSizeBytes,omitempty"`
 	// The current state of the table:
 	//
@@ -224,6 +238,7 @@ type TableStatus struct {
 	//
 	//    * ARCHIVED - The table has been archived. See the ArchivalReason for more
 	//    information.
+	// +kubebuilder:validation:Optional
 	TableStatus *string `json:"tableStatus,omitempty"`
 }
 
