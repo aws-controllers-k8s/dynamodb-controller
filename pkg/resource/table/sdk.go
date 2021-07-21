@@ -1100,10 +1100,10 @@ func (rm *resourceManager) sdkDelete(
 	exit := rlog.Trace("rm.sdkDelete")
 	defer exit(err)
 	if isTableDeleting(r) {
-		return requeueWaitWhileDeleting
+		return nil, requeueWaitWhileDeleting
 	}
 	if isTableUpdating(r) {
-		return requeueWaitWhileUpdating
+		return nil, requeueWaitWhileUpdating
 	}
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
