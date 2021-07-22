@@ -522,9 +522,6 @@ spec:
                   \   until archival is complete. \n    * ARCHIVED - The table has
                   been archived. See the ArchivalReason for more    information."
                 type: string
-            required:
-            - ackResourceMetadata
-            - conditions
             type: object
         type: object
     served: true

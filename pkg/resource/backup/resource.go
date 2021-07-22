@@ -87,9 +87,7 @@ func (r *resource) SetObjectMeta(meta metav1.ObjectMeta) {
 // SetIdentifiers sets the Spec or Status field that is referenced as the unique
 // resource identifier
 func (r *resource) SetIdentifiers(identifier *ackv1alpha1.AWSIdentifiers) error {
-	if identifier.NameOrID == nil {
-		return ackerrors.MissingNameIdentifier
-	}
-	r.ko.Spec.BackupName = identifier.NameOrID
+	r.ko.Status.ACKResourceMetadata.ARN = identifier.ARN
+
 	return nil
 }

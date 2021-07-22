@@ -1,6 +1,6 @@
 	if isTableDeleting(r) {
-		return requeueWaitWhileDeleting
+		return nil, requeueWaitWhileDeleting
 	}
 	if isTableUpdating(r) {
-		return requeueWaitWhileUpdating
+		return nil, requeueWaitWhileUpdating
 	}

@@ -35,20 +35,26 @@ type BackupStatus struct {
 	// All CRs managed by ACK have a common `Status.ACKResourceMetadata` member
 	// that is used to contain resource sync state, account ownership,
 	// constructed ARN for the resource
+	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
 	// All CRS managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
+	// +kubebuilder:validation:Optional
 	Conditions []*ackv1alpha1.Condition `json:"conditions"`
 	// Time at which the backup was created. This is the request time of the backup.
+	// +kubebuilder:validation:Optional
 	BackupCreationDateTime *metav1.Time `json:"backupCreationDateTime,omitempty"`
 	// Time at which the automatic on-demand backup created by DynamoDB will expire.
 	// This SYSTEM on-demand backup expires automatically 35 days after its creation.
+	// +kubebuilder:validation:Optional
 	BackupExpiryDateTime *metav1.Time `json:"backupExpiryDateTime,omitempty"`
 	// Size of the backup in bytes.
+	// +kubebuilder:validation:Optional
 	BackupSizeBytes *int64 `json:"backupSizeBytes,omitempty"`
 	// Backup can be in one of the following states: CREATING, ACTIVE, DELETED.
+	// +kubebuilder:validation:Optional
 	BackupStatus *string `json:"backupStatus,omitempty"`
 	// BackupType:
 	//
@@ -60,6 +66,7 @@ type BackupStatus struct {
 	//    to the state it was in just before the point of deletion.
 	//
 	//    * AWS_BACKUP - On-demand backup created by you from AWS Backup service.
+	// +kubebuilder:validation:Optional
 	BackupType *string `json:"backupType,omitempty"`
 }
 

@@ -42,7 +42,7 @@ var (
 		5*time.Second,
 	)
 	requeueWaitWhileCreating = ackrequeue.NeededAfter(
-		ErrTableDeleting,
+		ErrTableCreating,
 		5*time.Second,
 	)
 	requeueWaitWhileUpdating = ackrequeue.NeededAfter(
