@@ -16,7 +16,14 @@
 package global_table
 
 import (
+	"reflect"
+
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+)
+
+// Hack to avoid import errors during build...
+var (
+	_ = &reflect.Method{}
 )
 
 // newResourceDelta returns a new `ackcompare.Delta` used to compare two
@@ -38,6 +45,9 @@ func newResourceDelta(
 		if *a.ko.Spec.GlobalTableName != *b.ko.Spec.GlobalTableName {
 			delta.Add("Spec.GlobalTableName", a.ko.Spec.GlobalTableName, b.ko.Spec.GlobalTableName)
 		}
+	}
+	if !reflect.DeepEqual(a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup) {
+		delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
 	}
 
 	return delta

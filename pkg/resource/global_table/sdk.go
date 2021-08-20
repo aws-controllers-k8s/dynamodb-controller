@@ -178,10 +178,28 @@ func (rm *resourceManager) sdkCreate(
 		arn := ackv1alpha1.AWSResourceName(*resp.GlobalTableDescription.GlobalTableArn)
 		ko.Status.ACKResourceMetadata.ARN = &arn
 	}
+	if resp.GlobalTableDescription.GlobalTableName != nil {
+		ko.Spec.GlobalTableName = resp.GlobalTableDescription.GlobalTableName
+	} else {
+		ko.Spec.GlobalTableName = nil
+	}
 	if resp.GlobalTableDescription.GlobalTableStatus != nil {
 		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
 	} else {
 		ko.Status.GlobalTableStatus = nil
+	}
+	if resp.GlobalTableDescription.ReplicationGroup != nil {
+		f4 := []*svcapitypes.Replica{}
+		for _, f4iter := range resp.GlobalTableDescription.ReplicationGroup {
+			f4elem := &svcapitypes.Replica{}
+			if f4iter.RegionName != nil {
+				f4elem.RegionName = f4iter.RegionName
+			}
+			f4 = append(f4, f4elem)
+		}
+		ko.Spec.ReplicationGroup = f4
+	} else {
+		ko.Spec.ReplicationGroup = nil
 	}
 
 	rm.setStatusDefaults(ko)
