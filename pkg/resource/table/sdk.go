@@ -472,6 +472,22 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.ArchivalSummary = nil
 	}
+	if resp.TableDescription.AttributeDefinitions != nil {
+		f1 := []*svcapitypes.AttributeDefinition{}
+		for _, f1iter := range resp.TableDescription.AttributeDefinitions {
+			f1elem := &svcapitypes.AttributeDefinition{}
+			if f1iter.AttributeName != nil {
+				f1elem.AttributeName = f1iter.AttributeName
+			}
+			if f1iter.AttributeType != nil {
+				f1elem.AttributeType = f1iter.AttributeType
+			}
+			f1 = append(f1, f1elem)
+		}
+		ko.Spec.AttributeDefinitions = f1
+	} else {
+		ko.Spec.AttributeDefinitions = nil
+	}
 	if resp.TableDescription.BillingModeSummary != nil {
 		f2 := &svcapitypes.BillingModeSummary{}
 		if resp.TableDescription.BillingModeSummary.BillingMode != nil {
@@ -489,6 +505,59 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.CreationDateTime = nil
 	}
+	if resp.TableDescription.GlobalSecondaryIndexes != nil {
+		f4 := []*svcapitypes.GlobalSecondaryIndex{}
+		for _, f4iter := range resp.TableDescription.GlobalSecondaryIndexes {
+			f4elem := &svcapitypes.GlobalSecondaryIndex{}
+			if f4iter.IndexName != nil {
+				f4elem.IndexName = f4iter.IndexName
+			}
+			if f4iter.KeySchema != nil {
+				f4elemf6 := []*svcapitypes.KeySchemaElement{}
+				for _, f4elemf6iter := range f4iter.KeySchema {
+					f4elemf6elem := &svcapitypes.KeySchemaElement{}
+					if f4elemf6iter.AttributeName != nil {
+						f4elemf6elem.AttributeName = f4elemf6iter.AttributeName
+					}
+					if f4elemf6iter.KeyType != nil {
+						f4elemf6elem.KeyType = f4elemf6iter.KeyType
+					}
+					f4elemf6 = append(f4elemf6, f4elemf6elem)
+				}
+				f4elem.KeySchema = f4elemf6
+			}
+			if f4iter.Projection != nil {
+				f4elemf7 := &svcapitypes.Projection{}
+				if f4iter.Projection.NonKeyAttributes != nil {
+					f4elemf7f0 := []*string{}
+					for _, f4elemf7f0iter := range f4iter.Projection.NonKeyAttributes {
+						var f4elemf7f0elem string
+						f4elemf7f0elem = *f4elemf7f0iter
+						f4elemf7f0 = append(f4elemf7f0, &f4elemf7f0elem)
+					}
+					f4elemf7.NonKeyAttributes = f4elemf7f0
+				}
+				if f4iter.Projection.ProjectionType != nil {
+					f4elemf7.ProjectionType = f4iter.Projection.ProjectionType
+				}
+				f4elem.Projection = f4elemf7
+			}
+			if f4iter.ProvisionedThroughput != nil {
+				f4elemf8 := &svcapitypes.ProvisionedThroughput{}
+				if f4iter.ProvisionedThroughput.ReadCapacityUnits != nil {
+					f4elemf8.ReadCapacityUnits = f4iter.ProvisionedThroughput.ReadCapacityUnits
+				}
+				if f4iter.ProvisionedThroughput.WriteCapacityUnits != nil {
+					f4elemf8.WriteCapacityUnits = f4iter.ProvisionedThroughput.WriteCapacityUnits
+				}
+				f4elem.ProvisionedThroughput = f4elemf8
+			}
+			f4 = append(f4, f4elem)
+		}
+		ko.Spec.GlobalSecondaryIndexes = f4
+	} else {
+		ko.Spec.GlobalSecondaryIndexes = nil
+	}
 	if resp.TableDescription.GlobalTableVersion != nil {
 		ko.Status.GlobalTableVersion = resp.TableDescription.GlobalTableVersion
 	} else {
@@ -499,6 +568,22 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.ItemCount = nil
 	}
+	if resp.TableDescription.KeySchema != nil {
+		f7 := []*svcapitypes.KeySchemaElement{}
+		for _, f7iter := range resp.TableDescription.KeySchema {
+			f7elem := &svcapitypes.KeySchemaElement{}
+			if f7iter.AttributeName != nil {
+				f7elem.AttributeName = f7iter.AttributeName
+			}
+			if f7iter.KeyType != nil {
+				f7elem.KeyType = f7iter.KeyType
+			}
+			f7 = append(f7, f7elem)
+		}
+		ko.Spec.KeySchema = f7
+	} else {
+		ko.Spec.KeySchema = nil
+	}
 	if resp.TableDescription.LatestStreamArn != nil {
 		ko.Status.LatestStreamARN = resp.TableDescription.LatestStreamArn
 	} else {
@@ -508,6 +593,61 @@ func (rm *resourceManager) sdkCreate(
 		ko.Status.LatestStreamLabel = resp.TableDescription.LatestStreamLabel
 	} else {
 		ko.Status.LatestStreamLabel = nil
+	}
+	if resp.TableDescription.LocalSecondaryIndexes != nil {
+		f10 := []*svcapitypes.LocalSecondaryIndex{}
+		for _, f10iter := range resp.TableDescription.LocalSecondaryIndexes {
+			f10elem := &svcapitypes.LocalSecondaryIndex{}
+			if f10iter.IndexName != nil {
+				f10elem.IndexName = f10iter.IndexName
+			}
+			if f10iter.KeySchema != nil {
+				f10elemf4 := []*svcapitypes.KeySchemaElement{}
+				for _, f10elemf4iter := range f10iter.KeySchema {
+					f10elemf4elem := &svcapitypes.KeySchemaElement{}
+					if f10elemf4iter.AttributeName != nil {
+						f10elemf4elem.AttributeName = f10elemf4iter.AttributeName
+					}
+					if f10elemf4iter.KeyType != nil {
+						f10elemf4elem.KeyType = f10elemf4iter.KeyType
+					}
+					f10elemf4 = append(f10elemf4, f10elemf4elem)
+				}
+				f10elem.KeySchema = f10elemf4
+			}
+			if f10iter.Projection != nil {
+				f10elemf5 := &svcapitypes.Projection{}
+				if f10iter.Projection.NonKeyAttributes != nil {
+					f10elemf5f0 := []*string{}
+					for _, f10elemf5f0iter := range f10iter.Projection.NonKeyAttributes {
+						var f10elemf5f0elem string
+						f10elemf5f0elem = *f10elemf5f0iter
+						f10elemf5f0 = append(f10elemf5f0, &f10elemf5f0elem)
+					}
+					f10elemf5.NonKeyAttributes = f10elemf5f0
+				}
+				if f10iter.Projection.ProjectionType != nil {
+					f10elemf5.ProjectionType = f10iter.Projection.ProjectionType
+				}
+				f10elem.Projection = f10elemf5
+			}
+			f10 = append(f10, f10elem)
+		}
+		ko.Spec.LocalSecondaryIndexes = f10
+	} else {
+		ko.Spec.LocalSecondaryIndexes = nil
+	}
+	if resp.TableDescription.ProvisionedThroughput != nil {
+		f11 := &svcapitypes.ProvisionedThroughput{}
+		if resp.TableDescription.ProvisionedThroughput.ReadCapacityUnits != nil {
+			f11.ReadCapacityUnits = resp.TableDescription.ProvisionedThroughput.ReadCapacityUnits
+		}
+		if resp.TableDescription.ProvisionedThroughput.WriteCapacityUnits != nil {
+			f11.WriteCapacityUnits = resp.TableDescription.ProvisionedThroughput.WriteCapacityUnits
+		}
+		ko.Spec.ProvisionedThroughput = f11
+	} else {
+		ko.Spec.ProvisionedThroughput = nil
 	}
 	if resp.TableDescription.Replicas != nil {
 		f12 := []*svcapitypes.ReplicaDescription{}
@@ -598,6 +738,18 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.SSEDescription = nil
 	}
+	if resp.TableDescription.StreamSpecification != nil {
+		f15 := &svcapitypes.StreamSpecification{}
+		if resp.TableDescription.StreamSpecification.StreamEnabled != nil {
+			f15.StreamEnabled = resp.TableDescription.StreamSpecification.StreamEnabled
+		}
+		if resp.TableDescription.StreamSpecification.StreamViewType != nil {
+			f15.StreamViewType = resp.TableDescription.StreamSpecification.StreamViewType
+		}
+		ko.Spec.StreamSpecification = f15
+	} else {
+		ko.Spec.StreamSpecification = nil
+	}
 	if ko.Status.ACKResourceMetadata == nil {
 		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
 	}
@@ -609,6 +761,11 @@ func (rm *resourceManager) sdkCreate(
 		ko.Status.TableID = resp.TableDescription.TableId
 	} else {
 		ko.Status.TableID = nil
+	}
+	if resp.TableDescription.TableName != nil {
+		ko.Spec.TableName = resp.TableDescription.TableName
+	} else {
+		ko.Spec.TableName = nil
 	}
 	if resp.TableDescription.TableSizeBytes != nil {
 		ko.Status.TableSizeBytes = resp.TableDescription.TableSizeBytes
@@ -873,6 +1030,22 @@ func (rm *resourceManager) sdkUpdate(
 	} else {
 		ko.Status.ArchivalSummary = nil
 	}
+	if resp.TableDescription.AttributeDefinitions != nil {
+		f1 := []*svcapitypes.AttributeDefinition{}
+		for _, f1iter := range resp.TableDescription.AttributeDefinitions {
+			f1elem := &svcapitypes.AttributeDefinition{}
+			if f1iter.AttributeName != nil {
+				f1elem.AttributeName = f1iter.AttributeName
+			}
+			if f1iter.AttributeType != nil {
+				f1elem.AttributeType = f1iter.AttributeType
+			}
+			f1 = append(f1, f1elem)
+		}
+		ko.Spec.AttributeDefinitions = f1
+	} else {
+		ko.Spec.AttributeDefinitions = nil
+	}
 	if resp.TableDescription.BillingModeSummary != nil {
 		f2 := &svcapitypes.BillingModeSummary{}
 		if resp.TableDescription.BillingModeSummary.BillingMode != nil {
@@ -890,6 +1063,59 @@ func (rm *resourceManager) sdkUpdate(
 	} else {
 		ko.Status.CreationDateTime = nil
 	}
+	if resp.TableDescription.GlobalSecondaryIndexes != nil {
+		f4 := []*svcapitypes.GlobalSecondaryIndex{}
+		for _, f4iter := range resp.TableDescription.GlobalSecondaryIndexes {
+			f4elem := &svcapitypes.GlobalSecondaryIndex{}
+			if f4iter.IndexName != nil {
+				f4elem.IndexName = f4iter.IndexName
+			}
+			if f4iter.KeySchema != nil {
+				f4elemf6 := []*svcapitypes.KeySchemaElement{}
+				for _, f4elemf6iter := range f4iter.KeySchema {
+					f4elemf6elem := &svcapitypes.KeySchemaElement{}
+					if f4elemf6iter.AttributeName != nil {
+						f4elemf6elem.AttributeName = f4elemf6iter.AttributeName
+					}
+					if f4elemf6iter.KeyType != nil {
+						f4elemf6elem.KeyType = f4elemf6iter.KeyType
+					}
+					f4elemf6 = append(f4elemf6, f4elemf6elem)
+				}
+				f4elem.KeySchema = f4elemf6
+			}
+			if f4iter.Projection != nil {
+				f4elemf7 := &svcapitypes.Projection{}
+				if f4iter.Projection.NonKeyAttributes != nil {
+					f4elemf7f0 := []*string{}
+					for _, f4elemf7f0iter := range f4iter.Projection.NonKeyAttributes {
+						var f4elemf7f0elem string
+						f4elemf7f0elem = *f4elemf7f0iter
+						f4elemf7f0 = append(f4elemf7f0, &f4elemf7f0elem)
+					}
+					f4elemf7.NonKeyAttributes = f4elemf7f0
+				}
+				if f4iter.Projection.ProjectionType != nil {
+					f4elemf7.ProjectionType = f4iter.Projection.ProjectionType
+				}
+				f4elem.Projection = f4elemf7
+			}
+			if f4iter.ProvisionedThroughput != nil {
+				f4elemf8 := &svcapitypes.ProvisionedThroughput{}
+				if f4iter.ProvisionedThroughput.ReadCapacityUnits != nil {
+					f4elemf8.ReadCapacityUnits = f4iter.ProvisionedThroughput.ReadCapacityUnits
+				}
+				if f4iter.ProvisionedThroughput.WriteCapacityUnits != nil {
+					f4elemf8.WriteCapacityUnits = f4iter.ProvisionedThroughput.WriteCapacityUnits
+				}
+				f4elem.ProvisionedThroughput = f4elemf8
+			}
+			f4 = append(f4, f4elem)
+		}
+		ko.Spec.GlobalSecondaryIndexes = f4
+	} else {
+		ko.Spec.GlobalSecondaryIndexes = nil
+	}
 	if resp.TableDescription.GlobalTableVersion != nil {
 		ko.Status.GlobalTableVersion = resp.TableDescription.GlobalTableVersion
 	} else {
@@ -900,6 +1126,22 @@ func (rm *resourceManager) sdkUpdate(
 	} else {
 		ko.Status.ItemCount = nil
 	}
+	if resp.TableDescription.KeySchema != nil {
+		f7 := []*svcapitypes.KeySchemaElement{}
+		for _, f7iter := range resp.TableDescription.KeySchema {
+			f7elem := &svcapitypes.KeySchemaElement{}
+			if f7iter.AttributeName != nil {
+				f7elem.AttributeName = f7iter.AttributeName
+			}
+			if f7iter.KeyType != nil {
+				f7elem.KeyType = f7iter.KeyType
+			}
+			f7 = append(f7, f7elem)
+		}
+		ko.Spec.KeySchema = f7
+	} else {
+		ko.Spec.KeySchema = nil
+	}
 	if resp.TableDescription.LatestStreamArn != nil {
 		ko.Status.LatestStreamARN = resp.TableDescription.LatestStreamArn
 	} else {
@@ -909,6 +1151,61 @@ func (rm *resourceManager) sdkUpdate(
 		ko.Status.LatestStreamLabel = resp.TableDescription.LatestStreamLabel
 	} else {
 		ko.Status.LatestStreamLabel = nil
+	}
+	if resp.TableDescription.LocalSecondaryIndexes != nil {
+		f10 := []*svcapitypes.LocalSecondaryIndex{}
+		for _, f10iter := range resp.TableDescription.LocalSecondaryIndexes {
+			f10elem := &svcapitypes.LocalSecondaryIndex{}
+			if f10iter.IndexName != nil {
+				f10elem.IndexName = f10iter.IndexName
+			}
+			if f10iter.KeySchema != nil {
+				f10elemf4 := []*svcapitypes.KeySchemaElement{}
+				for _, f10elemf4iter := range f10iter.KeySchema {
+					f10elemf4elem := &svcapitypes.KeySchemaElement{}
+					if f10elemf4iter.AttributeName != nil {
+						f10elemf4elem.AttributeName = f10elemf4iter.AttributeName
+					}
+					if f10elemf4iter.KeyType != nil {
+						f10elemf4elem.KeyType = f10elemf4iter.KeyType
+					}
+					f10elemf4 = append(f10elemf4, f10elemf4elem)
+				}
+				f10elem.KeySchema = f10elemf4
+			}
+			if f10iter.Projection != nil {
+				f10elemf5 := &svcapitypes.Projection{}
+				if f10iter.Projection.NonKeyAttributes != nil {
+					f10elemf5f0 := []*string{}
+					for _, f10elemf5f0iter := range f10iter.Projection.NonKeyAttributes {
+						var f10elemf5f0elem string
+						f10elemf5f0elem = *f10elemf5f0iter
+						f10elemf5f0 = append(f10elemf5f0, &f10elemf5f0elem)
+					}
+					f10elemf5.NonKeyAttributes = f10elemf5f0
+				}
+				if f10iter.Projection.ProjectionType != nil {
+					f10elemf5.ProjectionType = f10iter.Projection.ProjectionType
+				}
+				f10elem.Projection = f10elemf5
+			}
+			f10 = append(f10, f10elem)
+		}
+		ko.Spec.LocalSecondaryIndexes = f10
+	} else {
+		ko.Spec.LocalSecondaryIndexes = nil
+	}
+	if resp.TableDescription.ProvisionedThroughput != nil {
+		f11 := &svcapitypes.ProvisionedThroughput{}
+		if resp.TableDescription.ProvisionedThroughput.ReadCapacityUnits != nil {
+			f11.ReadCapacityUnits = resp.TableDescription.ProvisionedThroughput.ReadCapacityUnits
+		}
+		if resp.TableDescription.ProvisionedThroughput.WriteCapacityUnits != nil {
+			f11.WriteCapacityUnits = resp.TableDescription.ProvisionedThroughput.WriteCapacityUnits
+		}
+		ko.Spec.ProvisionedThroughput = f11
+	} else {
+		ko.Spec.ProvisionedThroughput = nil
 	}
 	if resp.TableDescription.Replicas != nil {
 		f12 := []*svcapitypes.ReplicaDescription{}
@@ -999,6 +1296,18 @@ func (rm *resourceManager) sdkUpdate(
 	} else {
 		ko.Status.SSEDescription = nil
 	}
+	if resp.TableDescription.StreamSpecification != nil {
+		f15 := &svcapitypes.StreamSpecification{}
+		if resp.TableDescription.StreamSpecification.StreamEnabled != nil {
+			f15.StreamEnabled = resp.TableDescription.StreamSpecification.StreamEnabled
+		}
+		if resp.TableDescription.StreamSpecification.StreamViewType != nil {
+			f15.StreamViewType = resp.TableDescription.StreamSpecification.StreamViewType
+		}
+		ko.Spec.StreamSpecification = f15
+	} else {
+		ko.Spec.StreamSpecification = nil
+	}
 	if ko.Status.ACKResourceMetadata == nil {
 		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
 	}
@@ -1010,6 +1319,11 @@ func (rm *resourceManager) sdkUpdate(
 		ko.Status.TableID = resp.TableDescription.TableId
 	} else {
 		ko.Status.TableID = nil
+	}
+	if resp.TableDescription.TableName != nil {
+		ko.Spec.TableName = resp.TableDescription.TableName
+	} else {
+		ko.Spec.TableName = nil
 	}
 	if resp.TableDescription.TableSizeBytes != nil {
 		ko.Status.TableSizeBytes = resp.TableDescription.TableSizeBytes

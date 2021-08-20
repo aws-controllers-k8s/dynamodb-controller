@@ -190,6 +190,11 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.BackupExpiryDateTime = nil
 	}
+	if resp.BackupDetails.BackupName != nil {
+		ko.Spec.BackupName = resp.BackupDetails.BackupName
+	} else {
+		ko.Spec.BackupName = nil
+	}
 	if resp.BackupDetails.BackupSizeBytes != nil {
 		ko.Status.BackupSizeBytes = resp.BackupDetails.BackupSizeBytes
 	} else {

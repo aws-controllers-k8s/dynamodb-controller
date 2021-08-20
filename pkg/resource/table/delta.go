@@ -16,7 +16,14 @@
 package table
 
 import (
+	"reflect"
+
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+)
+
+// Hack to avoid import errors during build...
+var (
+	_ = &reflect.Method{}
 )
 
 // newResourceDelta returns a new `ackcompare.Delta` used to compare two
@@ -32,6 +39,9 @@ func newResourceDelta(
 		return delta
 	}
 
+	if !reflect.DeepEqual(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
+		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.BillingMode, b.ko.Spec.BillingMode) {
 		delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 	} else if a.ko.Spec.BillingMode != nil && b.ko.Spec.BillingMode != nil {
@@ -39,7 +49,15 @@ func newResourceDelta(
 			delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 		}
 	}
-
+	if !reflect.DeepEqual(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+	}
+	if !reflect.DeepEqual(a.ko.Spec.KeySchema, b.ko.Spec.KeySchema) {
+		delta.Add("Spec.KeySchema", a.ko.Spec.KeySchema, b.ko.Spec.KeySchema)
+	}
+	if !reflect.DeepEqual(a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes) {
+		delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput) {
 		delta.Add("Spec.ProvisionedThroughput", a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput)
 	} else if a.ko.Spec.ProvisionedThroughput != nil && b.ko.Spec.ProvisionedThroughput != nil {
@@ -107,6 +125,9 @@ func newResourceDelta(
 		if *a.ko.Spec.TableName != *b.ko.Spec.TableName {
 			delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 		}
+	}
+	if !reflect.DeepEqual(a.ko.Spec.Tags, b.ko.Spec.Tags) {
+		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	}
 
 	return delta
