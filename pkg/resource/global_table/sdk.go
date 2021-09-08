@@ -239,9 +239,79 @@ func (rm *resourceManager) sdkUpdate(
 	desired *resource,
 	latest *resource,
 	delta *ackcompare.Delta,
-) (*resource, error) {
-	// TODO(jaypipes): Figure this out...
-	return nil, ackerr.NotImplemented
+) (updated *resource, err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.sdkUpdate")
+	defer exit(err)
+	input, err := rm.newUpdateRequestPayload(ctx, desired)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp *svcsdk.UpdateGlobalTableOutput
+	_ = resp
+	resp, err = rm.sdkapi.UpdateGlobalTableWithContext(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateGlobalTable", err)
+	if err != nil {
+		return nil, err
+	}
+	// Merge in the information we read from the API call above to the copy of
+	// the original Kubernetes object we passed to the function
+	ko := desired.ko.DeepCopy()
+
+	if resp.GlobalTableDescription.CreationDateTime != nil {
+		ko.Status.CreationDateTime = &metav1.Time{*resp.GlobalTableDescription.CreationDateTime}
+	} else {
+		ko.Status.CreationDateTime = nil
+	}
+	if ko.Status.ACKResourceMetadata == nil {
+		ko.Status.ACKResourceMetadata = &ackv1alpha1.ResourceMetadata{}
+	}
+	if resp.GlobalTableDescription.GlobalTableArn != nil {
+		arn := ackv1alpha1.AWSResourceName(*resp.GlobalTableDescription.GlobalTableArn)
+		ko.Status.ACKResourceMetadata.ARN = &arn
+	}
+	if resp.GlobalTableDescription.GlobalTableName != nil {
+		ko.Spec.GlobalTableName = resp.GlobalTableDescription.GlobalTableName
+	} else {
+		ko.Spec.GlobalTableName = nil
+	}
+	if resp.GlobalTableDescription.GlobalTableStatus != nil {
+		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	} else {
+		ko.Status.GlobalTableStatus = nil
+	}
+	if resp.GlobalTableDescription.ReplicationGroup != nil {
+		f4 := []*svcapitypes.Replica{}
+		for _, f4iter := range resp.GlobalTableDescription.ReplicationGroup {
+			f4elem := &svcapitypes.Replica{}
+			if f4iter.RegionName != nil {
+				f4elem.RegionName = f4iter.RegionName
+			}
+			f4 = append(f4, f4elem)
+		}
+		ko.Spec.ReplicationGroup = f4
+	} else {
+		ko.Spec.ReplicationGroup = nil
+	}
+
+	rm.setStatusDefaults(ko)
+	return &resource{ko}, nil
+}
+
+// newUpdateRequestPayload returns an SDK-specific struct for the HTTP request
+// payload of the Update API call for the resource
+func (rm *resourceManager) newUpdateRequestPayload(
+	ctx context.Context,
+	r *resource,
+) (*svcsdk.UpdateGlobalTableInput, error) {
+	res := &svcsdk.UpdateGlobalTableInput{}
+
+	if r.ko.Spec.GlobalTableName != nil {
+		res.SetGlobalTableName(*r.ko.Spec.GlobalTableName)
+	}
+
+	return res, nil
 }
 
 // sdkDelete deletes the supplied resource in the backend AWS service API
@@ -331,7 +401,7 @@ func (rm *resourceManager) updateConditions(
 			errorMessage = err.Error()
 		} else {
 			awsErr, _ := ackerr.AWSError(err)
-			errorMessage = awsErr.Message()
+			errorMessage = awsErr.Error()
 		}
 		terminalCondition.Status = corev1.ConditionTrue
 		terminalCondition.Message = &errorMessage
@@ -354,7 +424,7 @@ func (rm *resourceManager) updateConditions(
 			awsErr, _ := ackerr.AWSError(err)
 			errorMessage := err.Error()
 			if awsErr != nil {
-				errorMessage = awsErr.Message()
+				errorMessage = awsErr.Error()
 			}
 			recoverableCondition.Message = &errorMessage
 		} else if recoverableCondition != nil {
