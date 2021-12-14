@@ -1,0 +1,40 @@
+---
+annotations:
+  capabilityLevel: Basic Install
+  shortDescription: AWS DynamoDB controller is a service controller for managing DynamoDB resources
+    in Kubernetes
+displayName: AWS Controllers for Kubernetes - Amazon DynamoDB
+description: |-
+  Manage Amazon DynamoDB resources in AWS from within your Kubernetes cluster.
+
+
+  **About Amazon DynamoDB**
+
+
+  Amazon DynamoDB is a fully managed NoSQL database service that provides fast and predictable performance with seamless scalability. DynamoDB lets you offload the administrative burdens of operating and scaling a distributed database so that you don''t have to worry about hardware provisioning, setup and configuration, replication, software patching, or cluster scaling. DynamoDB also offers encryption at rest, which eliminates the operational burden and complexity involved in protecting sensitive data. For more information, see [DynamoDB Encryption at Rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html).
+
+
+  **About the AWS Controllers for Kubernetes**
+
+
+  This controller is a component of the [AWS Controller for Kubernetes](https://github.com/aws/aws-controllers-k8s)
+  project. This project is currently in **developer preview**.
+
+
+  **Pre-Installation Steps**
+
+
+  Please follow the following link: [Red Hat OpenShift](https://aws-controllers-k8s.github.io/community/docs/user-docs/openshift/)
+samples:
+- kind: Backup
+  spec: '{}'
+- kind: GlobalTable
+  spec: '{}'
+- kind: Table
+  spec: '{}'
+maintainers:
+- name: "dynamodb maintainer team"
+  email: "ack-maintainers@amazon.com"
+links: 
+- name: Amazon DynamoDB Developer Resources
+  url: https://aws.amazon.com/dynamodb/resources/
