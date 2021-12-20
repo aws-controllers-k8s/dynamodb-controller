@@ -40,19 +40,14 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	customPreCompare(delta, a, b)
 
-	if !reflect.DeepEqual(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
-		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.BillingMode, b.ko.Spec.BillingMode) {
 		delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 	} else if a.ko.Spec.BillingMode != nil && b.ko.Spec.BillingMode != nil {
 		if *a.ko.Spec.BillingMode != *b.ko.Spec.BillingMode {
 			delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 		}
-	}
-	if !reflect.DeepEqual(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
-		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
 	}
 	if !reflect.DeepEqual(a.ko.Spec.KeySchema, b.ko.Spec.KeySchema) {
 		delta.Add("Spec.KeySchema", a.ko.Spec.KeySchema, b.ko.Spec.KeySchema)
@@ -127,9 +122,6 @@ func newResourceDelta(
 		if *a.ko.Spec.TableName != *b.ko.Spec.TableName {
 			delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 		}
-	}
-	if !reflect.DeepEqual(a.ko.Spec.Tags, b.ko.Spec.Tags) {
-		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	}
 
 	return delta
