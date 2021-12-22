@@ -20,6 +20,7 @@ from pathlib import Path
 
 from acktest.k8s import resource as k8s
 from acktest.resources import load_resource_file
+from acktest.aws.identity import get_region
 
 SERVICE_NAME = "dynamodb"
 CRD_GROUP = "dynamodb.services.k8s.aws"
@@ -61,3 +62,20 @@ def wait_for_cr_status(
         )
 
     assert actual_status == desired_status
+
+def get_resource_tags(resource_arn: str):
+    region = get_region()
+    ddb_client = boto3.client('dynamodb', region_name=region)
+    tags = []
+    next_token = ""
+    while True:
+        resp = ddb_client.list_tags_of_resource(
+            ResourceArn=resource_arn,
+            NextToken=next_token,
+        )
+        tags += resp['Tags']
+        if not 'NextToken' in resp.keys():
+            break
+        next_token = resp['NextToken']
+    
+    return tags

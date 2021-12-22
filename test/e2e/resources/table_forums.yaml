@@ -7,9 +7,9 @@ spec:
   attributeDefinitions:
     - attributeName: ForumName
       attributeType: S
-    - attributeName: Subject
-      attributeType: S
     - attributeName: LastPostDateTime
+      attributeType: S
+    - attributeName: Subject
       attributeType: S
   keySchema:
     - attributeName: ForumName

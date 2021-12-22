@@ -40,6 +40,7 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	customPreCompare(delta, a, b)
 
 	if !reflect.DeepEqual(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
 		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
@@ -127,9 +128,6 @@ func newResourceDelta(
 		if *a.ko.Spec.TableName != *b.ko.Spec.TableName {
 			delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 		}
-	}
-	if !reflect.DeepEqual(a.ko.Spec.Tags, b.ko.Spec.Tags) {
-		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	}
 
 	return delta

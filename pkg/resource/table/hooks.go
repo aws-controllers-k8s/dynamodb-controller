@@ -14,11 +14,18 @@
 package table
 
 import (
+	"context"
 	"errors"
 	"time"
 
-	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
+	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
+	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
+	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 var (
@@ -94,4 +101,243 @@ func isTableUpdating(r *resource) bool {
 	}
 	dbis := *r.ko.Status.TableStatus
 	return dbis == string(v1alpha1.TableStatus_SDK_UPDATING)
+}
+
+func (rm *resourceManager) customUpdateTable(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+	delta *ackcompare.Delta,
+) (updated *resource, err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.customUpdateTable")
+	defer exit(err)
+
+	if isTableDeleting(latest) {
+		msg := "table is currently being deleted"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileDeleting
+	}
+	if isTableCreating(latest) {
+		msg := "table is currently being created"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileCreating
+	}
+	if isTableUpdating(latest) {
+		msg := "table is currently being updated"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileUpdating
+	}
+	if tableHasTerminalStatus(latest) {
+		msg := "table is in '" + *latest.ko.Status.TableStatus + "' status"
+		setTerminalCondition(desired, corev1.ConditionTrue, &msg, nil)
+		setSyncedCondition(desired, corev1.ConditionTrue, nil, nil)
+		return desired, nil
+	}
+
+	// Merge in the information we read from the API call above to the copy of
+	// the original Kubernetes object we passed to the function
+	ko := desired.ko.DeepCopy()
+	rm.setStatusDefaults(ko)
+
+	if delta.DifferentAt("Spec.Tags") {
+		if err := rm.syncTableTags(ctx, latest, desired); err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO(hilalymh): support updating all table field
+	return &resource{ko}, nil
+}
+
+// syncTableTags updates a dynamodb table tags.
+//
+// TODO(hilalymh): move this function to a common utility file. This function can be reused
+// to tag GlobalTable resources.
+func (rm *resourceManager) syncTableTags(
+	ctx context.Context,
+	latest *resource,
+	desired *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableTags")
+	defer exit(err)
+
+	added, updated, removed := computeTagsDelta(latest.ko.Spec.Tags, desired.ko.Spec.Tags)
+
+	// There are no API calls to update an existing tag. To update a tag we will have to first
+	// delete it and then recreate it with the new value.
+
+	// Tags to remove
+	for _, updatedTag := range updated {
+		removed = append(removed, updatedTag.Key)
+	}
+	// Tags to create
+	added = append(added, updated...)
+
+	if len(removed) > 0 {
+		_, err = rm.sdkapi.UntagResourceWithContext(
+			ctx,
+			&svcsdk.UntagResourceInput{
+				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
+				TagKeys:     removed,
+			},
+		)
+		rm.metrics.RecordAPICall("GET", "UntagResource", err)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(added) > 0 {
+		_, err = rm.sdkapi.TagResourceWithContext(
+			ctx,
+			&svcsdk.TagResourceInput{
+				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
+				Tags:        sdkTagsFromResourceTags(added),
+			},
+		)
+		rm.metrics.RecordAPICall("GET", "UntagResource", err)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// equalTags returns true if two Tag arrays are equal regardless of the order
+// of their elements.
+func equalTags(
+	a []*v1alpha1.Tag,
+	b []*v1alpha1.Tag,
+) bool {
+	added, updated, removed := computeTagsDelta(a, b)
+	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
+}
+
+// resourceTagsFromSDKTags transforms a *svcsdk.Tag array to a *v1alpha1.Tag array.
+func resourceTagsFromSDKTags(svcTags []*svcsdk.Tag) []*v1alpha1.Tag {
+	tags := make([]*v1alpha1.Tag, len(svcTags))
+	for i := range svcTags {
+		tags[i] = &v1alpha1.Tag{
+			Key:   svcTags[i].Key,
+			Value: svcTags[i].Value,
+		}
+	}
+	return tags
+}
+
+// svcTagsFromResourceTags transforms a *v1alpha1.Tag array to a *svcsdk.Tag array.
+func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []*svcsdk.Tag {
+	tags := make([]*svcsdk.Tag, len(rTags))
+	for i := range rTags {
+		tags[i] = &svcsdk.Tag{
+			Key:   rTags[i].Key,
+			Value: rTags[i].Value,
+		}
+	}
+	return tags
+}
+
+// computeTagsDelta compares two Tag arrays and return three different list
+// containing the added, updated and removed tags.
+// The removed tags only contains the Key of tags
+func computeTagsDelta(
+	a []*v1alpha1.Tag,
+	b []*v1alpha1.Tag,
+) (added, updated []*v1alpha1.Tag, removed []*string) {
+	var visitedIndexes []string
+mainLoop:
+	for _, aElement := range a {
+		visitedIndexes = append(visitedIndexes, *aElement.Key)
+		for _, bElement := range b {
+			if equalStrings(aElement.Key, bElement.Key) {
+				if !equalStrings(aElement.Value, bElement.Value) {
+					updated = append(updated, bElement)
+				}
+				continue mainLoop
+			}
+		}
+		removed = append(removed, aElement.Key)
+	}
+	for _, bElement := range b {
+		if !ackutil.InStrings(*bElement.Key, visitedIndexes) {
+			added = append(added, bElement)
+		}
+	}
+	return added, updated, removed
+}
+
+func equalStrings(a, b *string) bool {
+	if a == nil {
+		return b == nil || *b == ""
+	}
+	return (*a == "" && b == nil) || *a == *b
+}
+
+// setResourceAdditionalFields will describe the fields that are not return by
+// DescribeTable calls
+func (rm *resourceManager) setResourceAdditionalFields(
+	ctx context.Context,
+	ko *v1alpha1.Table,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.setResourceAdditionalFields")
+	defer exit(err)
+
+	ko.Spec.Tags, err = rm.getResourceTagsPagesWithContext(ctx, string(*ko.Status.ACKResourceMetadata.ARN))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getResourceTagsPagesWithContext queries the list of tags of a given resource.
+func (rm *resourceManager) getResourceTagsPagesWithContext(ctx context.Context, resourceARN string) ([]*v1alpha1.Tag, error) {
+	var err error
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.getResourceTagsPagesWithContext")
+	defer exit(err)
+
+	tags := []*v1alpha1.Tag{}
+
+	var token *string = nil
+	for {
+		var listTagsOfResourceOutput *svcsdk.ListTagsOfResourceOutput
+		listTagsOfResourceOutput, err = rm.sdkapi.ListTagsOfResourceWithContext(
+			ctx,
+			&svcsdk.ListTagsOfResourceInput{
+				NextToken:   token,
+				ResourceArn: &resourceARN,
+			},
+		)
+		rm.metrics.RecordAPICall("GET", "ListTagsOfResource", err)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, resourceTagsFromSDKTags(listTagsOfResourceOutput.Tags)...)
+		if listTagsOfResourceOutput.NextToken == nil {
+			break
+		}
+		token = listTagsOfResourceOutput.NextToken
+	}
+	return tags, nil
+}
+
+func customPreCompare(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	// TODO(hilalymh): customDeltaFunctions for AttributeDefintions
+	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
+
+	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
+		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+	} else if a.ko.Spec.Tags != nil && b.ko.Spec.Tags != nil {
+		if !equalTags(a.ko.Spec.Tags, b.ko.Spec.Tags) {
+			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+		}
+	}
 }
