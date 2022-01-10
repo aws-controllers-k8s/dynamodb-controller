@@ -4,7 +4,7 @@
 
 image:
   repository: public.ecr.aws/aws-controllers-k8s/dynamodb-controller
-  tag: v0.0.7
+  tag: v0.0.8
   pullPolicy: IfNotPresent
   pullSecrets: []
 
@@ -27,7 +27,7 @@ deployment:
   affinity: {}
   # Which priorityClassName to set?
   # See: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#pod-priority
-  priorityClassName:
+  priorityClassName: ""
   
 metrics:
   service:
