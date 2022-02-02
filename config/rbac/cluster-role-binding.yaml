@@ -8,5 +8,5 @@ roleRef:
   name: ack-dynamodb-controller
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: ack-dynamodb-controller
   namespace: ack-system
