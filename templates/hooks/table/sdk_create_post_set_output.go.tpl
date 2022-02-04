@@ -1,22 +1,22 @@
 	// Set billing mode in Spec
-	if resp.Table.BillingModeSummary != nil && resp.Table.BillingModeSummary.BillingMode != nil {
-		ko.Spec.BillingMode = resp.Table.BillingModeSummary.BillingMode
+	if resp.TableDescription.BillingModeSummary != nil && resp.TableDescription.BillingModeSummary.BillingMode != nil {
+		ko.Spec.BillingMode = resp.TableDescription.BillingModeSummary.BillingMode
 	} else {
 		// Default billingMode value is `PROVISIONED`
 		ko.Spec.BillingMode = aws.String(svcsdk.BillingModeProvisioned)
 	}
 	// Set SSESpecification
-	if resp.Table.SSEDescription != nil {
+	if resp.TableDescription.SSEDescription != nil {
 		sseSpecification := &svcapitypes.SSESpecification{}
-		if resp.Table.SSEDescription.Status != nil {
-			switch *resp.Table.SSEDescription.Status {
+		if resp.TableDescription.SSEDescription.Status != nil {
+			switch *resp.TableDescription.SSEDescription.Status {
 			case string(svcapitypes.SSEStatus_ENABLED),
 				string(svcapitypes.SSEStatus_ENABLING),
 				string(svcapitypes.SSEStatus_UPDATING):
 
 				sseSpecification.Enabled = aws.Bool(true)
-				if resp.Table.SSEDescription.SSEType != nil {
-					sseSpecification.SSEType = resp.Table.SSEDescription.SSEType
+				if resp.TableDescription.SSEDescription.SSEType != nil {
+					sseSpecification.SSEType = resp.TableDescription.SSEDescription.SSEType
 				}
 			case string(svcapitypes.SSEStatus_DISABLED),
 				string(svcapitypes.SSEStatus_DISABLING):
@@ -28,13 +28,4 @@
 		ko.Spec.SSESpecification = &svcapitypes.SSESpecification{
 			Enabled: aws.Bool(false),
 		}
-	}
-	if isTableCreating(&resource{ko}) {
-		return &resource{ko}, requeueWaitWhileCreating
-	}
-	if isTableUpdating(&resource{ko}) {
-		return &resource{ko}, requeueWaitWhileUpdating
-	}
-	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
-		return nil, err
 	}

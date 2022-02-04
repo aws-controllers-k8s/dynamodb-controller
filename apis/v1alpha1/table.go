@@ -168,9 +168,6 @@ type TableStatus struct {
 	// Contains information about the table archive.
 	// +kubebuilder:validation:Optional
 	ArchivalSummary *ArchivalSummary `json:"archivalSummary,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	// +kubebuilder:validation:Optional
-	BillingModeSummary *BillingModeSummary `json:"billingModeSummary,omitempty"`
 	// The date and time when the table was created, in UNIX epoch time (http://www.epochconverter.com/)
 	// format.
 	// +kubebuilder:validation:Optional

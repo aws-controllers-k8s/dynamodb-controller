@@ -22,6 +22,7 @@ import (
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
+	"github.com/aws/aws-sdk-go/aws"
 	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
 	corev1 "k8s.io/api/core/v1"
 
@@ -142,6 +143,24 @@ func (rm *resourceManager) customUpdateTable(
 
 	if delta.DifferentAt("Spec.Tags") {
 		if err := rm.syncTableTags(ctx, latest, desired); err != nil {
+			return nil, err
+		}
+	}
+
+	// We only want to call one those updates at once. Priority to the fastest
+	// operations.
+	switch {
+	case delta.DifferentAt("Spec.StreamSpecification"):
+		if err := rm.syncTable(ctx, desired, delta); err != nil {
+			return nil, err
+		}
+	case delta.DifferentAt("Spec.ProvisionedThroughput"):
+		if err := rm.syncTableProvisionedThroughput(ctx, desired); err != nil {
+			return nil, err
+		}
+
+	case delta.DifferentAt("Spec.GlobalSecondaryIndexes"):
+		if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
 			return nil, err
 		}
 	}
@@ -275,6 +294,115 @@ func equalStrings(a, b *string) bool {
 	return (*a == "" && b == nil) || *a == *b
 }
 
+func (rm *resourceManager) syncTableProvisionedThroughput(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableProvisionedThroughput")
+	defer exit(err)
+
+	input := &svcsdk.UpdateTableInput{
+		TableName:             aws.String(*r.ko.Spec.TableName),
+		ProvisionedThroughput: &svcsdk.ProvisionedThroughput{},
+	}
+	if r.ko.Spec.ProvisionedThroughput != nil {
+		if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
+			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+		} else {
+			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
+		}
+
+		if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
+			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+		} else {
+			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+		}
+	} else {
+		input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
+		input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+	}
+
+	_, err = rm.sdkapi.UpdateTable(input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+// syncTable .
+func (rm *resourceManager) syncTable(
+	ctx context.Context,
+	r *resource,
+	delta *ackcompare.Delta,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTable")
+	defer exit(err)
+
+	input, err := rm.newUpdateTablePayload(ctx, r, delta)
+	if err != nil {
+		return err
+	}
+
+	_, err = rm.sdkapi.UpdateTable(input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// newUpdateTablePayload
+func (rm *resourceManager) newUpdateTablePayload(
+	ctx context.Context,
+	r *resource,
+	delta *ackcompare.Delta,
+) (*svcsdk.UpdateTableInput, error) {
+	input := &svcsdk.UpdateTableInput{
+		TableName: aws.String(*r.ko.Spec.TableName),
+	}
+	switch {
+	case delta.DifferentAt("Spec.BillingMode"):
+		if r.ko.Spec.BillingMode != nil {
+			input.BillingMode = aws.String(*r.ko.Spec.BillingMode)
+		} else {
+			// set biling mode to the default value `PROVISIONED`
+			input.BillingMode = aws.String(svcsdk.BillingModeProvisioned)
+		}
+
+		debugAll(input)
+	case delta.DifferentAt("Spec.StreamSpecification"):
+		if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
+			input.StreamSpecification = &svcsdk.StreamSpecification{
+				StreamEnabled: aws.Bool(*r.ko.Spec.StreamSpecification.StreamEnabled),
+			}
+			// Only set streamViewType when streamSpefication is enabled and streamViewType is non-nil.
+			if *r.ko.Spec.StreamSpecification.StreamEnabled && r.ko.Spec.StreamSpecification.StreamViewType != nil {
+				input.StreamSpecification.StreamViewType = aws.String(*r.ko.Spec.StreamSpecification.StreamViewType)
+			}
+		} else {
+			input.StreamSpecification = &svcsdk.StreamSpecification{
+				StreamEnabled: aws.Bool(false),
+			}
+		}
+	case delta.DifferentAt("Spec.SEESpecification"):
+		if r.ko.Spec.SSESpecification.Enabled != nil {
+			input.SSESpecification = &svcsdk.SSESpecification{
+				Enabled:        aws.Bool(*r.ko.Spec.SSESpecification.Enabled),
+				SSEType:        aws.String(*r.ko.Spec.SSESpecification.SSEType),
+				KMSMasterKeyId: aws.String(*r.ko.Spec.SSESpecification.KMSMasterKeyID),
+			}
+		} else {
+			input.SSESpecification = &svcsdk.SSESpecification{
+				Enabled: aws.Bool(false),
+			}
+		}
+	}
+	return input, nil
+}
+
 // setResourceAdditionalFields will describe the fields that are not return by
 // DescribeTable calls
 func (rm *resourceManager) setResourceAdditionalFields(
@@ -333,6 +461,24 @@ func customPreCompare(
 	// TODO(hilalymh): customDeltaFunctions for AttributeDefintions
 	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
 
+	if ackcompare.HasNilDifference(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) ||
+		len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
+		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
+		if !equalAttributeDefinitionsArray(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
+			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+		}
+	}
+
+	if ackcompare.HasNilDifference(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) ||
+		len(a.ko.Spec.GlobalSecondaryIndexes) != len(b.ko.Spec.GlobalSecondaryIndexes) {
+		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+	} else if a.ko.Spec.GlobalSecondaryIndexes != nil && b.ko.Spec.GlobalSecondaryIndexes != nil {
+		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+			delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+		}
+	}
+
 	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
 		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	} else if a.ko.Spec.Tags != nil && b.ko.Spec.Tags != nil {
@@ -340,4 +486,46 @@ func customPreCompare(
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 		}
 	}
+}
+
+func equalAttributeDefinitionsArray(
+	a []*v1alpha1.AttributeDefinition,
+	b []*v1alpha1.AttributeDefinition,
+) bool {
+	for _, aElement := range a {
+		found := false
+		for _, bElement := range b {
+			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				found = true
+				if !equalStrings(aElement.AttributeType, bElement.AttributeType) {
+					return false
+				}
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func equalKeySchemas(
+	a []*v1alpha1.KeySchemaElement,
+	b []*v1alpha1.KeySchemaElement,
+) bool {
+	for _, aElement := range a {
+		found := false
+		for _, bElement := range b {
+			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				found = true
+				if !equalStrings(aElement.KeyType, bElement.KeyType) {
+					return false
+				}
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

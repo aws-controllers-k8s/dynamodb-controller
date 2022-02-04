@@ -1846,11 +1846,6 @@ func (in *ReplicaSettingsDescription) DeepCopyInto(out *ReplicaSettingsDescripti
 		*out = new(string)
 		**out = **in
 	}
-	if in.ReplicaBillingModeSummary != nil {
-		in, out := &in.ReplicaBillingModeSummary, &out.ReplicaBillingModeSummary
-		*out = new(BillingModeSummary)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.ReplicaProvisionedReadCapacityUnits != nil {
 		in, out := &in.ReplicaProvisionedReadCapacityUnits, &out.ReplicaProvisionedReadCapacityUnits
 		*out = new(int64)
@@ -2269,11 +2264,6 @@ func (in *TableDescription) DeepCopyInto(out *TableDescription) {
 			}
 		}
 	}
-	if in.BillingModeSummary != nil {
-		in, out := &in.BillingModeSummary, &out.BillingModeSummary
-		*out = new(BillingModeSummary)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.CreationDateTime != nil {
 		in, out := &in.CreationDateTime, &out.CreationDateTime
 		*out = (*in).DeepCopy()
@@ -2548,11 +2538,6 @@ func (in *TableStatus) DeepCopyInto(out *TableStatus) {
 	if in.ArchivalSummary != nil {
 		in, out := &in.ArchivalSummary, &out.ArchivalSummary
 		*out = new(ArchivalSummary)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.BillingModeSummary != nil {
-		in, out := &in.BillingModeSummary, &out.BillingModeSummary
-		*out = new(BillingModeSummary)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.CreationDateTime != nil {

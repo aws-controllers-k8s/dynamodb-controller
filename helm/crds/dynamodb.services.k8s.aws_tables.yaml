@@ -356,15 +356,6 @@ spec:
                   archivalReason:
                     type: string
                 type: object
-              billingModeSummary:
-                description: Contains the details for the read/write capacity mode.
-                properties:
-                  billingMode:
-                    type: string
-                  lastUpdateToPayPerRequestDateTime:
-                    format: date-time
-                    type: string
-                type: object
               conditions:
                 description: All CRS managed by ACK have a common `Status.Conditions`
                   member that contains a collection of `ackv1alpha1.Condition` objects

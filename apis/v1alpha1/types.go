@@ -478,12 +478,10 @@ type ReplicaGlobalSecondaryIndexSettingsUpdate struct {
 
 // Represents the properties of a replica.
 type ReplicaSettingsDescription struct {
-	RegionName *string `json:"regionName,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	ReplicaBillingModeSummary            *BillingModeSummary `json:"replicaBillingModeSummary,omitempty"`
-	ReplicaProvisionedReadCapacityUnits  *int64              `json:"replicaProvisionedReadCapacityUnits,omitempty"`
-	ReplicaProvisionedWriteCapacityUnits *int64              `json:"replicaProvisionedWriteCapacityUnits,omitempty"`
-	ReplicaStatus                        *string             `json:"replicaStatus,omitempty"`
+	RegionName                           *string `json:"regionName,omitempty"`
+	ReplicaProvisionedReadCapacityUnits  *int64  `json:"replicaProvisionedReadCapacityUnits,omitempty"`
+	ReplicaProvisionedWriteCapacityUnits *int64  `json:"replicaProvisionedWriteCapacityUnits,omitempty"`
+	ReplicaStatus                        *string `json:"replicaStatus,omitempty"`
 }
 
 // Represents the settings for a global table in a Region that will be modified.
@@ -597,10 +595,8 @@ type TableAutoScalingDescription struct {
 // Represents the properties of a table.
 type TableDescription struct {
 	// Contains details of a table archival operation.
-	ArchivalSummary      *ArchivalSummary       `json:"archivalSummary,omitempty"`
-	AttributeDefinitions []*AttributeDefinition `json:"attributeDefinitions,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	BillingModeSummary     *BillingModeSummary                `json:"billingModeSummary,omitempty"`
+	ArchivalSummary        *ArchivalSummary                   `json:"archivalSummary,omitempty"`
+	AttributeDefinitions   []*AttributeDefinition             `json:"attributeDefinitions,omitempty"`
 	CreationDateTime       *metav1.Time                       `json:"creationDateTime,omitempty"`
 	GlobalSecondaryIndexes []*GlobalSecondaryIndexDescription `json:"globalSecondaryIndexes,omitempty"`
 	GlobalTableVersion     *string                            `json:"globalTableVersion,omitempty"`
