@@ -36,6 +36,8 @@ resources:
     hooks:
       sdk_delete_post_build_request:
         code: customSetDeleteInput(r, input)
+    tags:
+      ignore: true
   Backup:
     exceptions:
       errors:
@@ -44,3 +46,5 @@ resources:
     hooks:
       sdk_read_one_post_set_output:
         template_path: hooks/backup/sdk_read_one_post_set_output.go.tpl
+    tags:
+      ignore: true
