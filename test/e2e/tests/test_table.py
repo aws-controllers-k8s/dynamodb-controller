@@ -28,6 +28,7 @@ from e2e import (
     get_resource_tags,
 )
 from e2e.replacement_values import REPLACEMENT_VALUES
+from e2e import tag
 
 RESOURCE_PLURAL = "tables"
 
@@ -153,7 +154,7 @@ class TestTable:
         k8s.patch_custom_resource(ref, cr)
         time.sleep(UPDATE_TAGS_WAIT_AFTER_SECONDS)
 
-        table_tags = get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"])
+        table_tags = tag.clean(get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"]))
         assert len(table_tags) == len(tags)
         assert table_tags[0]['Key'] == tags[0]['key']
         assert table_tags[0]['Value'] == tags[0]['value']
