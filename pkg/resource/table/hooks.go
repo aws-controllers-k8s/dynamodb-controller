@@ -147,9 +147,8 @@ func (rm *resourceManager) customUpdateTable(
 	if delta.DifferentAt("Spec.TimeToLive") {
 		if err := rm.syncTTL(ctx, latest, desired); err != nil {
 			// Ignore "already disabled errors"
-			if awsErr, ok := ackerr.AWSError(err); ok &&
-				awsErr.Code() == "ValidationException" &&
-				!strings.HasPrefix(awsErr.Message(), "TimeToLive is already disabled") {
+			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.Code() == "ValidationException" &&
+				strings.HasPrefix(awsErr.Message(), "TimeToLive is already disabled")) {
 				return nil, err
 			}
 		}
@@ -175,17 +174,14 @@ func (rm *resourceManager) syncTTL(
 	defer func(err error) { exit(err) }(err)
 
 	spec := &svcsdk.TimeToLiveSpecification{}
-	// All values must be provided otherwise the API returns an error
-	if desired.ko.Spec.TimeToLive != nil &&
-		desired.ko.Spec.TimeToLive.AttributeName != nil &&
-		desired.ko.Spec.TimeToLive.Enabled != nil {
+	if desired.ko.Spec.TimeToLive != nil {
 		spec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
 		spec.Enabled = desired.ko.Spec.TimeToLive.Enabled
 	} else {
 		// In order to disable the TTL, we can't simply call the
 		// `UpdateTimeToLive` method with an empty specification. Instead, we
 		// must explicitly set the enabled to false and provide the attribute
-		// name of the current TTL.
+		// name of the existing TTL.
 		currentAttrName := ""
 		if latest.ko.Spec.TimeToLive.AttributeName != nil {
 			currentAttrName = *latest.ko.Spec.TimeToLive.AttributeName
