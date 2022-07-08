@@ -651,6 +651,7 @@ type TimeToLiveDescription struct {
 // the specified table.
 type TimeToLiveSpecification struct {
 	AttributeName *string `json:"attributeName,omitempty"`
+	Enabled       *bool   `json:"enabled,omitempty"`
 }
 
 // Represents a request to perform an UpdateItem operation.

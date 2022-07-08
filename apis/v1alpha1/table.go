@@ -150,6 +150,9 @@ type TableSpec struct {
 	// A list of key-value pairs to label the table. For more information, see Tagging
 	// for DynamoDB (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Tagging.html).
 	Tags []*Tag `json:"tags,omitempty"`
+	// Represents the settings used to enable or disable Time to Live for the specified
+	// table.
+	TimeToLive *TimeToLiveSpecification `json:"timeToLive,omitempty"`
 }
 
 // TableStatus defines the observed state of Table

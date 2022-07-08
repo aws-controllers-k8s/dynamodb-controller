@@ -129,6 +129,24 @@ func newResourceDelta(
 			delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 		}
 	}
+	if ackcompare.HasNilDifference(a.ko.Spec.TimeToLive, b.ko.Spec.TimeToLive) {
+		delta.Add("Spec.TimeToLive", a.ko.Spec.TimeToLive, b.ko.Spec.TimeToLive)
+	} else if a.ko.Spec.TimeToLive != nil && b.ko.Spec.TimeToLive != nil {
+		if ackcompare.HasNilDifference(a.ko.Spec.TimeToLive.AttributeName, b.ko.Spec.TimeToLive.AttributeName) {
+			delta.Add("Spec.TimeToLive.AttributeName", a.ko.Spec.TimeToLive.AttributeName, b.ko.Spec.TimeToLive.AttributeName)
+		} else if a.ko.Spec.TimeToLive.AttributeName != nil && b.ko.Spec.TimeToLive.AttributeName != nil {
+			if *a.ko.Spec.TimeToLive.AttributeName != *b.ko.Spec.TimeToLive.AttributeName {
+				delta.Add("Spec.TimeToLive.AttributeName", a.ko.Spec.TimeToLive.AttributeName, b.ko.Spec.TimeToLive.AttributeName)
+			}
+		}
+		if ackcompare.HasNilDifference(a.ko.Spec.TimeToLive.Enabled, b.ko.Spec.TimeToLive.Enabled) {
+			delta.Add("Spec.TimeToLive.Enabled", a.ko.Spec.TimeToLive.Enabled, b.ko.Spec.TimeToLive.Enabled)
+		} else if a.ko.Spec.TimeToLive.Enabled != nil && b.ko.Spec.TimeToLive.Enabled != nil {
+			if *a.ko.Spec.TimeToLive.Enabled != *b.ko.Spec.TimeToLive.Enabled {
+				delta.Add("Spec.TimeToLive.Enabled", a.ko.Spec.TimeToLive.Enabled, b.ko.Spec.TimeToLive.Enabled)
+			}
+		}
+	}
 
 	return delta
 }

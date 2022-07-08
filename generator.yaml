@@ -8,6 +8,10 @@ operations:
 resources:
   Table:
     fields:
+      TimeToLive:
+        from:
+          operation: UpdateTimeToLive
+          path: TimeToLiveSpecification
       Tags:
         compare:
           is_ignored: true
@@ -24,6 +28,8 @@ resources:
     hooks:
       delta_pre_compare:
         code: customPreCompare(delta, a, b)
+      sdk_create_post_set_output:
+        template_path: hooks/table/sdk_create_post_set_output.go.tpl
       sdk_read_one_post_set_output:
         template_path: hooks/table/sdk_read_one_post_set_output.go.tpl
       sdk_delete_pre_build_request:
