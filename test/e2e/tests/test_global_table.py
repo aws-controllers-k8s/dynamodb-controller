@@ -38,10 +38,6 @@ CREATE_WAIT_AFTER_SECONDS = 10
 DELETE_WAIT_AFTER_SECONDS = 30
 
 @pytest.fixture(scope="module")
-def dynamodb_client():
-    return boto3.client("dynamodb")
-
-@pytest.fixture(scope="module")
 def dynamodb_table():
     resource_name = random_suffix_name("table", 32)
 

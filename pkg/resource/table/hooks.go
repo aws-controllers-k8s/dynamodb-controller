@@ -424,4 +424,10 @@ func customPreCompare(
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 		}
 	}
+
+	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
+		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
+			Enabled: &DefaultTTLEnabledValue,
+		}
+	}
 }
