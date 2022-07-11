@@ -145,7 +145,7 @@ func (rm *resourceManager) customUpdateTable(
 	rm.setStatusDefaults(ko)
 
 	if delta.DifferentAt("Spec.TimeToLive") {
-		if err := rm.syncTTL(ctx, latest, desired); err != nil {
+		if err := rm.syncTTL(ctx, desired, latest); err != nil {
 			// Ignore "already disabled errors"
 			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.Code() == "ValidationException" &&
 				strings.HasPrefix(awsErr.Message(), "TimeToLive is already disabled")) {
@@ -154,7 +154,7 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 	if delta.DifferentAt("Spec.Tags") {
-		if err := rm.syncTableTags(ctx, latest, desired); err != nil {
+		if err := rm.syncTableTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
 	}
@@ -166,36 +166,37 @@ func (rm *resourceManager) customUpdateTable(
 // syncTTL updates a dynamodb table's TimeToLive property.
 func (rm *resourceManager) syncTTL(
 	ctx context.Context,
-	latest *resource,
 	desired *resource,
+	latest *resource,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTTL")
 	defer func(err error) { exit(err) }(err)
 
-	spec := &svcsdk.TimeToLiveSpecification{}
+	ttlSpec := &svcsdk.TimeToLiveSpecification{}
 	if desired.ko.Spec.TimeToLive != nil {
-		spec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
-		spec.Enabled = desired.ko.Spec.TimeToLive.Enabled
+		ttlSpec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
+		ttlSpec.Enabled = desired.ko.Spec.TimeToLive.Enabled
 	} else {
 		// In order to disable the TTL, we can't simply call the
 		// `UpdateTimeToLive` method with an empty specification. Instead, we
 		// must explicitly set the enabled to false and provide the attribute
 		// name of the existing TTL.
 		currentAttrName := ""
-		if latest.ko.Spec.TimeToLive.AttributeName != nil {
+		if latest.ko.Spec.TimeToLive != nil &&
+			latest.ko.Spec.TimeToLive.AttributeName != nil {
 			currentAttrName = *latest.ko.Spec.TimeToLive.AttributeName
 		}
 
-		spec.SetAttributeName(currentAttrName)
-		spec.SetEnabled(false)
+		ttlSpec.SetAttributeName(currentAttrName)
+		ttlSpec.SetEnabled(false)
 	}
 
 	_, err = rm.sdkapi.UpdateTimeToLiveWithContext(
 		ctx,
 		&svcsdk.UpdateTimeToLiveInput{
 			TableName:               desired.ko.Spec.TableName,
-			TimeToLiveSpecification: spec,
+			TimeToLiveSpecification: ttlSpec,
 		},
 	)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTimeToLive", err)
@@ -208,8 +209,8 @@ func (rm *resourceManager) syncTTL(
 // to tag GlobalTable resources.
 func (rm *resourceManager) syncTableTags(
 	ctx context.Context,
-	latest *resource,
 	desired *resource,
+	latest *resource,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTableTags")
@@ -337,13 +338,16 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	exit := rlog.Trace("rm.setResourceAdditionalFields")
 	defer func(err error) { exit(err) }(err)
 
-	ko.Spec.Tags, err = rm.getResourceTagsPagesWithContext(ctx, string(*ko.Status.ACKResourceMetadata.ARN))
-	if err != nil {
+	if tags, err := rm.getResourceTagsPagesWithContext(ctx, string(*ko.Status.ACKResourceMetadata.ARN)); err != nil {
 		return err
+	} else {
+		ko.Spec.Tags = tags
 	}
-	ko.Spec.TimeToLive, err = rm.getResourceTTLWithContext(ctx, ko.Spec.TableName)
-	if err != nil {
+
+	if ttlSpec, err := rm.getResourceTTLWithContext(ctx, ko.Spec.TableName); err != nil {
 		return err
+	} else {
+		ko.Spec.TimeToLive = ttlSpec
 	}
 
 	return nil

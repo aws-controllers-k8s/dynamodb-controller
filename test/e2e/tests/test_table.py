@@ -96,8 +96,7 @@ class TestTable:
         table_name = res["spec"]["tableName"]
 
         # Check DynamoDB Table exists
-        exists = self.table_exists(dynamodb_client, table_name)
-        assert exists
+        assert self.table_exists(dynamodb_client, table_name)
 
         # Delete k8s resource
         _, deleted = k8s.delete_custom_resource(ref, period_length=DELETE_WAIT_AFTER_SECONDS)
@@ -106,8 +105,7 @@ class TestTable:
         time.sleep(DELETE_WAIT_AFTER_SECONDS)
 
         # Check DynamoDB Table doesn't exists
-        exists = self.table_exists(dynamodb_client, table_name)
-        assert not exists
+        assert not self.table_exists(dynamodb_client, table_name)
 
     def test_table_update_tags(self, dynamodb_client, forum_table):
         (ref, res) = forum_table
@@ -115,8 +113,7 @@ class TestTable:
         table_name = res["spec"]["tableName"]
 
         # Check DynamoDB Table exists
-        exists = self.table_exists(dynamodb_client, table_name)
-        assert exists
+        assert self.table_exists(dynamodb_client, table_name)
 
         # Get CR latest revision
         cr = k8s.wait_resource_consumed_by_controller(ref)
@@ -145,8 +142,7 @@ class TestTable:
         table_name = res["spec"]["tableName"]
 
         # Check DynamoDB Table exists
-        exists = self.table_exists(dynamodb_client, table_name)
-        assert exists
+        assert self.table_exists(dynamodb_client, table_name)
 
         # Get CR latest revision
         cr = k8s.wait_resource_consumed_by_controller(ref)
