@@ -98,15 +98,6 @@ class TestTable:
         # Check DynamoDB Table exists
         assert self.table_exists(dynamodb_client, table_name)
 
-        # Delete k8s resource
-        _, deleted = k8s.delete_custom_resource(ref, period_length=DELETE_WAIT_AFTER_SECONDS)
-        assert deleted is True
-
-        time.sleep(DELETE_WAIT_AFTER_SECONDS)
-
-        # Check DynamoDB Table doesn't exists
-        assert not self.table_exists(dynamodb_client, table_name)
-
     def test_table_update_tags(self, dynamodb_client, forum_table):
         (ref, res) = forum_table
 
