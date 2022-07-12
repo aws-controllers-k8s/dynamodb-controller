@@ -16,9 +16,11 @@ package table
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
@@ -42,6 +44,8 @@ var (
 		v1alpha1.TableStatus_SDK_DELETING,
 	}
 )
+
+var DefaultTTLEnabledValue = false
 
 var (
 	requeueWaitWhileDeleting = ackrequeue.NeededAfter(
@@ -111,7 +115,7 @@ func (rm *resourceManager) customUpdateTable(
 ) (updated *resource, err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.customUpdateTable")
-	defer exit(err)
+	defer func(err error) { exit(err) }(err)
 
 	if isTableDeleting(latest) {
 		msg := "table is currently being deleted"
@@ -140,8 +144,17 @@ func (rm *resourceManager) customUpdateTable(
 	ko := desired.ko.DeepCopy()
 	rm.setStatusDefaults(ko)
 
+	if delta.DifferentAt("Spec.TimeToLive") {
+		if err := rm.syncTTL(ctx, desired, latest); err != nil {
+			// Ignore "already disabled errors"
+			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.Code() == "ValidationException" &&
+				strings.HasPrefix(awsErr.Message(), "TimeToLive is already disabled")) {
+				return nil, err
+			}
+		}
+	}
 	if delta.DifferentAt("Spec.Tags") {
-		if err := rm.syncTableTags(ctx, latest, desired); err != nil {
+		if err := rm.syncTableTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
 	}
@@ -150,18 +163,58 @@ func (rm *resourceManager) customUpdateTable(
 	return &resource{ko}, nil
 }
 
+// syncTTL updates a dynamodb table's TimeToLive property.
+func (rm *resourceManager) syncTTL(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTTL")
+	defer func(err error) { exit(err) }(err)
+
+	ttlSpec := &svcsdk.TimeToLiveSpecification{}
+	if desired.ko.Spec.TimeToLive != nil {
+		ttlSpec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
+		ttlSpec.Enabled = desired.ko.Spec.TimeToLive.Enabled
+	} else {
+		// In order to disable the TTL, we can't simply call the
+		// `UpdateTimeToLive` method with an empty specification. Instead, we
+		// must explicitly set the enabled to false and provide the attribute
+		// name of the existing TTL.
+		currentAttrName := ""
+		if latest.ko.Spec.TimeToLive != nil &&
+			latest.ko.Spec.TimeToLive.AttributeName != nil {
+			currentAttrName = *latest.ko.Spec.TimeToLive.AttributeName
+		}
+
+		ttlSpec.SetAttributeName(currentAttrName)
+		ttlSpec.SetEnabled(false)
+	}
+
+	_, err = rm.sdkapi.UpdateTimeToLiveWithContext(
+		ctx,
+		&svcsdk.UpdateTimeToLiveInput{
+			TableName:               desired.ko.Spec.TableName,
+			TimeToLiveSpecification: ttlSpec,
+		},
+	)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTimeToLive", err)
+	return err
+}
+
 // syncTableTags updates a dynamodb table tags.
 //
 // TODO(hilalymh): move this function to a common utility file. This function can be reused
 // to tag GlobalTable resources.
 func (rm *resourceManager) syncTableTags(
 	ctx context.Context,
-	latest *resource,
 	desired *resource,
+	latest *resource,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTableTags")
-	defer exit(err)
+	defer func(err error) { exit(err) }(err)
 
 	added, updated, removed := computeTagsDelta(latest.ko.Spec.Tags, desired.ko.Spec.Tags)
 
@@ -183,7 +236,7 @@ func (rm *resourceManager) syncTableTags(
 				TagKeys:     removed,
 			},
 		)
-		rm.metrics.RecordAPICall("GET", "UntagResource", err)
+		rm.metrics.RecordAPICall("UPDATE", "UntagResource", err)
 		if err != nil {
 			return err
 		}
@@ -197,7 +250,7 @@ func (rm *resourceManager) syncTableTags(
 				Tags:        sdkTagsFromResourceTags(added),
 			},
 		)
-		rm.metrics.RecordAPICall("GET", "UntagResource", err)
+		rm.metrics.RecordAPICall("UPDATE", "TagResource", err)
 		if err != nil {
 			return err
 		}
@@ -283,11 +336,18 @@ func (rm *resourceManager) setResourceAdditionalFields(
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.setResourceAdditionalFields")
-	defer exit(err)
+	defer func(err error) { exit(err) }(err)
 
-	ko.Spec.Tags, err = rm.getResourceTagsPagesWithContext(ctx, string(*ko.Status.ACKResourceMetadata.ARN))
-	if err != nil {
+	if tags, err := rm.getResourceTagsPagesWithContext(ctx, string(*ko.Status.ACKResourceMetadata.ARN)); err != nil {
 		return err
+	} else {
+		ko.Spec.Tags = tags
+	}
+
+	if ttlSpec, err := rm.getResourceTTLWithContext(ctx, ko.Spec.TableName); err != nil {
+		return err
+	} else {
+		ko.Spec.TimeToLive = ttlSpec
 	}
 
 	return nil
@@ -298,7 +358,7 @@ func (rm *resourceManager) getResourceTagsPagesWithContext(ctx context.Context, 
 	var err error
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.getResourceTagsPagesWithContext")
-	defer exit(err)
+	defer func(err error) { exit(err) }(err)
 
 	tags := []*v1alpha1.Tag{}
 
@@ -325,6 +385,34 @@ func (rm *resourceManager) getResourceTagsPagesWithContext(ctx context.Context, 
 	return tags, nil
 }
 
+// getResourceTTLWithContext queries the table TTL of a given resource.
+func (rm *resourceManager) getResourceTTLWithContext(ctx context.Context, tableName *string) (*v1alpha1.TimeToLiveSpecification, error) {
+	var err error
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.getResourceTTLWithContext")
+	defer func(err error) { exit(err) }(err)
+
+	res, err := rm.sdkapi.DescribeTimeToLiveWithContext(
+		ctx,
+		&svcsdk.DescribeTimeToLiveInput{
+			TableName: tableName,
+		},
+	)
+	rm.metrics.RecordAPICall("GET", "DescribeTimeToLive", err)
+	if err != nil {
+		return nil, err
+	}
+
+	// Treat status "ENABLING" and "ENABLED" as `Enabled` == true
+	isEnabled := *res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabled ||
+		*res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabling
+
+	return &v1alpha1.TimeToLiveSpecification{
+		AttributeName: res.TimeToLiveDescription.AttributeName,
+		Enabled:       &isEnabled,
+	}, nil
+}
+
 func customPreCompare(
 	delta *ackcompare.Delta,
 	a *resource,
@@ -338,6 +426,12 @@ func customPreCompare(
 	} else if a.ko.Spec.Tags != nil && b.ko.Spec.Tags != nil {
 		if !equalTags(a.ko.Spec.Tags, b.ko.Spec.Tags) {
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+		}
+	}
+
+	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
+		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
+			Enabled: &DefaultTTLEnabledValue,
 		}
 	}
 }

@@ -314,6 +314,15 @@ spec:
                       type: string
                   type: object
                 type: array
+              timeToLive:
+                description: Represents the settings used to enable or disable Time
+                  to Live for the specified table.
+                properties:
+                  attributeName:
+                    type: string
+                  enabled:
+                    type: boolean
+                type: object
             required:
             - attributeDefinitions
             - keySchema
