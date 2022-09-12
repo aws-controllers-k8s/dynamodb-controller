@@ -144,6 +144,8 @@ type TableSpec struct {
 	//    NEW_AND_OLD_IMAGES - Both the new and the old item images of the item
 	//    are written to the stream.
 	StreamSpecification *StreamSpecification `json:"streamSpecification,omitempty"`
+	// The table class of the new table. Valid values are STANDARD and STANDARD_INFREQUENT_ACCESS.
+	TableClass *string `json:"tableClass,omitempty"`
 	// The name of the table to create.
 	// +kubebuilder:validation:Required
 	TableName *string `json:"tableName"`
@@ -179,7 +181,7 @@ type TableStatus struct {
 	// +kubebuilder:validation:Optional
 	CreationDateTime *metav1.Time `json:"creationDateTime,omitempty"`
 	// Represents the version of global tables (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html)
-	// in use, if the table is replicated across AWS Regions.
+	// in use, if the table is replicated across Amazon Web Services Regions.
 	// +kubebuilder:validation:Optional
 	GlobalTableVersion *string `json:"globalTableVersion,omitempty"`
 	// The number of items in the specified table. DynamoDB updates this value approximately
@@ -197,7 +199,7 @@ type TableStatus struct {
 	// However, the combination of the following three elements is guaranteed to
 	// be unique:
 	//
-	//    * AWS customer ID
+	//    * Amazon Web Services customer ID
 	//
 	//    * Table name
 	//
@@ -213,6 +215,9 @@ type TableStatus struct {
 	// The description of the server-side encryption status on the specified table.
 	// +kubebuilder:validation:Optional
 	SSEDescription *SSEDescription `json:"sseDescription,omitempty"`
+	// Contains details of the table class.
+	// +kubebuilder:validation:Optional
+	TableClassSummary *TableClassSummary `json:"tableClassSummary,omitempty"`
 	// Unique identifier for the table for which the backup was created.
 	// +kubebuilder:validation:Optional
 	TableID *string `json:"tableID,omitempty"`
@@ -231,10 +236,10 @@ type TableStatus struct {
 	//
 	//    * ACTIVE - The table is ready for use.
 	//
-	//    * INACCESSIBLE_ENCRYPTION_CREDENTIALS - The AWS KMS key used to encrypt
-	//    the table in inaccessible. Table operations may fail due to failure to
-	//    use the AWS KMS key. DynamoDB will initiate the table archival process
-	//    when a table's AWS KMS key remains inaccessible for more than seven days.
+	//    * INACCESSIBLE_ENCRYPTION_CREDENTIALS - The KMS key used to encrypt the
+	//    table in inaccessible. Table operations may fail due to failure to use
+	//    the KMS key. DynamoDB will initiate the table archival process when a
+	//    table's KMS key remains inaccessible for more than seven days.
 	//
 	//    * ARCHIVING - The table is being archived. Operations are not allowed
 	//    until archival is complete.

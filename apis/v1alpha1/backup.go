@@ -50,7 +50,8 @@ type BackupStatus struct {
 	// This SYSTEM on-demand backup expires automatically 35 days after its creation.
 	// +kubebuilder:validation:Optional
 	BackupExpiryDateTime *metav1.Time `json:"backupExpiryDateTime,omitempty"`
-	// Size of the backup in bytes.
+	// Size of the backup in bytes. DynamoDB updates this value approximately every
+	// six hours. Recent changes might not be reflected in this value.
 	// +kubebuilder:validation:Optional
 	BackupSizeBytes *int64 `json:"backupSizeBytes,omitempty"`
 	// Backup can be in one of the following states: CREATING, ACTIVE, DELETED.
@@ -65,7 +66,7 @@ type BackupStatus struct {
 	//    no additional cost). System backups allow you to restore the deleted table
 	//    to the state it was in just before the point of deletion.
 	//
-	//    * AWS_BACKUP - On-demand backup created by you from AWS Backup service.
+	//    * AWS_BACKUP - On-demand backup created by you from Backup service.
 	// +kubebuilder:validation:Optional
 	BackupType *string `json:"backupType,omitempty"`
 }
