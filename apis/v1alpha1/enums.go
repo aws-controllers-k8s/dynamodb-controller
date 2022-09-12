@@ -154,6 +154,16 @@ const (
 	GlobalTableStatus_SDK_UPDATING GlobalTableStatus_SDK = "UPDATING"
 )
 
+type ImportStatus string
+
+const (
+	ImportStatus_IN_PROGRESS ImportStatus = "IN_PROGRESS"
+	ImportStatus_COMPLETED   ImportStatus = "COMPLETED"
+	ImportStatus_CANCELLING  ImportStatus = "CANCELLING"
+	ImportStatus_CANCELLED   ImportStatus = "CANCELLED"
+	ImportStatus_FAILED      ImportStatus = "FAILED"
+)
+
 type IndexStatus string
 
 const (
@@ -161,6 +171,22 @@ const (
 	IndexStatus_UPDATING IndexStatus = "UPDATING"
 	IndexStatus_DELETING IndexStatus = "DELETING"
 	IndexStatus_ACTIVE   IndexStatus = "ACTIVE"
+)
+
+type InputCompressionType string
+
+const (
+	InputCompressionType_GZIP InputCompressionType = "GZIP"
+	InputCompressionType_ZSTD InputCompressionType = "ZSTD"
+	InputCompressionType_NONE InputCompressionType = "NONE"
+)
+
+type InputFormat string
+
+const (
+	InputFormat_DYNAMODB_JSON InputFormat = "DYNAMODB_JSON"
+	InputFormat_ION           InputFormat = "ION"
+	InputFormat_CSV           InputFormat = "CSV"
 )
 
 type KeyType string
@@ -277,6 +303,13 @@ const (
 	StreamViewType_OLD_IMAGE          StreamViewType = "OLD_IMAGE"
 	StreamViewType_NEW_AND_OLD_IMAGES StreamViewType = "NEW_AND_OLD_IMAGES"
 	StreamViewType_KEYS_ONLY          StreamViewType = "KEYS_ONLY"
+)
+
+type TableClass string
+
+const (
+	TableClass_STANDARD                   TableClass = "STANDARD"
+	TableClass_STANDARD_INFREQUENT_ACCESS TableClass = "STANDARD_INFREQUENT_ACCESS"
 )
 
 type TableStatus_SDK string

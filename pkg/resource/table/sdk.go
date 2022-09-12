@@ -326,6 +326,16 @@ func (rm *resourceManager) sdkFind(
 			if f12iter.ReplicaStatusPercentProgress != nil {
 				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
 			}
+			if f12iter.ReplicaTableClassSummary != nil {
+				f12elemf8 := &svcapitypes.TableClassSummary{}
+				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
+					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
+				}
+				if f12iter.ReplicaTableClassSummary.TableClass != nil {
+					f12elemf8.TableClass = f12iter.ReplicaTableClassSummary.TableClass
+				}
+				f12elem.ReplicaTableClassSummary = f12elemf8
+			}
 			f12 = append(f12, f12elem)
 		}
 		ko.Status.Replicas = f12
@@ -386,6 +396,18 @@ func (rm *resourceManager) sdkFind(
 	if resp.Table.TableArn != nil {
 		arn := ackv1alpha1.AWSResourceName(*resp.Table.TableArn)
 		ko.Status.ACKResourceMetadata.ARN = &arn
+	}
+	if resp.Table.TableClassSummary != nil {
+		f17 := &svcapitypes.TableClassSummary{}
+		if resp.Table.TableClassSummary.LastUpdateDateTime != nil {
+			f17.LastUpdateDateTime = &metav1.Time{*resp.Table.TableClassSummary.LastUpdateDateTime}
+		}
+		if resp.Table.TableClassSummary.TableClass != nil {
+			f17.TableClass = resp.Table.TableClassSummary.TableClass
+		}
+		ko.Status.TableClassSummary = f17
+	} else {
+		ko.Status.TableClassSummary = nil
 	}
 	if resp.Table.TableId != nil {
 		ko.Status.TableID = resp.Table.TableId
@@ -712,6 +734,16 @@ func (rm *resourceManager) sdkCreate(
 			if f12iter.ReplicaStatusPercentProgress != nil {
 				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
 			}
+			if f12iter.ReplicaTableClassSummary != nil {
+				f12elemf8 := &svcapitypes.TableClassSummary{}
+				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
+					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
+				}
+				if f12iter.ReplicaTableClassSummary.TableClass != nil {
+					f12elemf8.TableClass = f12iter.ReplicaTableClassSummary.TableClass
+				}
+				f12elem.ReplicaTableClassSummary = f12elemf8
+			}
 			f12 = append(f12, f12elem)
 		}
 		ko.Status.Replicas = f12
@@ -772,6 +804,18 @@ func (rm *resourceManager) sdkCreate(
 	if resp.TableDescription.TableArn != nil {
 		arn := ackv1alpha1.AWSResourceName(*resp.TableDescription.TableArn)
 		ko.Status.ACKResourceMetadata.ARN = &arn
+	}
+	if resp.TableDescription.TableClassSummary != nil {
+		f17 := &svcapitypes.TableClassSummary{}
+		if resp.TableDescription.TableClassSummary.LastUpdateDateTime != nil {
+			f17.LastUpdateDateTime = &metav1.Time{*resp.TableDescription.TableClassSummary.LastUpdateDateTime}
+		}
+		if resp.TableDescription.TableClassSummary.TableClass != nil {
+			f17.TableClass = resp.TableDescription.TableClassSummary.TableClass
+		}
+		ko.Status.TableClassSummary = f17
+	} else {
+		ko.Status.TableClassSummary = nil
 	}
 	if resp.TableDescription.TableId != nil {
 		ko.Status.TableID = resp.TableDescription.TableId
@@ -967,22 +1011,25 @@ func (rm *resourceManager) newCreateRequestPayload(
 		}
 		res.SetStreamSpecification(f7)
 	}
+	if r.ko.Spec.TableClass != nil {
+		res.SetTableClass(*r.ko.Spec.TableClass)
+	}
 	if r.ko.Spec.TableName != nil {
 		res.SetTableName(*r.ko.Spec.TableName)
 	}
 	if r.ko.Spec.Tags != nil {
-		f9 := []*svcsdk.Tag{}
-		for _, f9iter := range r.ko.Spec.Tags {
-			f9elem := &svcsdk.Tag{}
-			if f9iter.Key != nil {
-				f9elem.SetKey(*f9iter.Key)
+		f10 := []*svcsdk.Tag{}
+		for _, f10iter := range r.ko.Spec.Tags {
+			f10elem := &svcsdk.Tag{}
+			if f10iter.Key != nil {
+				f10elem.SetKey(*f10iter.Key)
 			}
-			if f9iter.Value != nil {
-				f9elem.SetValue(*f9iter.Value)
+			if f10iter.Value != nil {
+				f10elem.SetValue(*f10iter.Value)
 			}
-			f9 = append(f9, f9elem)
+			f10 = append(f10, f10elem)
 		}
-		res.SetTags(f9)
+		res.SetTags(f10)
 	}
 
 	return res, nil

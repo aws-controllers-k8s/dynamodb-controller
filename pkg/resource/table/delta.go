@@ -122,6 +122,13 @@ func newResourceDelta(
 			}
 		}
 	}
+	if ackcompare.HasNilDifference(a.ko.Spec.TableClass, b.ko.Spec.TableClass) {
+		delta.Add("Spec.TableClass", a.ko.Spec.TableClass, b.ko.Spec.TableClass)
+	} else if a.ko.Spec.TableClass != nil && b.ko.Spec.TableClass != nil {
+		if *a.ko.Spec.TableClass != *b.ko.Spec.TableClass {
+			delta.Add("Spec.TableClass", a.ko.Spec.TableClass, b.ko.Spec.TableClass)
+		}
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.TableName, b.ko.Spec.TableName) {
 		delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 	} else if a.ko.Spec.TableName != nil && b.ko.Spec.TableName != nil {

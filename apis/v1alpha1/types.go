@@ -160,6 +160,7 @@ type CreateReplicationGroupMemberAction struct {
 	// the source table's provisioned throughput settings.
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`
 	RegionName                    *string                        `json:"regionName,omitempty"`
+	TableClassOverride            *string                        `json:"tableClassOverride,omitempty"`
 }
 
 // Represents a request to perform a DeleteItem operation.
@@ -300,6 +301,18 @@ type GlobalTable_SDK struct {
 	ReplicationGroup []*Replica `json:"replicationGroup,omitempty"`
 }
 
+// Summary information about the source file for the import.
+type ImportSummary struct {
+	TableARN *string `json:"tableARN,omitempty"`
+}
+
+// Represents the properties of the table being imported into.
+type ImportTableDescription struct {
+	ProcessedSizeBytes *int64  `json:"processedSizeBytes,omitempty"`
+	TableARN           *string `json:"tableARN,omitempty"`
+	TableID            *string `json:"tableID,omitempty"`
+}
+
 // Represents a single element of a key schema. A key schema specifies the attributes
 // that make up the primary key of a table, or the key attributes of an index.
 //
@@ -430,6 +443,8 @@ type ReplicaDescription struct {
 	ReplicaStatus                 *string                        `json:"replicaStatus,omitempty"`
 	ReplicaStatusDescription      *string                        `json:"replicaStatusDescription,omitempty"`
 	ReplicaStatusPercentProgress  *string                        `json:"replicaStatusPercentProgress,omitempty"`
+	// Contains details of the table class.
+	ReplicaTableClassSummary *TableClassSummary `json:"replicaTableClassSummary,omitempty"`
 }
 
 // Represents the properties of a replica global secondary index.
@@ -484,12 +499,15 @@ type ReplicaSettingsDescription struct {
 	ReplicaProvisionedReadCapacityUnits  *int64              `json:"replicaProvisionedReadCapacityUnits,omitempty"`
 	ReplicaProvisionedWriteCapacityUnits *int64              `json:"replicaProvisionedWriteCapacityUnits,omitempty"`
 	ReplicaStatus                        *string             `json:"replicaStatus,omitempty"`
+	// Contains details of the table class.
+	ReplicaTableClassSummary *TableClassSummary `json:"replicaTableClassSummary,omitempty"`
 }
 
 // Represents the settings for a global table in a Region that will be modified.
 type ReplicaSettingsUpdate struct {
 	RegionName                          *string `json:"regionName,omitempty"`
 	ReplicaProvisionedReadCapacityUnits *int64  `json:"replicaProvisionedReadCapacityUnits,omitempty"`
+	ReplicaTableClass                   *string `json:"replicaTableClass,omitempty"`
 }
 
 // Represents one of the following:
@@ -518,6 +536,9 @@ type ReplicaUpdate struct {
 //    * An existing replica to be deleted. The request invokes the DeleteTableReplica
 //    action in the destination Region, deleting the replica and all if its
 //    items in the destination Region.
+//
+// When you manually remove a table or global table replica, you do not automatically
+// remove any associated scalable targets, scaling policies, or CloudWatch alarms.
 type ReplicationGroupUpdate struct {
 	// Represents a replica to be created.
 	Create *CreateReplicationGroupMemberAction `json:"create,omitempty"`
@@ -594,6 +615,30 @@ type TableAutoScalingDescription struct {
 	TableStatus *string `json:"tableStatus,omitempty"`
 }
 
+// Contains details of the table class.
+type TableClassSummary struct {
+	LastUpdateDateTime *metav1.Time `json:"lastUpdateDateTime,omitempty"`
+	TableClass         *string      `json:"tableClass,omitempty"`
+}
+
+// The parameters for the table created as part of the import operation.
+type TableCreationParameters struct {
+	AttributeDefinitions   []*AttributeDefinition  `json:"attributeDefinitions,omitempty"`
+	BillingMode            *string                 `json:"billingMode,omitempty"`
+	GlobalSecondaryIndexes []*GlobalSecondaryIndex `json:"globalSecondaryIndexes,omitempty"`
+	KeySchema              []*KeySchemaElement     `json:"keySchema,omitempty"`
+	// Represents the provisioned throughput settings for a specified table or index.
+	// The settings can be modified using the UpdateTable operation.
+	//
+	// For current minimum and maximum provisioned throughput values, see Service,
+	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
+	// in the Amazon DynamoDB Developer Guide.
+	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	// Represents the settings used to enable server-side encryption.
+	SSESpecification *SSESpecification `json:"sseSpecification,omitempty"`
+	TableName        *string           `json:"tableName,omitempty"`
+}
+
 // Represents the properties of a table.
 type TableDescription struct {
 	// Contains details of a table archival operation.
@@ -620,19 +665,22 @@ type TableDescription struct {
 	// Represents the DynamoDB Streams configuration for a table in DynamoDB.
 	StreamSpecification *StreamSpecification `json:"streamSpecification,omitempty"`
 	TableARN            *string              `json:"tableARN,omitempty"`
-	TableID             *string              `json:"tableID,omitempty"`
-	TableName           *string              `json:"tableName,omitempty"`
-	TableSizeBytes      *int64               `json:"tableSizeBytes,omitempty"`
-	TableStatus         *string              `json:"tableStatus,omitempty"`
+	// Contains details of the table class.
+	TableClassSummary *TableClassSummary `json:"tableClassSummary,omitempty"`
+	TableID           *string            `json:"tableID,omitempty"`
+	TableName         *string            `json:"tableName,omitempty"`
+	TableSizeBytes    *int64             `json:"tableSizeBytes,omitempty"`
+	TableStatus       *string            `json:"tableStatus,omitempty"`
 }
 
 // Describes a tag. A tag is a key-value pair. You can add up to 50 tags to
 // a single DynamoDB table.
 //
-// AWS-assigned tag names and values are automatically assigned the aws: prefix,
-// which the user cannot assign. AWS-assigned tag names do not count towards
-// the tag limit of 50. User-assigned tag names have the prefix user: in the
-// Cost Allocation Report. You cannot backdate the application of a tag.
+// Amazon Web Services-assigned tag names and values are automatically assigned
+// the aws: prefix, which the user cannot assign. Amazon Web Services-assigned
+// tag names do not count towards the tag limit of 50. User-assigned tag names
+// have the prefix user: in the Cost Allocation Report. You cannot backdate
+// the application of a tag.
 //
 // For an overview on tagging DynamoDB resources, see Tagging for DynamoDB (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Tagging.html)
 // in the Amazon DynamoDB Developer Guide.
@@ -680,4 +728,5 @@ type UpdateReplicationGroupMemberAction struct {
 	// the source table's provisioned throughput settings.
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`
 	RegionName                    *string                        `json:"regionName,omitempty"`
+	TableClassOverride            *string                        `json:"tableClassOverride,omitempty"`
 }
