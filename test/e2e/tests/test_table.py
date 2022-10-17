@@ -28,6 +28,7 @@ from e2e import (
     get_resource_tags,
 )
 from e2e.replacement_values import REPLACEMENT_VALUES
+from e2e import condition
 from e2e import tag
 
 RESOURCE_PLURAL = "tables"
@@ -94,6 +95,7 @@ class TestTable:
         (ref, res) = forum_table
 
         table_name = res["spec"]["tableName"]
+        condition.assert_synced(ref)
 
         # Check DynamoDB Table exists
         assert self.table_exists(dynamodb_client, table_name)

@@ -34,6 +34,12 @@ resources:
         template_path: hooks/table/sdk_read_one_post_set_output.go.tpl
       sdk_delete_pre_build_request:
         template_path: hooks/table/sdk_delete_pre_build_request.go.tpl
+    synced:
+      when:
+        - path: Status.TableStatus
+          in:
+            - ACTIVE
+            - ARCHIVED
   GlobalTable:
     exceptions:
       errors:
@@ -44,6 +50,11 @@ resources:
         code: customSetDeleteInput(r, input)
     tags:
       ignore: true
+    synced:
+      when:
+        - path: Status.GlobalTableStatus
+          in:
+            - ACTIVE
   Backup:
     exceptions:
       errors:
@@ -54,3 +65,9 @@ resources:
         template_path: hooks/backup/sdk_read_one_post_set_output.go.tpl
     tags:
       ignore: true
+    synced:
+      when:
+        - path: Status.BackupStatus
+          in:
+            - AVAILABLE
+            - DELETED
