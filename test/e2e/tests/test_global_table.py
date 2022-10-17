@@ -30,6 +30,7 @@ from e2e import (
     load_dynamodb_resource,
     wait_for_cr_status,
 )
+from e2e import condition
 from e2e.replacement_values import REPLACEMENT_VALUES
 
 RESOURCE_PLURAL = "globaltables"
@@ -129,6 +130,7 @@ class TestGlobalTable:
             10,
             5,
         )
+        condition.assert_synced(ref)
 
         # Check DynamoDB Global Table exists
         exists = self.global_table_exists(dynamodb_client, global_table_name)

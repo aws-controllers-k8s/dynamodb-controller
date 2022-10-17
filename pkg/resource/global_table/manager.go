@@ -268,6 +268,14 @@ func (rm *resourceManager) IsSynced(ctx context.Context, res acktypes.AWSResourc
 		panic("resource manager's IsSynced() method received resource with nil CR object")
 	}
 
+	if r.ko.Status.GlobalTableStatus == nil {
+		return false, nil
+	}
+	globalTableStatusCandidates := []string{"ACTIVE"}
+	if !ackutil.InStrings(*r.ko.Status.GlobalTableStatus, globalTableStatusCandidates) {
+		return false, nil
+	}
+
 	return true, nil
 }
 

@@ -28,6 +28,7 @@ from e2e import (
     wait_for_cr_status,
 )
 from e2e.replacement_values import REPLACEMENT_VALUES
+from e2e import condition
 
 RESOURCE_PLURAL = "backups"
 
@@ -122,6 +123,7 @@ class TestBackup:
             10,
             5,
         )
+        condition.assert_synced(ref)
         
         backupArn = k8s.get_resource_arn(cr)
         # Check DynamoDB Backup exists
