@@ -152,7 +152,7 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, updates)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS * 4)
 
         ttl = dynamodb_client.describe_time_to_live(TableName=table_name)
         assert ttl["TimeToLiveDescription"]["AttributeName"] == "ForumName"
