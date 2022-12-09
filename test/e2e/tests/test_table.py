@@ -29,12 +29,14 @@ from e2e import (
 )
 from e2e.replacement_values import REPLACEMENT_VALUES
 from e2e import condition
+from e2e import table
 from e2e import tag
 
 RESOURCE_PLURAL = "tables"
 
 DELETE_WAIT_AFTER_SECONDS = 15
-MODIFY_WAIT_AFTER_SECONDS = 5
+MODIFY_WAIT_AFTER_SECONDS = 10
+
 
 @pytest.fixture(scope="module")
 def forum_table():
@@ -74,39 +76,29 @@ def forum_table():
     _, deleted = k8s.delete_custom_resource(table_reference, period_length=DELETE_WAIT_AFTER_SECONDS)
     assert deleted
 
+
 @service_marker
 @pytest.mark.canary
 class TestTable:
-    def get_table(self, dynamodb_client, table_name: str) -> dict:
-        try:
-            resp = dynamodb_client.describe_table(
-                TableName=table_name,
-            )
-            return resp["Table"]
+    def table_exists(self, table_name: str) -> bool:
+        return table.get(table_name) is not None
 
-        except Exception as e:
-            logging.debug(e)
-            return None
-
-    def table_exists(self, dynamodb_client, table_name: str) -> bool:
-        return self.get_table(dynamodb_client, table_name) is not None
-
-    def test_create_delete(self, dynamodb_client, forum_table):
+    def test_create_delete(self, forum_table):
         (ref, res) = forum_table
 
         table_name = res["spec"]["tableName"]
         condition.assert_synced(ref)
 
         # Check DynamoDB Table exists
-        assert self.table_exists(dynamodb_client, table_name)
+        assert self.table_exists(table_name)
 
-    def test_table_update_tags(self, dynamodb_client, forum_table):
+    def test_table_update_tags(self, forum_table):
         (ref, res) = forum_table
 
         table_name = res["spec"]["tableName"]
 
         # Check DynamoDB Table exists
-        assert self.table_exists(dynamodb_client, table_name)
+        assert self.table_exists(table_name)
 
         # Get CR latest revision
         cr = k8s.wait_resource_consumed_by_controller(ref)
@@ -129,13 +121,13 @@ class TestTable:
         assert table_tags[0]['Key'] == tags[0]['key']
         assert table_tags[0]['Value'] == tags[0]['value']
 
-    def test_enable_ttl(self, dynamodb_client, forum_table):
+    def test_enable_ttl(self, forum_table):
         (ref, res) = forum_table
 
         table_name = res["spec"]["tableName"]
 
         # Check DynamoDB Table exists
-        assert self.table_exists(dynamodb_client, table_name)
+        assert self.table_exists(table_name)
 
         # Get CR latest revision
         cr = k8s.wait_resource_consumed_by_controller(ref)
@@ -152,9 +144,14 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, updates)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-        ttl = dynamodb_client.describe_time_to_live(TableName=table_name)
-        assert ttl["TimeToLiveDescription"]["AttributeName"] == "ForumName"
-        assert (ttl["TimeToLiveDescription"]["TimeToLiveStatus"] == "ENABLED" or
-            ttl["TimeToLiveDescription"]["TimeToLiveStatus"] == "ENABLING")
+        table.wait_until(
+            table_name,
+            table.ttl_on_attribute_matches("ForumName"),
+        )
+
+        ttl = table.get_time_to_live(table_name)
+        assert ttl is not None
+        assert ttl["AttributeName"] == "ForumName"
+        ttl_status = ttl["TimeToLiveStatus"]
+        assert ttl_status in ("ENABLED", "ENABLING")
