@@ -24,6 +24,7 @@ import (
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
+	"github.com/aws/aws-sdk-go/aws"
 	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
 	corev1 "k8s.io/api/core/v1"
 
@@ -418,8 +419,15 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
-	// TODO(hilalymh): customDeltaFunctions for AttributeDefintions
+	// TODO(hilalymh): customDeltaFunctions for AttributeDefinitions
 	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
+
+	if aws.StringValue(a.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) && a.ko.Spec.ProvisionedThroughput == nil {
+		a.ko.Spec.ProvisionedThroughput = &v1alpha1.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(0),
+			WriteCapacityUnits: aws.Int64(0),
+		}
+	}
 
 	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
 		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
