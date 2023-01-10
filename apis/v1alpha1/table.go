@@ -22,6 +22,7 @@ import (
 
 // TableSpec defines the desired state of Table.
 type TableSpec struct {
+
 	// An array of attributes that describe the key schema for the table and indexes.
 	// +kubebuilder:validation:Required
 	AttributeDefinitions []*AttributeDefinition `json:"attributeDefinitions"`
