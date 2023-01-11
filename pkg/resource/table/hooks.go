@@ -422,10 +422,10 @@ func customPreCompare(
 	// TODO(hilalymh): customDeltaFunctions for AttributeDefinitions
 	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
 
+	// See https://github.com/aws-controllers-k8s/community/issues/1595
 	if aws.StringValue(a.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		a.ko.Spec.ProvisionedThroughput = nil
 	}
-
 	if aws.StringValue(b.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		b.ko.Spec.ProvisionedThroughput = nil
 	}
