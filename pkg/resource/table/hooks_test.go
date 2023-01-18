@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/aws-controllers-k8s/runtime/pkg/compare"
 	"github.com/aws/aws-sdk-go/aws"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
@@ -129,4 +130,31 @@ func Test_computeTagsDelta(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_customPreCompare(t *testing.T) {
+	t.Run("when billing mode is PAY_PER_REQUEST, ProvisionedThroughput should be nil", func(t *testing.T) {
+		a := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+			},
+		}}
+
+		b := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+			},
+		}}
+		delta := &compare.Delta{}
+		customPreCompare(delta, a, b)
+		if a.ko.Spec.ProvisionedThroughput != nil {
+			t.Errorf("a.Spec.ProvisionedThroughput should be nil, but got %+v", a.ko.Spec.ProvisionedThroughput)
+		}
+
+		if b.ko.Spec.ProvisionedThroughput != nil {
+			t.Errorf("b.Spec.ProvisionedThroughput should be nil, but got %+v", a.ko.Spec.ProvisionedThroughput)
+		}
+	})
 }
