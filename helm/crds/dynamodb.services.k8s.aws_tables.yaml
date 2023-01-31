@@ -51,33 +51,33 @@ spec:
               billingMode:
                 description: "Controls how you are charged for read and write throughput
                   and how you manage capacity. This setting can be changed later.
-                  \n * PROVISIONED - We recommend using PROVISIONED for predictable
+                  \n - PROVISIONED - We recommend using PROVISIONED for predictable
                   workloads. PROVISIONED sets the billing mode to Provisioned Mode
                   (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.ProvisionedThroughput.Manual).
-                  \n * PAY_PER_REQUEST - We recommend using PAY_PER_REQUEST for unpredictable
+                  \n - PAY_PER_REQUEST - We recommend using PAY_PER_REQUEST for unpredictable
                   workloads. PAY_PER_REQUEST sets the billing mode to On-Demand Mode
                   (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.OnDemand)."
                 type: string
               globalSecondaryIndexes:
                 description: "One or more global secondary indexes (the maximum is
                   20) to be created on the table. Each global secondary index in the
-                  array includes the following: \n * IndexName - The name of the global
-                  secondary index. Must be unique only for this table. \n * KeySchema
-                  - Specifies the key schema for the global secondary index. \n *
+                  array includes the following: \n - IndexName - The name of the global
+                  secondary index. Must be unique only for this table. \n - KeySchema
+                  - Specifies the key schema for the global secondary index. \n -
                   Projection - Specifies attributes that are copied (projected) from
                   the table into the index. These are in addition to the primary key
                   attributes and index key attributes, which are automatically projected.
                   Each attribute specification is composed of: ProjectionType - One
-                  of the following: KEYS_ONLY - Only the index and primary keys are
-                  projected into the index. INCLUDE - Only the specified table attributes
-                  are projected into the index. The list of projected attributes is
-                  in NonKeyAttributes. ALL - All of the table attributes are projected
+                  of the following: KEYS_ONLY \n - Only the index and primary keys
+                  are projected into the index. INCLUDE \n - Only the specified table
+                  attributes are projected into the index. The list of projected attributes
+                  is in NonKeyAttributes. ALL - All of the table attributes are projected
                   into the index. NonKeyAttributes - A list of one or more non-key
                   attribute names that are projected into the secondary index. The
                   total count of attributes provided in NonKeyAttributes, summed across
                   all of the secondary indexes, must not exceed 100. If you project
                   the same attribute into two different indexes, this counts as two
-                  distinct attributes when determining the total. \n * ProvisionedThroughput
+                  distinct attributes when determining the total. \n - ProvisionedThroughput
                   - The provisioned throughput settings for the global secondary index,
                   consisting of read and write capacity units."
                 items:
@@ -142,8 +142,8 @@ spec:
                   defined in the AttributeDefinitions array. For more information,
                   see Data Model (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DataModel.html)
                   in the Amazon DynamoDB Developer Guide. \n Each KeySchemaElement
-                  in the array is composed of: \n * AttributeName - The name of this
-                  key attribute. \n * KeyType - The role that the key attribute will
+                  in the array is composed of: \n - AttributeName - The name of this
+                  key attribute. \n - KeyType - The role that the key attribute will
                   assume: HASH - partition key RANGE - sort key \n The partition key
                   of an item is also known as its hash attribute. The term \"hash
                   attribute\" derives from the DynamoDB usage of an internal hash
@@ -184,16 +184,16 @@ spec:
                   key value. There is a 10 GB size limit per partition key value;
                   otherwise, the size of a local secondary index is unconstrained.
                   \n Each local secondary index in the array includes the following:
-                  \n * IndexName - The name of the local secondary index. Must be
-                  unique only for this table. \n * KeySchema - Specifies the key schema
+                  \n - IndexName - The name of the local secondary index. Must be
+                  unique only for this table. \n - KeySchema - Specifies the key schema
                   for the local secondary index. The key schema must begin with the
-                  same partition key as the table. \n * Projection - Specifies attributes
+                  same partition key as the table. \n - Projection - Specifies attributes
                   that are copied (projected) from the table into the index. These
                   are in addition to the primary key attributes and index key attributes,
                   which are automatically projected. Each attribute specification
                   is composed of: ProjectionType - One of the following: KEYS_ONLY
-                  - Only the index and primary keys are projected into the index.
-                  INCLUDE - Only the specified table attributes are projected into
+                  \n - Only the index and primary keys are projected into the index.
+                  INCLUDE \n - Only the specified table attributes are projected into
                   the index. The list of projected attributes is in NonKeyAttributes.
                   ALL - All of the table attributes are projected into the index.
                   NonKeyAttributes - A list of one or more non-key attribute names
@@ -272,8 +272,8 @@ spec:
                 type: object
               streamSpecification:
                 description: "The settings for DynamoDB Streams on the table. These
-                  settings consist of: \n * StreamEnabled - Indicates whether DynamoDB
-                  Streams is to be enabled (true) or disabled (false). \n * StreamViewType
+                  settings consist of: \n - StreamEnabled - Indicates whether DynamoDB
+                  Streams is to be enabled (true) or disabled (false). \n - StreamViewType
                   - When an item in the table is modified, StreamViewType determines
                   what information is written to the table's stream. Valid values
                   for StreamViewType are: KEYS_ONLY - Only the key attributes of the
