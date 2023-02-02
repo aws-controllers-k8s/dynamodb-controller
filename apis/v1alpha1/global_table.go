@@ -24,6 +24,7 @@ import (
 //
 // Represents the properties of a global table.
 type GlobalTableSpec struct {
+
 	// The global table name.
 	// +kubebuilder:validation:Required
 	GlobalTableName *string `json:"globalTableName"`
