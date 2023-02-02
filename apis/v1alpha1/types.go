@@ -263,12 +263,12 @@ type GlobalSecondaryIndexInfo struct {
 
 // Represents one of the following:
 //
-//    * A new global secondary index to be added to an existing table.
+//   - A new global secondary index to be added to an existing table.
 //
-//    * New provisioned throughput parameters for an existing global secondary
-//    index.
+//   - New provisioned throughput parameters for an existing global secondary
+//     index.
 //
-//    * An existing global secondary index to be removed from an existing table.
+//   - An existing global secondary index to be removed from an existing table.
 type GlobalSecondaryIndexUpdate struct {
 	// Represents a new global secondary index to be added to an existing table.
 	Create *CreateGlobalSecondaryIndexAction `json:"create,omitempty"`
@@ -512,11 +512,11 @@ type ReplicaSettingsUpdate struct {
 
 // Represents one of the following:
 //
-//    * A new replica to be added to an existing global table.
+//   - A new replica to be added to an existing global table.
 //
-//    * New parameters for an existing replica.
+//   - New parameters for an existing replica.
 //
-//    * An existing replica to be removed from an existing global table.
+//   - An existing replica to be removed from an existing global table.
 type ReplicaUpdate struct {
 	// Represents a replica to be added.
 	Create *CreateReplicaAction `json:"create,omitempty"`
@@ -526,16 +526,16 @@ type ReplicaUpdate struct {
 
 // Represents one of the following:
 //
-//    * A new replica to be added to an existing regional table or global table.
-//    This request invokes the CreateTableReplica action in the destination
-//    Region.
+//   - A new replica to be added to an existing regional table or global table.
+//     This request invokes the CreateTableReplica action in the destination
+//     Region.
 //
-//    * New parameters for an existing replica. This request invokes the UpdateTable
-//    action in the destination Region.
+//   - New parameters for an existing replica. This request invokes the UpdateTable
+//     action in the destination Region.
 //
-//    * An existing replica to be deleted. The request invokes the DeleteTableReplica
-//    action in the destination Region, deleting the replica and all if its
-//    items in the destination Region.
+//   - An existing replica to be deleted. The request invokes the DeleteTableReplica
+//     action in the destination Region, deleting the replica and all if its
+//     items in the destination Region.
 //
 // When you manually remove a table or global table replica, you do not automatically
 // remove any associated scalable targets, scaling policies, or CloudWatch alarms.
