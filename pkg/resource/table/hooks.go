@@ -419,7 +419,8 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
-	// TODO(hilalymh): customDeltaFunctions for AttributeDefinitions
+	// customDeltaFunctions for AttributeDefinitions
+	// see https://github.com/aws-controllers-k8s/community/issues/1599
 	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
 		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
 	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {

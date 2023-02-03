@@ -157,83 +157,242 @@ func Test_customPreCompare(t *testing.T) {
 			t.Errorf("b.Spec.ProvisionedThroughput should be nil, but got %+v", a.ko.Spec.ProvisionedThroughput)
 		}
 	})
+}
 
-	t.Run("compare attribution definitions", func(t *testing.T) {
-		a := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: nil,
-			},
-		}}
-
-		b := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: nil,
-			},
-		}}
-		delta := &compare.Delta{}
-		customPreCompare(delta, a, b)
-		if len(delta.Differences) != 0 {
-			t.Errorf("should be equal, but got %+v", delta.Differences)
-		}
-	})
-
-	t.Run("compare attribution definitions 2", func(t *testing.T) {
-		a := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: []*v1alpha1.AttributeDefinition{{
-					AttributeName: aws.String("ID"),
-					AttributeType: aws.String("me"),
-				}},
-			},
-		}}
-
-		b := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: nil,
-			},
-		}}
-		delta := &compare.Delta{}
-		customPreCompare(delta, a, b)
-		if len(delta.Differences) != 0 {
-			t.Errorf("should be equal, but got %+v", *delta.Differences[0])
-		}
-	})
-
-	t.Run("compare attribution definitions 2", func(t *testing.T) {
-		a := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: []*v1alpha1.AttributeDefinition{
-					{
-						AttributeName: aws.String("id"),
-						AttributeType: aws.String("test"),
+func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T) {
+	type args struct {
+		a *resource
+		b *resource
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "both desired and latest are nil",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: nil,
+						},
 					},
-					{
-						AttributeName: aws.String("ID"),
-						AttributeType: aws.String("test"),
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: nil,
+						},
 					},
 				},
 			},
-		}}
-
-		b := &resource{ko: &v1alpha1.Table{
-			Spec: v1alpha1.TableSpec{
-				AttributeDefinitions: []*v1alpha1.AttributeDefinition{
-					{
-						AttributeName: aws.String("ID"),
-						AttributeType: aws.String("test"),
+			want: true,
+		},
+		{
+			name: "desired is not nil",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
 					},
-					{
-						AttributeName: aws.String("id"),
-						AttributeType: aws.String("test"),
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: nil,
+						},
 					},
 				},
 			},
-		}}
-		//delta := &compare.Delta{}
-		//customPreCompare(delta, a, b)
-		delta := newResourceDelta(a, b)
-		if len(delta.Differences) != 0 {
-			t.Errorf("should be equal, but got %+v", *delta.Differences[0])
-		}
-	})
+			want: false,
+		},
+		{
+			name: "latest is not nil",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: nil,
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "desired and latest are equal",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "desired is updated",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("N"),
+								},
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "removed in desired",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "added in desired",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("externalId"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	isEqual := func(delta *compare.Delta) bool {
+		return len(delta.Differences) == 0
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if delta := newResourceDelta(tt.args.a, tt.args.b); isEqual(delta) != tt.want {
+				t.Errorf("Compare attribution defintions should be %v", tt.want)
+			}
+		})
+	}
 }
