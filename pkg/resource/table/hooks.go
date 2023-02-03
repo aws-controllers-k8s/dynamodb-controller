@@ -420,6 +420,13 @@ func customPreCompare(
 	b *resource,
 ) {
 	// TODO(hilalymh): customDeltaFunctions for AttributeDefinitions
+	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
+		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
+		if !equalAttributeDefinitions(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
+			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+		}
+	}
 	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
 
 	// See https://github.com/aws-controllers-k8s/community/issues/1595
@@ -443,4 +450,38 @@ func customPreCompare(
 			Enabled: &DefaultTTLEnabledValue,
 		}
 	}
+}
+
+func equalAttributeDefinitions(a []*v1alpha1.AttributeDefinition, b []*v1alpha1.AttributeDefinition) bool {
+	added, updated, removed := computeAttributeDefinitions(a, b)
+	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
+}
+
+// computeAttributeDefinitions compares two AttributeDefinition arrays and return three different list
+// containing the added, updated and removed tags.
+// The removed tags only contains the Key of tags
+func computeAttributeDefinitions(
+	a []*v1alpha1.AttributeDefinition,
+	b []*v1alpha1.AttributeDefinition,
+) (added, updated []*v1alpha1.AttributeDefinition, removed []*string) {
+	var visitedIndexes []string
+mainLoop:
+	for _, aElement := range a {
+		visitedIndexes = append(visitedIndexes, *aElement.AttributeName)
+		for _, bElement := range b {
+			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				if !equalStrings(aElement.AttributeType, bElement.AttributeType) {
+					updated = append(updated, bElement)
+				}
+				continue mainLoop
+			}
+		}
+		removed = append(removed, aElement.AttributeName)
+	}
+	for _, bElement := range b {
+		if !ackutil.InStrings(*bElement.AttributeName, visitedIndexes) {
+			added = append(added, bElement)
+		}
+	}
+	return added, updated, removed
 }

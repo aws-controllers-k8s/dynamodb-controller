@@ -157,4 +157,83 @@ func Test_customPreCompare(t *testing.T) {
 			t.Errorf("b.Spec.ProvisionedThroughput should be nil, but got %+v", a.ko.Spec.ProvisionedThroughput)
 		}
 	})
+
+	t.Run("compare attribution definitions", func(t *testing.T) {
+		a := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: nil,
+			},
+		}}
+
+		b := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: nil,
+			},
+		}}
+		delta := &compare.Delta{}
+		customPreCompare(delta, a, b)
+		if len(delta.Differences) != 0 {
+			t.Errorf("should be equal, but got %+v", delta.Differences)
+		}
+	})
+
+	t.Run("compare attribution definitions 2", func(t *testing.T) {
+		a := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: []*v1alpha1.AttributeDefinition{{
+					AttributeName: aws.String("ID"),
+					AttributeType: aws.String("me"),
+				}},
+			},
+		}}
+
+		b := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: nil,
+			},
+		}}
+		delta := &compare.Delta{}
+		customPreCompare(delta, a, b)
+		if len(delta.Differences) != 0 {
+			t.Errorf("should be equal, but got %+v", *delta.Differences[0])
+		}
+	})
+
+	t.Run("compare attribution definitions 2", func(t *testing.T) {
+		a := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+					{
+						AttributeName: aws.String("id"),
+						AttributeType: aws.String("test"),
+					},
+					{
+						AttributeName: aws.String("ID"),
+						AttributeType: aws.String("test"),
+					},
+				},
+			},
+		}}
+
+		b := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+					{
+						AttributeName: aws.String("ID"),
+						AttributeType: aws.String("test"),
+					},
+					{
+						AttributeName: aws.String("id"),
+						AttributeType: aws.String("test"),
+					},
+				},
+			},
+		}}
+		//delta := &compare.Delta{}
+		//customPreCompare(delta, a, b)
+		delta := newResourceDelta(a, b)
+		if len(delta.Differences) != 0 {
+			t.Errorf("should be equal, but got %+v", *delta.Differences[0])
+		}
+	})
 }
