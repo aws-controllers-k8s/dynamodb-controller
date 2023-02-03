@@ -22,6 +22,7 @@ import (
 
 // BackupSpec defines the desired state of Backup.
 type BackupSpec struct {
+
 	// Specified name for the backup.
 	// +kubebuilder:validation:Required
 	BackupName *string `json:"backupName"`
