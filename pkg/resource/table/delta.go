@@ -51,15 +51,6 @@ func newResourceDelta(
 			delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 		}
 	}
-	if !reflect.DeepEqual(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
-		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
-	}
-	if !reflect.DeepEqual(a.ko.Spec.KeySchema, b.ko.Spec.KeySchema) {
-		delta.Add("Spec.KeySchema", a.ko.Spec.KeySchema, b.ko.Spec.KeySchema)
-	}
-	if !reflect.DeepEqual(a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes) {
-		delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput) {
 		delta.Add("Spec.ProvisionedThroughput", a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput)
 	} else if a.ko.Spec.ProvisionedThroughput != nil && b.ko.Spec.ProvisionedThroughput != nil {
@@ -75,31 +66,6 @@ func newResourceDelta(
 		} else if a.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil && b.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
 			if *a.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != *b.ko.Spec.ProvisionedThroughput.WriteCapacityUnits {
 				delta.Add("Spec.ProvisionedThroughput.WriteCapacityUnits", a.ko.Spec.ProvisionedThroughput.WriteCapacityUnits, b.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
-			}
-		}
-	}
-	if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification) {
-		delta.Add("Spec.SSESpecification", a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification)
-	} else if a.ko.Spec.SSESpecification != nil && b.ko.Spec.SSESpecification != nil {
-		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled) {
-			delta.Add("Spec.SSESpecification.Enabled", a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled)
-		} else if a.ko.Spec.SSESpecification.Enabled != nil && b.ko.Spec.SSESpecification.Enabled != nil {
-			if *a.ko.Spec.SSESpecification.Enabled != *b.ko.Spec.SSESpecification.Enabled {
-				delta.Add("Spec.SSESpecification.Enabled", a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID) {
-			delta.Add("Spec.SSESpecification.KMSMasterKeyID", a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID)
-		} else if a.ko.Spec.SSESpecification.KMSMasterKeyID != nil && b.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
-			if *a.ko.Spec.SSESpecification.KMSMasterKeyID != *b.ko.Spec.SSESpecification.KMSMasterKeyID {
-				delta.Add("Spec.SSESpecification.KMSMasterKeyID", a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType) {
-			delta.Add("Spec.SSESpecification.SSEType", a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType)
-		} else if a.ko.Spec.SSESpecification.SSEType != nil && b.ko.Spec.SSESpecification.SSEType != nil {
-			if *a.ko.Spec.SSESpecification.SSEType != *b.ko.Spec.SSESpecification.SSEType {
-				delta.Add("Spec.SSESpecification.SSEType", a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType)
 			}
 		}
 	}

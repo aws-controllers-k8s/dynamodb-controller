@@ -493,12 +493,10 @@ type ReplicaGlobalSecondaryIndexSettingsUpdate struct {
 
 // Represents the properties of a replica.
 type ReplicaSettingsDescription struct {
-	RegionName *string `json:"regionName,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	ReplicaBillingModeSummary            *BillingModeSummary `json:"replicaBillingModeSummary,omitempty"`
-	ReplicaProvisionedReadCapacityUnits  *int64              `json:"replicaProvisionedReadCapacityUnits,omitempty"`
-	ReplicaProvisionedWriteCapacityUnits *int64              `json:"replicaProvisionedWriteCapacityUnits,omitempty"`
-	ReplicaStatus                        *string             `json:"replicaStatus,omitempty"`
+	RegionName                           *string `json:"regionName,omitempty"`
+	ReplicaProvisionedReadCapacityUnits  *int64  `json:"replicaProvisionedReadCapacityUnits,omitempty"`
+	ReplicaProvisionedWriteCapacityUnits *int64  `json:"replicaProvisionedWriteCapacityUnits,omitempty"`
+	ReplicaStatus                        *string `json:"replicaStatus,omitempty"`
 	// Contains details of the table class.
 	ReplicaTableClassSummary *TableClassSummary `json:"replicaTableClassSummary,omitempty"`
 }
@@ -642,10 +640,8 @@ type TableCreationParameters struct {
 // Represents the properties of a table.
 type TableDescription struct {
 	// Contains details of a table archival operation.
-	ArchivalSummary      *ArchivalSummary       `json:"archivalSummary,omitempty"`
-	AttributeDefinitions []*AttributeDefinition `json:"attributeDefinitions,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	BillingModeSummary     *BillingModeSummary                `json:"billingModeSummary,omitempty"`
+	ArchivalSummary        *ArchivalSummary                   `json:"archivalSummary,omitempty"`
+	AttributeDefinitions   []*AttributeDefinition             `json:"attributeDefinitions,omitempty"`
 	CreationDateTime       *metav1.Time                       `json:"creationDateTime,omitempty"`
 	GlobalSecondaryIndexes []*GlobalSecondaryIndexDescription `json:"globalSecondaryIndexes,omitempty"`
 	GlobalTableVersion     *string                            `json:"globalTableVersion,omitempty"`
@@ -660,17 +656,13 @@ type TableDescription struct {
 	Replicas              []*ReplicaDescription             `json:"replicas,omitempty"`
 	// Contains details for the restore.
 	RestoreSummary *RestoreSummary `json:"restoreSummary,omitempty"`
-	// The description of the server-side encryption status on the specified table.
-	SSEDescription *SSEDescription `json:"sseDescription,omitempty"`
 	// Represents the DynamoDB Streams configuration for a table in DynamoDB.
 	StreamSpecification *StreamSpecification `json:"streamSpecification,omitempty"`
 	TableARN            *string              `json:"tableARN,omitempty"`
-	// Contains details of the table class.
-	TableClassSummary *TableClassSummary `json:"tableClassSummary,omitempty"`
-	TableID           *string            `json:"tableID,omitempty"`
-	TableName         *string            `json:"tableName,omitempty"`
-	TableSizeBytes    *int64             `json:"tableSizeBytes,omitempty"`
-	TableStatus       *string            `json:"tableStatus,omitempty"`
+	TableID             *string              `json:"tableID,omitempty"`
+	TableName           *string              `json:"tableName,omitempty"`
+	TableSizeBytes      *int64               `json:"tableSizeBytes,omitempty"`
+	TableStatus         *string              `json:"tableStatus,omitempty"`
 }
 
 // Describes a tag. A tag is a key-value pair. You can add up to 50 tags to

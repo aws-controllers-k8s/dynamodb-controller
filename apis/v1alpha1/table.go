@@ -178,13 +178,12 @@ type TableStatus struct {
 	// Contains information about the table archive.
 	// +kubebuilder:validation:Optional
 	ArchivalSummary *ArchivalSummary `json:"archivalSummary,omitempty"`
-	// Contains the details for the read/write capacity mode.
-	// +kubebuilder:validation:Optional
-	BillingModeSummary *BillingModeSummary `json:"billingModeSummary,omitempty"`
 	// The date and time when the table was created, in UNIX epoch time (http://www.epochconverter.com/)
 	// format.
 	// +kubebuilder:validation:Optional
 	CreationDateTime *metav1.Time `json:"creationDateTime,omitempty"`
+	// +kubebuilder:validation:Optional
+	GlobalSecondaryIndexesDescriptions []*GlobalSecondaryIndexDescription `json:"globalSecondaryIndexesDescriptions,omitempty"`
 	// Represents the version of global tables (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html)
 	// in use, if the table is replicated across Amazon Web Services Regions.
 	// +kubebuilder:validation:Optional
@@ -217,12 +216,6 @@ type TableStatus struct {
 	// Contains details for the restore.
 	// +kubebuilder:validation:Optional
 	RestoreSummary *RestoreSummary `json:"restoreSummary,omitempty"`
-	// The description of the server-side encryption status on the specified table.
-	// +kubebuilder:validation:Optional
-	SSEDescription *SSEDescription `json:"sseDescription,omitempty"`
-	// Contains details of the table class.
-	// +kubebuilder:validation:Optional
-	TableClassSummary *TableClassSummary `json:"tableClassSummary,omitempty"`
 	// Unique identifier for the table for which the backup was created.
 	// +kubebuilder:validation:Optional
 	TableID *string `json:"tableID,omitempty"`
@@ -258,6 +251,11 @@ type TableStatus struct {
 // Table is the Schema for the Tables API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ARN",type=string,priority=1,JSONPath=`.status.ackResourceMetadata.arn`
+// +kubebuilder:printcolumn:name="CLASS",type=string,priority=0,JSONPath=`.spec.tableClass`
+// +kubebuilder:printcolumn:name="STATUS",type=string,priority=0,JSONPath=`.status.tableStatus`
+// +kubebuilder:printcolumn:name="Synced",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"ACK.ResourceSynced\")].status"
+// +kubebuilder:printcolumn:name="Age",type="date",priority=0,JSONPath=".metadata.creationTimestamp"
 type Table struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

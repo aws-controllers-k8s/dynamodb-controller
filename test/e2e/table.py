@@ -16,12 +16,15 @@
 import datetime
 import time
 import typing
+import logging
 
 import boto3
 import pytest
 
-DEFAULT_WAIT_UNTIL_TIMEOUT_SECONDS = 60*10
-DEFAULT_WAIT_UNTIL_INTERVAL_SECONDS = 15
+from acktest.aws.identity import get_region
+
+DEFAULT_WAIT_UNTIL_TIMEOUT_SECONDS = 60
+DEFAULT_WAIT_UNTIL_INTERVAL_SECONDS = 5
 
 TableMatchFunc = typing.NewType(
     'TableMatchFunc',
@@ -70,6 +73,111 @@ def ttl_on_attribute_matches(attr_name: str) -> TableMatchFunc:
     return TTLAttributeMatcher(attr_name)
 
 
+class StreamSpecificationMatcher:
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
+
+    def __call__(self, record: dict) -> bool:
+        if self.enabled:
+            return ('StreamSpecification' in record
+                    and record["StreamSpecification"]["StreamEnabled"] == self.enabled)
+        return not 'StreamSpecification' in record
+
+
+def stream_specification_matches(enabled: str) -> TableMatchFunc:
+    return StreamSpecificationMatcher(enabled)
+
+
+class BillingModeMatcher:
+    def __init__(self, mode: str):
+        self.mode = mode
+
+    def __call__(self, record: dict) -> bool:
+        return ('BillingModeSummary' in record
+                and record["BillingModeSummary"]["BillingMode"] == self.mode)
+
+
+def billing_mode_matcher(mode: str) -> TableMatchFunc:
+    return BillingModeMatcher(mode)
+
+
+class ProvisionedThroughputMatcher:
+    def __init__(self, read_capacity_units: int, write_capacity_units: int):
+        self.read_capacity_units = read_capacity_units
+        self.write_capacity_units = write_capacity_units
+
+    def __call__(self, record: dict) -> bool:
+        return ('ProvisionedThroughput' in record
+                and record["ProvisionedThroughput"]["ReadCapacityUnits"] == self.read_capacity_units
+                and record["ProvisionedThroughput"]["WriteCapacityUnits"] == self.write_capacity_units
+        )
+
+def provisioned_throughput_matcher(read_capacity_units: int, write_capacity_units: int)-> TableMatchFunc:
+    return ProvisionedThroughputMatcher(read_capacity_units, write_capacity_units)
+
+
+class SSESpecificationMatcher:
+    def __init__(self, enabled: int, type: int):
+        self.enabled = enabled
+        self.type = type
+
+    def __call__(self, record: dict) -> bool:
+        if self.enabled:
+            return ('SSEDescription' in record
+                and record["SSEDescription"]["Status"] == "ENABLED"
+        )
+        return (not 'SSEDescription' in record
+            or record["SSEDescription"]["Status"] == "DISABLED"
+        )
+
+def sse_specification_matcher(read_capacity_units: int, write_capacity_units: int)-> TableMatchFunc:
+    return SSESpecificationMatcher(read_capacity_units, write_capacity_units)
+
+
+class ClassMatcher:
+    def __init__(self, cls):
+        self.match_on = cls
+
+    def __call__(self, record: dict) -> bool:
+        if self.match_on == "STANDARD_INFREQUENT_ACCESS":
+            return ('TableClassSummary' in record
+                    and record['TableClassSummary']["TableClass"] == self.match_on)
+        return (not 'TableClassSummary' in record) or (not record['TableClassSummary']["TableClass"] == self.match_on)
+
+
+def class_matcher(cls: str) -> TableMatchFunc:
+    return ClassMatcher(cls)
+
+
+class GSIMatcher:
+    def __init__(self, gsis):
+        self.match_on = gsis
+
+    def __call__(self, record: dict) -> bool:
+        if len(self.match_on) == 0:
+            return (not 'GlobalSecondaryIndexes' in record) or len(record["GlobalSecondaryIndexes"] == 0)
+
+        awsGSIs = record["GlobalSecondaryIndexes"]
+        if len(self.match_on) != len(record["GlobalSecondaryIndexes"]):
+            return False
+
+        for awsGSI in awsGSIs:
+            found = False
+            for gsi in self.match_on:
+                if awsGSI["IndexName"] == gsi["indexName"]:
+                    found = True
+                    break
+            if not found:
+                return False
+            if not awsGSI["IndexStatus"] in ["ACTIVE"]:
+                return False
+
+        return True
+
+
+def gsi_matches(gsis) -> TableMatchFunc:
+    return GSIMatcher(gsis)
+
 def wait_until(
         table_name: str,
         match_fn: TableMatchFunc,
@@ -95,7 +203,7 @@ def wait_until(
 
     while not match_fn(get(table_name)):
         if datetime.datetime.now() >= timeout:
-            pytest.fail("failed to match DBInstance before timeout")
+            pytest.fail("failed to match table before timeout")
         time.sleep(interval_seconds)
 
 
@@ -104,7 +212,7 @@ def get(table_name):
 
     If no such Table exists, returns None.
     """
-    c = boto3.client('dynamodb')
+    c = boto3.client('dynamodb', region_name=get_region())
     try:
         resp = c.describe_table(TableName=table_name)
         return resp['Table']
@@ -117,7 +225,7 @@ def get_time_to_live(table_name):
 
     If no such Table exists, returns None.
     """
-    c = boto3.client('dynamodb')
+    c = boto3.client('dynamodb', region_name=get_region())
     try:
         resp = c.describe_time_to_live(TableName=table_name)
         return resp['TimeToLiveDescription']

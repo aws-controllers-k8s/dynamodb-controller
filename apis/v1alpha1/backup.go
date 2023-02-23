@@ -75,6 +75,13 @@ type BackupStatus struct {
 // Backup is the Schema for the Backups API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ARN",type=string,priority=1,JSONPath=`.status.ackResourceMetadata.arn`
+// +kubebuilder:printcolumn:name="SIZE",type=string,priority=0,JSONPath=`.status.backupSize`
+// +kubebuilder:printcolumn:name="STATUS",type=string,priority=0,JSONPath=`.status.backupStatus`
+// +kubebuilder:printcolumn:name="TABLENAME",type=string,priority=0,JSONPath=`.spec.tableName`
+// +kubebuilder:printcolumn:name="TYPE",type=string,priority=0,JSONPath=`.status.backupType`
+// +kubebuilder:printcolumn:name="Synced",type="string",priority=0,JSONPath=".status.conditions[?(@.type==\"ACK.ResourceSynced\")].status"
+// +kubebuilder:printcolumn:name="Age",type="date",priority=0,JSONPath=".metadata.creationTimestamp"
 type Backup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

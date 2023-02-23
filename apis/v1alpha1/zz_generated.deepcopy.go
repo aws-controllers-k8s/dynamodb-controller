@@ -1906,11 +1906,6 @@ func (in *ReplicaSettingsDescription) DeepCopyInto(out *ReplicaSettingsDescripti
 		*out = new(string)
 		**out = **in
 	}
-	if in.ReplicaBillingModeSummary != nil {
-		in, out := &in.ReplicaBillingModeSummary, &out.ReplicaBillingModeSummary
-		*out = new(BillingModeSummary)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.ReplicaProvisionedReadCapacityUnits != nil {
 		in, out := &in.ReplicaProvisionedReadCapacityUnits, &out.ReplicaProvisionedReadCapacityUnits
 		*out = new(int64)
@@ -2431,11 +2426,6 @@ func (in *TableDescription) DeepCopyInto(out *TableDescription) {
 			}
 		}
 	}
-	if in.BillingModeSummary != nil {
-		in, out := &in.BillingModeSummary, &out.BillingModeSummary
-		*out = new(BillingModeSummary)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.CreationDateTime != nil {
 		in, out := &in.CreationDateTime, &out.CreationDateTime
 		*out = (*in).DeepCopy()
@@ -2514,11 +2504,6 @@ func (in *TableDescription) DeepCopyInto(out *TableDescription) {
 		*out = new(RestoreSummary)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.SSEDescription != nil {
-		in, out := &in.SSEDescription, &out.SSEDescription
-		*out = new(SSEDescription)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.StreamSpecification != nil {
 		in, out := &in.StreamSpecification, &out.StreamSpecification
 		*out = new(StreamSpecification)
@@ -2528,11 +2513,6 @@ func (in *TableDescription) DeepCopyInto(out *TableDescription) {
 		in, out := &in.TableARN, &out.TableARN
 		*out = new(string)
 		**out = **in
-	}
-	if in.TableClassSummary != nil {
-		in, out := &in.TableClassSummary, &out.TableClassSummary
-		*out = new(TableClassSummary)
-		(*in).DeepCopyInto(*out)
 	}
 	if in.TableID != nil {
 		in, out := &in.TableID, &out.TableID
@@ -2727,14 +2707,20 @@ func (in *TableStatus) DeepCopyInto(out *TableStatus) {
 		*out = new(ArchivalSummary)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.BillingModeSummary != nil {
-		in, out := &in.BillingModeSummary, &out.BillingModeSummary
-		*out = new(BillingModeSummary)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.CreationDateTime != nil {
 		in, out := &in.CreationDateTime, &out.CreationDateTime
 		*out = (*in).DeepCopy()
+	}
+	if in.GlobalSecondaryIndexesDescriptions != nil {
+		in, out := &in.GlobalSecondaryIndexesDescriptions, &out.GlobalSecondaryIndexesDescriptions
+		*out = make([]*GlobalSecondaryIndexDescription, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(GlobalSecondaryIndexDescription)
+				(*in).DeepCopyInto(*out)
+			}
+		}
 	}
 	if in.GlobalTableVersion != nil {
 		in, out := &in.GlobalTableVersion, &out.GlobalTableVersion
@@ -2770,16 +2756,6 @@ func (in *TableStatus) DeepCopyInto(out *TableStatus) {
 	if in.RestoreSummary != nil {
 		in, out := &in.RestoreSummary, &out.RestoreSummary
 		*out = new(RestoreSummary)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.SSEDescription != nil {
-		in, out := &in.SSEDescription, &out.SSEDescription
-		*out = new(SSEDescription)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.TableClassSummary != nil {
-		in, out := &in.TableClassSummary, &out.TableClassSummary
-		*out = new(TableClassSummary)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.TableID != nil {

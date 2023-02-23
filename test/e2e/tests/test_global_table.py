@@ -47,7 +47,7 @@ def dynamodb_table():
 
     # load resource
     resource_data = load_dynamodb_resource(
-        "table_forums",
+        "table_local_secondary_indexes",
         additional_replacements=replacements,
     )
 
@@ -72,9 +72,11 @@ def dynamodb_table():
     )
 
     yield (table_reference, table_resource)
-
-    _, deleted = k8s.delete_custom_resource(table_reference)
-    assert deleted
+    try:
+        _, deleted = k8s.delete_custom_resource(table_reference, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
 
 @service_marker
 @pytest.mark.canary

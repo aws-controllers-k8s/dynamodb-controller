@@ -16,6 +16,7 @@ import boto3
 import pytest
 
 from acktest import k8s
+from acktest.aws.identity import get_region
 
 
 def pytest_addoption(parser):
@@ -48,4 +49,4 @@ def k8s_client():
 
 @pytest.fixture(scope="class")
 def dynamodb_client():
-    return boto3.client("dynamodb")
+    return boto3.client("dynamodb", region_name=get_region())
