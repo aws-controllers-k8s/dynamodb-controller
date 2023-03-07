@@ -1,8 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-bases:
-  - common
 resources:
+  - common
   - bases/dynamodb.services.k8s.aws_backups.yaml
   - bases/dynamodb.services.k8s.aws_globaltables.yaml
   - bases/dynamodb.services.k8s.aws_tables.yaml
