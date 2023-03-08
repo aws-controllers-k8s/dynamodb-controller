@@ -77,6 +77,9 @@ func (rm *resourceManager) sdkFind(
 	resp, err = rm.sdkapi.DescribeBackupWithContext(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "DescribeBackup", err)
 	if err != nil {
+		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
+			return nil, ackerr.NotFound
+		}
 		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "BackupNotFoundException" {
 			return nil, ackerr.NotFound
 		}
