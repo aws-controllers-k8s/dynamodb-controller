@@ -453,36 +453,20 @@ func customPreCompare(
 	}
 }
 
-func equalAttributeDefinitions(a []*v1alpha1.AttributeDefinition, b []*v1alpha1.AttributeDefinition) bool {
-	added, updated, removed := computeAttributeDefinitions(a, b)
-	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
-}
-
-// computeAttributeDefinitions compares two AttributeDefinition arrays and return three different list
-// containing the added, updated and removed tags.
-// The removed tags only contains the Key of tags
-func computeAttributeDefinitions(
-	a []*v1alpha1.AttributeDefinition,
-	b []*v1alpha1.AttributeDefinition,
-) (added, updated []*v1alpha1.AttributeDefinition, removed []*string) {
-	var visitedIndexes []string
-mainLoop:
+func equalAttributeDefinitions(a, b []*v1alpha1.AttributeDefinition) bool {
 	for _, aElement := range a {
-		visitedIndexes = append(visitedIndexes, *aElement.AttributeName)
+		found := false
 		for _, bElement := range b {
 			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				found = true
 				if !equalStrings(aElement.AttributeType, bElement.AttributeType) {
-					updated = append(updated, bElement)
+					return false
 				}
-				continue mainLoop
 			}
 		}
-		removed = append(removed, aElement.AttributeName)
-	}
-	for _, bElement := range b {
-		if !ackutil.InStrings(*bElement.AttributeName, visitedIndexes) {
-			added = append(added, bElement)
+		if !found {
+			return false
 		}
 	}
-	return added, updated, removed
+	return true
 }
