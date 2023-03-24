@@ -419,7 +419,15 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
-	// TODO(hilalymh): customDeltaFunctions for AttributeDefinitions
+	// customDeltaFunctions for AttributeDefinitions
+	// see https://github.com/aws-controllers-k8s/community/issues/1599
+	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
+		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
+		if !equalAttributeDefinitions(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
+			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+		}
+	}
 	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
 
 	// See https://github.com/aws-controllers-k8s/community/issues/1595
@@ -443,4 +451,22 @@ func customPreCompare(
 			Enabled: &DefaultTTLEnabledValue,
 		}
 	}
+}
+
+func equalAttributeDefinitions(a, b []*v1alpha1.AttributeDefinition) bool {
+	for _, aElement := range a {
+		found := false
+		for _, bElement := range b {
+			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				found = true
+				if !equalStrings(aElement.AttributeType, bElement.AttributeType) {
+					return false
+				}
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

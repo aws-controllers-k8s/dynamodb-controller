@@ -15,6 +15,9 @@ resources:
       Tags:
         compare:
           is_ignored: true
+      AttributeDefinitions:
+        compare:
+          is_ignored: true
     exceptions:
       errors:
         404:
