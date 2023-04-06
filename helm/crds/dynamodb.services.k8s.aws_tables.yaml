@@ -15,7 +15,24 @@ spec:
     singular: table
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.ackResourceMetadata.arn
+      name: ARN
+      priority: 1
+      type: string
+    - jsonPath: .spec.tableClass
+      name: CLASS
+      type: string
+    - jsonPath: .status.tableStatus
+      name: STATUS
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ACK.ResourceSynced")].status
+      name: Synced
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Table is the Schema for the Tables API
@@ -371,15 +388,6 @@ spec:
                   archivalReason:
                     type: string
                 type: object
-              billingModeSummary:
-                description: Contains the details for the read/write capacity mode.
-                properties:
-                  billingMode:
-                    type: string
-                  lastUpdateToPayPerRequestDateTime:
-                    format: date-time
-                    type: string
-                type: object
               conditions:
                 description: All CRS managed by ACK have a common `Status.Conditions`
                   member that contains a collection of `ackv1alpha1.Condition` objects
@@ -418,6 +426,81 @@ spec:
                   epoch time (http://www.epochconverter.com/) format.
                 format: date-time
                 type: string
+              globalSecondaryIndexesDescriptions:
+                items:
+                  description: Represents the properties of a global secondary index.
+                  properties:
+                    backfilling:
+                      type: boolean
+                    indexARN:
+                      type: string
+                    indexName:
+                      type: string
+                    indexSizeBytes:
+                      format: int64
+                      type: integer
+                    indexStatus:
+                      type: string
+                    itemCount:
+                      format: int64
+                      type: integer
+                    keySchema:
+                      items:
+                        description: "Represents a single element of a key schema.
+                          A key schema specifies the attributes that make up the primary
+                          key of a table, or the key attributes of an index. \n A
+                          KeySchemaElement represents exactly one attribute of the
+                          primary key. For example, a simple primary key would be
+                          represented by one KeySchemaElement (for the partition key).
+                          A composite primary key would require one KeySchemaElement
+                          for the partition key, and another KeySchemaElement for
+                          the sort key. \n A KeySchemaElement must be a scalar, top-level
+                          attribute (not a nested attribute). The data type must be
+                          one of String, Number, or Binary. The attribute cannot be
+                          nested within a List or a Map."
+                        properties:
+                          attributeName:
+                            type: string
+                          keyType:
+                            type: string
+                        type: object
+                      type: array
+                    projection:
+                      description: Represents attributes that are copied (projected)
+                        from the table into an index. These are in addition to the
+                        primary key attributes and index key attributes, which are
+                        automatically projected.
+                      properties:
+                        nonKeyAttributes:
+                          items:
+                            type: string
+                          type: array
+                        projectionType:
+                          type: string
+                      type: object
+                    provisionedThroughput:
+                      description: Represents the provisioned throughput settings
+                        for the table, consisting of read and write capacity units,
+                        along with data about increases and decreases.
+                      properties:
+                        lastDecreaseDateTime:
+                          format: date-time
+                          type: string
+                        lastIncreaseDateTime:
+                          format: date-time
+                          type: string
+                        numberOfDecreasesToday:
+                          format: int64
+                          type: integer
+                        readCapacityUnits:
+                          format: int64
+                          type: integer
+                        writeCapacityUnits:
+                          format: int64
+                          type: integer
+                      type: object
+                  type: object
+                type: array
               globalTableVersion:
                 description: Represents the version of global tables (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html)
                   in use, if the table is replicated across Amazon Web Services Regions.
@@ -507,29 +590,6 @@ spec:
                   sourceBackupARN:
                     type: string
                   sourceTableARN:
-                    type: string
-                type: object
-              sseDescription:
-                description: The description of the server-side encryption status
-                  on the specified table.
-                properties:
-                  inaccessibleEncryptionDateTime:
-                    format: date-time
-                    type: string
-                  kmsMasterKeyARN:
-                    type: string
-                  sseType:
-                    type: string
-                  status:
-                    type: string
-                type: object
-              tableClassSummary:
-                description: Contains details of the table class.
-                properties:
-                  lastUpdateDateTime:
-                    format: date-time
-                    type: string
-                  tableClass:
                     type: string
                 type: object
               tableID:

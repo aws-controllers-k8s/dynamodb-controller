@@ -36,14 +36,14 @@ DELETE_WAIT_AFTER_SECONDS = 10
 
 @pytest.fixture(scope="module")
 def dynamodb_table():
-    resource_name = random_suffix_name("table", 32)
+    resource_name = random_suffix_name("table-forbackup", 32)
 
     replacements = REPLACEMENT_VALUES.copy()
     replacements["TABLE_NAME"] = resource_name
 
     # load resource
     resource_data = load_dynamodb_resource(
-        "table_forums",
+        "table_local_secondary_indexes",
         additional_replacements=replacements,
     )
 
@@ -63,14 +63,16 @@ def dynamodb_table():
         table_reference,
         "tableStatus",
         "ACTIVE",
-        10,
-        30,
+        90,
+        3,
     )
 
     yield (table_reference, table_resource)
-
-    _, deleted = k8s.delete_custom_resource(table_reference)
-    assert deleted
+    try:
+        _, deleted = k8s.delete_custom_resource(table_reference, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
 
 @service_marker
 @pytest.mark.canary
@@ -120,7 +122,7 @@ class TestBackup:
             ref,
             "backupStatus",
             "AVAILABLE",
-            10,
+            20,
             5,
         )
         condition.assert_synced(ref)

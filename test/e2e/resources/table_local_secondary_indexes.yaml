@@ -4,6 +4,7 @@ metadata:
   name: $TABLE_NAME
 spec:
   tableName: $TABLE_NAME
+  tableClass: STANDARD
   attributeDefinitions:
     - attributeName: ForumName
       attributeType: S

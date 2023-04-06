@@ -51,7 +51,6 @@ func Test_computeTagsDelta(t *testing.T) {
 		name        string
 		args        args
 		wantAdded   []*v1alpha1.Tag
-		wantUpdated []*v1alpha1.Tag
 		wantRemoved []*string
 	}{
 		{
@@ -62,7 +61,6 @@ func Test_computeTagsDelta(t *testing.T) {
 			},
 			wantAdded:   nil,
 			wantRemoved: nil,
-			wantUpdated: nil,
 		},
 		{
 			name: "empty arrays",
@@ -72,58 +70,50 @@ func Test_computeTagsDelta(t *testing.T) {
 			},
 			wantAdded:   nil,
 			wantRemoved: nil,
-			wantUpdated: nil,
 		},
 		{
 			name: "added tags",
 			args: args{
-				a: []*v1alpha1.Tag{},
-				b: []*v1alpha1.Tag{Tag1, Tag2},
+				a: []*v1alpha1.Tag{Tag1, Tag2},
+				b: []*v1alpha1.Tag{},
 			},
 			wantAdded:   []*v1alpha1.Tag{Tag1, Tag2},
 			wantRemoved: nil,
-			wantUpdated: nil,
 		},
 		{
 			name: "removed tags",
 			args: args{
-				a: []*v1alpha1.Tag{Tag1, Tag2},
-				b: nil,
+				a: nil,
+				b: []*v1alpha1.Tag{Tag1, Tag2},
 			},
 			wantAdded:   nil,
 			wantRemoved: []*string{aws.String("k1"), aws.String("k2")},
-			wantUpdated: nil,
 		},
 		{
 			name: "updated tags",
 			args: args{
-				a: []*v1alpha1.Tag{Tag1, Tag2},
-				b: []*v1alpha1.Tag{Tag1, Tag2Updated},
+				a: []*v1alpha1.Tag{Tag1, Tag2Updated},
+				b: []*v1alpha1.Tag{Tag1, Tag2},
 			},
-			wantAdded:   nil,
+			wantAdded:   []*v1alpha1.Tag{Tag2Updated},
 			wantRemoved: nil,
-			wantUpdated: []*v1alpha1.Tag{Tag2Updated},
 		},
 		{
 			name: "added, updated and removed tags",
 			args: args{
-				a: []*v1alpha1.Tag{Tag1, Tag2},
+				a: []*v1alpha1.Tag{Tag2Updated, Tag3},
 				// remove Tag1, update Tag2 and add Tag3
-				b: []*v1alpha1.Tag{Tag2Updated, Tag3},
+				b: []*v1alpha1.Tag{Tag1, Tag2},
 			},
-			wantAdded:   []*v1alpha1.Tag{Tag3},
+			wantAdded:   []*v1alpha1.Tag{Tag2Updated, Tag3},
 			wantRemoved: []*string{aws.String("k1")},
-			wantUpdated: []*v1alpha1.Tag{Tag2Updated},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAdded, gotUpdated, gotRemoved := computeTagsDelta(tt.args.a, tt.args.b)
+			gotAdded, gotRemoved := computeTagsDelta(tt.args.a, tt.args.b)
 			if !reflect.DeepEqual(gotAdded, tt.wantAdded) {
 				t.Errorf("computeTagsDelta() gotAdded = %v, want %v", gotAdded, tt.wantAdded)
-			}
-			if !reflect.DeepEqual(gotUpdated, tt.wantUpdated) {
-				t.Errorf("computeTagsDelta() gotUpdated = %v, want %v", gotUpdated, tt.wantUpdated)
 			}
 			if !reflect.DeepEqual(gotRemoved, tt.wantRemoved) {
 				t.Errorf("computeTagsDelta() gotRemoved = %v, want %v", gotRemoved, tt.wantRemoved)
@@ -386,7 +376,7 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 	}
 
 	isEqual := func(delta *compare.Delta) bool {
-		return len(delta.Differences) == 0
+		return !delta.DifferentAt("Spec.AttributeDefinitions")
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

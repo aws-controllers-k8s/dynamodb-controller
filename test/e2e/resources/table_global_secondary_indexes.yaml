@@ -1,0 +1,37 @@
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  attributeDefinitions:
+    - attributeName: OfficeName
+      attributeType: S
+    - attributeName: Rank
+      attributeType: S
+    - attributeName: City
+      attributeType: S
+  keySchema:
+    - attributeName: OfficeName
+      keyType: HASH
+    - attributeName: Rank
+      keyType: RANGE
+  provisionedThroughput:
+    readCapacityUnits: 5
+    writeCapacityUnits: 5
+  billingMode: PROVISIONED
+  globalSecondaryIndexes:
+  - indexName: office-per-city
+    keySchema: 
+    - attributeName: OfficeName
+      keyType: HASH
+    - attributeName: City
+      keyType: RANGE
+    projection:
+      nonKeyAttributes:
+      - Test
+      projectionType: INCLUDE
+    provisionedThroughput:
+      readCapacityUnits: 5
+      writeCapacityUnits: 5
+  tableClass: STANDARD

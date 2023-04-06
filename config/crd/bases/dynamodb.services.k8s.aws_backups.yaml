@@ -15,7 +15,30 @@ spec:
     singular: backup
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.ackResourceMetadata.arn
+      name: ARN
+      priority: 1
+      type: string
+    - jsonPath: .status.backupSize
+      name: SIZE
+      type: string
+    - jsonPath: .status.backupStatus
+      name: STATUS
+      type: string
+    - jsonPath: .spec.tableName
+      name: TABLENAME
+      type: string
+    - jsonPath: .status.backupType
+      name: TYPE
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ACK.ResourceSynced")].status
+      name: Synced
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Backup is the Schema for the Backups API

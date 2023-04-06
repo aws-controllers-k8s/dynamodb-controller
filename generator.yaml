@@ -1,3 +1,10 @@
+ignore:
+  field_paths:
+  # Replica of Spec.BillingMode
+  - TableDescription.BillingModeSummary
+  # Replica of Spec.SSESpecification
+  - TableDescription.SSEDescription
+  - TableDescription.TableClassSummary
 operations:
   UpdateGlobalTable:
     operation_type: Delete
@@ -8,14 +15,34 @@ operations:
 resources:
   Table:
     fields:
+      GlobalSecondaryIndexesDescriptions:
+        custom_field:
+          list_of: GlobalSecondaryIndexDescription
+        is_read_only: true
       TimeToLive:
         from:
           operation: UpdateTimeToLive
           path: TimeToLiveSpecification
+      AttributeDefinitions:
+        compare:
+          is_ignored: true
+      # non modifiable field
+      KeySchema:
+        is_immutable: true
+        compare:
+          is_ignored: true
+      GlobalSecondaryIndexes:
+        compare:
+          is_ignored: true
       Tags:
         compare:
           is_ignored: true
-      AttributeDefinitions:
+      # non modifiable field
+      LocalSecondaryIndexes:
+        is_immutable: true
+        compare:
+          is_ignored: true
+      SSESpecification:
         compare:
           is_ignored: true
     exceptions:
@@ -23,9 +50,7 @@ resources:
         404:
           code: ResourceNotFoundException
       terminal_codes:
-        - InternalServerError
-        - LimitExceededException
-        - ResourceInUseException
+        - InvalidParameter
     update_operation:
       custom_method_name: customUpdateTable
     hooks:
@@ -43,6 +68,21 @@ resources:
           in:
             - ACTIVE
             - ARCHIVED
+    print:
+      add_age_column: true
+      add_synced_column: true
+      additional_columns:
+        - name: ARN
+          json_path: .status.ackResourceMetadata.arn
+          type: string
+          priority: 1
+        - name: CLASS
+          json_path: .spec.tableClass
+          type: string
+          priority: 0
+        - name: STATUS
+          json_path: .status.tableStatus
+          type: string
   GlobalTable:
     exceptions:
       errors:
@@ -74,3 +114,24 @@ resources:
           in:
             - AVAILABLE
             - DELETED
+    print:
+      add_age_column: true
+      add_synced_column: true
+      additional_columns:
+        - name: ARN
+          json_path: .status.ackResourceMetadata.arn
+          type: string
+          priority: 1
+        - name: TABLENAME
+          json_path: .spec.tableName
+          type: string
+          priority: 0
+        - name: TYPE
+          json_path: .status.backupType
+          type: string
+        - name: SIZE
+          json_path: .status.backupSize
+          type: string
+        - name: STATUS
+          json_path: .status.backupStatus
+          type: string

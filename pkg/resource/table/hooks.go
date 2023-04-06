@@ -15,7 +15,7 @@ package table
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -32,9 +32,10 @@ import (
 )
 
 var (
-	ErrTableDeleting = errors.New("Table in 'DELETING' state, cannot be modified or deleted")
-	ErrTableCreating = errors.New("Table in 'CREATING' state, cannot be modified or deleted")
-	ErrTableUpdating = errors.New("Table in 'UPDATING' state, cannot be modified or deleted")
+	ErrTableDeleting     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusDeleting)
+	ErrTableCreating     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusCreating)
+	ErrTableUpdating     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusUpdating)
+	ErrTableGSIsUpdating = fmt.Errorf("Table GSIs in '%v' state, cannot be modified or deleted", svcsdk.IndexStatusCreating)
 )
 
 var (
@@ -60,6 +61,10 @@ var (
 	requeueWaitWhileUpdating = ackrequeue.NeededAfter(
 		ErrTableUpdating,
 		5*time.Second,
+	)
+	requeueWaitGSIReady = ackrequeue.NeededAfter(
+		ErrTableGSIsUpdating,
+		10*time.Second,
 	)
 )
 
@@ -118,6 +123,11 @@ func (rm *resourceManager) customUpdateTable(
 	exit := rlog.Trace("rm.customUpdateTable")
 	defer func(err error) { exit(err) }(err)
 
+	if immutableFieldChanges := rm.getImmutableFieldChanges(delta); len(immutableFieldChanges) > 0 {
+		msg := fmt.Sprintf("Immutable Spec fields have been modified: %s", strings.Join(immutableFieldChanges, ","))
+		return nil, ackerr.NewTerminalError(fmt.Errorf(msg))
+	}
+
 	if isTableDeleting(latest) {
 		msg := "table is currently being deleted"
 		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
@@ -145,6 +155,15 @@ func (rm *resourceManager) customUpdateTable(
 	ko := desired.ko.DeepCopy()
 	rm.setStatusDefaults(ko)
 
+	if delta.DifferentAt("Spec.Tags") {
+		if err := rm.syncTableTags(ctx, desired, latest); err != nil {
+			return nil, err
+		}
+	}
+	if !delta.DifferentExcept("Spec.Tags") {
+		return &resource{ko}, nil
+	}
+
 	if delta.DifferentAt("Spec.TimeToLive") {
 		if err := rm.syncTTL(ctx, desired, latest); err != nil {
 			// Ignore "already disabled errors"
@@ -154,179 +173,204 @@ func (rm *resourceManager) customUpdateTable(
 			}
 		}
 	}
-	if delta.DifferentAt("Spec.Tags") {
-		if err := rm.syncTableTags(ctx, desired, latest); err != nil {
-			return nil, err
+
+	if delta.DifferentAt("Spec.SSESpecification") {
+		if err := rm.syncTableSSESpecification(ctx, desired); err != nil {
+			return nil, fmt.Errorf("cannot update table %v", err)
 		}
 	}
 
-	// TODO(hilalymh): support updating all table field
-	return &resource{ko}, nil
+	if delta.DifferentAt("Spec.BillingMode") ||
+		delta.DifferentAt("Spec.TableClass") {
+		if err := rm.syncTable(ctx, desired, delta); err != nil {
+			return nil, fmt.Errorf("cannot update table %v", err)
+		}
+	}
+
+	// We want to update fast fields first
+	// Then attributes
+	// then GSI
+	if delta.DifferentExcept("Spec.Tags", "Spec.TimeToLive") {
+		switch {
+		case delta.DifferentAt("Spec.StreamSpecification"):
+			if err := rm.syncTable(ctx, desired, delta); err != nil {
+				return nil, err
+			}
+		case delta.DifferentAt("Spec.ProvisionedThroughput"):
+			if err := rm.syncTableProvisionedThroughput(ctx, desired); err != nil {
+				return nil, err
+			}
+		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && delta.DifferentAt("Spec.AttributeDefinitions"):
+			if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
+				if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "LimitExceededException" {
+					return nil, requeueWaitGSIReady
+				}
+				return nil, err
+			}
+		}
+	}
+
+	return &resource{ko}, requeueWaitWhileUpdating
 }
 
-// syncTTL updates a dynamodb table's TimeToLive property.
-func (rm *resourceManager) syncTTL(
+// syncTable updates a given table billing mode, stream specification
+// or SSE specification.
+func (rm *resourceManager) syncTable(
 	ctx context.Context,
-	desired *resource,
-	latest *resource,
+	r *resource,
+	delta *ackcompare.Delta,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.syncTTL")
-	defer func(err error) { exit(err) }(err)
+	exit := rlog.Trace("rm.syncTable")
+	defer exit(err)
 
-	ttlSpec := &svcsdk.TimeToLiveSpecification{}
-	if desired.ko.Spec.TimeToLive != nil {
-		ttlSpec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
-		ttlSpec.Enabled = desired.ko.Spec.TimeToLive.Enabled
-	} else {
-		// In order to disable the TTL, we can't simply call the
-		// `UpdateTimeToLive` method with an empty specification. Instead, we
-		// must explicitly set the enabled to false and provide the attribute
-		// name of the existing TTL.
-		currentAttrName := ""
-		if latest.ko.Spec.TimeToLive != nil &&
-			latest.ko.Spec.TimeToLive.AttributeName != nil {
-			currentAttrName = *latest.ko.Spec.TimeToLive.AttributeName
-		}
-
-		ttlSpec.SetAttributeName(currentAttrName)
-		ttlSpec.SetEnabled(false)
+	input, err := rm.newUpdateTablePayload(ctx, r, delta)
+	if err != nil {
+		return err
 	}
-
-	_, err = rm.sdkapi.UpdateTimeToLiveWithContext(
-		ctx,
-		&svcsdk.UpdateTimeToLiveInput{
-			TableName:               desired.ko.Spec.TableName,
-			TimeToLiveSpecification: ttlSpec,
-		},
-	)
-	rm.metrics.RecordAPICall("UPDATE", "UpdateTimeToLive", err)
-	return err
-}
-
-// syncTableTags updates a dynamodb table tags.
-//
-// TODO(hilalymh): move this function to a common utility file. This function can be reused
-// to tag GlobalTable resources.
-func (rm *resourceManager) syncTableTags(
-	ctx context.Context,
-	desired *resource,
-	latest *resource,
-) (err error) {
-	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.syncTableTags")
-	defer func(err error) { exit(err) }(err)
-
-	added, updated, removed := computeTagsDelta(latest.ko.Spec.Tags, desired.ko.Spec.Tags)
-
-	// There are no API calls to update an existing tag. To update a tag we will have to first
-	// delete it and then recreate it with the new value.
-
-	// Tags to remove
-	for _, updatedTag := range updated {
-		removed = append(removed, updatedTag.Key)
-	}
-	// Tags to create
-	added = append(added, updated...)
-
-	if len(removed) > 0 {
-		_, err = rm.sdkapi.UntagResourceWithContext(
-			ctx,
-			&svcsdk.UntagResourceInput{
-				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
-				TagKeys:     removed,
-			},
-		)
-		rm.metrics.RecordAPICall("UPDATE", "UntagResource", err)
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(added) > 0 {
-		_, err = rm.sdkapi.TagResourceWithContext(
-			ctx,
-			&svcsdk.TagResourceInput{
-				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
-				Tags:        sdkTagsFromResourceTags(added),
-			},
-		)
-		rm.metrics.RecordAPICall("UPDATE", "TagResource", err)
-		if err != nil {
-			return err
-		}
+	_, err = rm.sdkapi.UpdateTable(input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-// equalTags returns true if two Tag arrays are equal regardless of the order
-// of their elements.
-func equalTags(
-	a []*v1alpha1.Tag,
-	b []*v1alpha1.Tag,
-) bool {
-	added, updated, removed := computeTagsDelta(a, b)
-	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
-}
-
-// resourceTagsFromSDKTags transforms a *svcsdk.Tag array to a *v1alpha1.Tag array.
-func resourceTagsFromSDKTags(svcTags []*svcsdk.Tag) []*v1alpha1.Tag {
-	tags := make([]*v1alpha1.Tag, len(svcTags))
-	for i := range svcTags {
-		tags[i] = &v1alpha1.Tag{
-			Key:   svcTags[i].Key,
-			Value: svcTags[i].Value,
-		}
+// newUpdateTablePayload constructs the updateTableInput object.
+func (rm *resourceManager) newUpdateTablePayload(
+	ctx context.Context,
+	r *resource,
+	delta *ackcompare.Delta,
+) (*svcsdk.UpdateTableInput, error) {
+	input := &svcsdk.UpdateTableInput{
+		TableName: aws.String(*r.ko.Spec.TableName),
 	}
-	return tags
-}
 
-// svcTagsFromResourceTags transforms a *v1alpha1.Tag array to a *svcsdk.Tag array.
-func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []*svcsdk.Tag {
-	tags := make([]*svcsdk.Tag, len(rTags))
-	for i := range rTags {
-		tags[i] = &svcsdk.Tag{
-			Key:   rTags[i].Key,
-			Value: rTags[i].Value,
+	if delta.DifferentAt("Spec.BillingMode") {
+		if r.ko.Spec.BillingMode != nil {
+			input.BillingMode = aws.String(*r.ko.Spec.BillingMode)
+		} else {
+			// set biling mode to the default value `PROVISIONED`
+			input.BillingMode = aws.String(svcsdk.BillingModeProvisioned)
 		}
-	}
-	return tags
-}
-
-// computeTagsDelta compares two Tag arrays and return three different list
-// containing the added, updated and removed tags.
-// The removed tags only contains the Key of tags
-func computeTagsDelta(
-	a []*v1alpha1.Tag,
-	b []*v1alpha1.Tag,
-) (added, updated []*v1alpha1.Tag, removed []*string) {
-	var visitedIndexes []string
-mainLoop:
-	for _, aElement := range a {
-		visitedIndexes = append(visitedIndexes, *aElement.Key)
-		for _, bElement := range b {
-			if equalStrings(aElement.Key, bElement.Key) {
-				if !equalStrings(aElement.Value, bElement.Value) {
-					updated = append(updated, bElement)
+		if *input.BillingMode == svcsdk.BillingModeProvisioned {
+			input.ProvisionedThroughput = &svcsdk.ProvisionedThroughput{}
+			if r.ko.Spec.ProvisionedThroughput != nil {
+				if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
+					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+				} else {
+					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
 				}
-				continue mainLoop
+
+				if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
+					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+				} else {
+					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+				}
 			}
 		}
-		removed = append(removed, aElement.Key)
 	}
-	for _, bElement := range b {
-		if !ackutil.InStrings(*bElement.Key, visitedIndexes) {
-			added = append(added, bElement)
+	if delta.DifferentAt("Spec.StreamSpecification") {
+		if r.ko.Spec.StreamSpecification != nil {
+			if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
+				input.StreamSpecification = &svcsdk.StreamSpecification{
+					StreamEnabled: aws.Bool(*r.ko.Spec.StreamSpecification.StreamEnabled),
+				}
+				// Only set streamViewType when streamSpefication is enabled and streamViewType is non-nil.
+				if *r.ko.Spec.StreamSpecification.StreamEnabled && r.ko.Spec.StreamSpecification.StreamViewType != nil {
+					input.StreamSpecification.StreamViewType = aws.String(*r.ko.Spec.StreamSpecification.StreamViewType)
+				}
+			} else {
+				input.StreamSpecification = &svcsdk.StreamSpecification{
+					StreamEnabled: aws.Bool(false),
+				}
+			}
 		}
 	}
-	return added, updated, removed
+	if delta.DifferentAt("Spec.TableClass") {
+		if r.ko.Spec.TableClass != nil {
+			input.TableClass = aws.String(*r.ko.Spec.TableClass)
+		}
+	}
+
+	return input, nil
 }
 
-func equalStrings(a, b *string) bool {
-	if a == nil {
-		return b == nil || *b == ""
+// syncTableSSESpecification updates a given table SSE Specification
+func (rm *resourceManager) syncTableSSESpecification(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableSSESpecification")
+	defer exit(err)
+
+	input := &svcsdk.UpdateTableInput{
+		TableName: aws.String(*r.ko.Spec.TableName),
 	}
-	return (*a == "" && b == nil) || *a == *b
+	if r.ko.Spec.SSESpecification != nil {
+		input.SSESpecification = &svcsdk.SSESpecification{}
+		if r.ko.Spec.SSESpecification.Enabled != nil {
+			input.SSESpecification.Enabled = aws.Bool(*r.ko.Spec.SSESpecification.Enabled)
+			if *input.SSESpecification.Enabled {
+				if r.ko.Spec.SSESpecification.SSEType != nil {
+					input.SSESpecification.SSEType = aws.String(*r.ko.Spec.SSESpecification.SSEType)
+				}
+				if r.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
+					input.SSESpecification.KMSMasterKeyId = aws.String(*r.ko.Spec.SSESpecification.KMSMasterKeyID)
+				}
+			}
+		} else {
+			input.SSESpecification = &svcsdk.SSESpecification{
+				Enabled: aws.Bool(false),
+			}
+		}
+	}
+
+	_, err = rm.sdkapi.UpdateTable(input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+// syncTableProvisionedThroughput updates a given table provisioned throughputs
+func (rm *resourceManager) syncTableProvisionedThroughput(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableProvisionedThroughput")
+	defer exit(err)
+
+	input := &svcsdk.UpdateTableInput{
+		TableName:             aws.String(*r.ko.Spec.TableName),
+		ProvisionedThroughput: &svcsdk.ProvisionedThroughput{},
+	}
+	if r.ko.Spec.ProvisionedThroughput != nil {
+		if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
+			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+		} else {
+			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
+		}
+
+		if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
+			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+		} else {
+			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+		}
+	} else {
+		input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
+		input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+	}
+
+	_, err = rm.sdkapi.UpdateTable(input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 // setResourceAdditionalFields will describe the fields that are not return by
@@ -354,73 +398,54 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	return nil
 }
 
-// getResourceTagsPagesWithContext queries the list of tags of a given resource.
-func (rm *resourceManager) getResourceTagsPagesWithContext(ctx context.Context, resourceARN string) ([]*v1alpha1.Tag, error) {
-	var err error
-	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.getResourceTagsPagesWithContext")
-	defer func(err error) { exit(err) }(err)
-
-	tags := []*v1alpha1.Tag{}
-
-	var token *string = nil
-	for {
-		var listTagsOfResourceOutput *svcsdk.ListTagsOfResourceOutput
-		listTagsOfResourceOutput, err = rm.sdkapi.ListTagsOfResourceWithContext(
-			ctx,
-			&svcsdk.ListTagsOfResourceInput{
-				NextToken:   token,
-				ResourceArn: &resourceARN,
-			},
-		)
-		rm.metrics.RecordAPICall("GET", "ListTagsOfResource", err)
-		if err != nil {
-			return nil, err
-		}
-		tags = append(tags, resourceTagsFromSDKTags(listTagsOfResourceOutput.Tags)...)
-		if listTagsOfResourceOutput.NextToken == nil {
-			break
-		}
-		token = listTagsOfResourceOutput.NextToken
-	}
-	return tags, nil
-}
-
-// getResourceTTLWithContext queries the table TTL of a given resource.
-func (rm *resourceManager) getResourceTTLWithContext(ctx context.Context, tableName *string) (*v1alpha1.TimeToLiveSpecification, error) {
-	var err error
-	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.getResourceTTLWithContext")
-	defer func(err error) { exit(err) }(err)
-
-	res, err := rm.sdkapi.DescribeTimeToLiveWithContext(
-		ctx,
-		&svcsdk.DescribeTimeToLiveInput{
-			TableName: tableName,
-		},
-	)
-	rm.metrics.RecordAPICall("GET", "DescribeTimeToLive", err)
-	if err != nil {
-		return nil, err
-	}
-
-	// Treat status "ENABLING" and "ENABLED" as `Enabled` == true
-	isEnabled := *res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabled ||
-		*res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabling
-
-	return &v1alpha1.TimeToLiveSpecification{
-		AttributeName: res.TimeToLiveDescription.AttributeName,
-		Enabled:       &isEnabled,
-	}, nil
-}
-
 func customPreCompare(
 	delta *ackcompare.Delta,
 	a *resource,
 	b *resource,
 ) {
-	// customDeltaFunctions for AttributeDefinitions
-	// see https://github.com/aws-controllers-k8s/community/issues/1599
+
+	if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification) {
+		if a.ko.Spec.SSESpecification != nil && b.ko.Spec.SSESpecification == nil {
+			if *a.ko.Spec.SSESpecification.Enabled {
+				delta.Add("Spec.SSESpecification", a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification)
+			}
+		} else {
+			delta.Add("Spec.SSESpecification", a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification)
+		}
+	} else if a.ko.Spec.SSESpecification != nil && b.ko.Spec.SSESpecification != nil {
+		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled) {
+			delta.Add("Spec.SSESpecification.Enabled", a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled)
+		} else if a.ko.Spec.SSESpecification.Enabled != nil && b.ko.Spec.SSESpecification.Enabled != nil {
+			if *a.ko.Spec.SSESpecification.Enabled != *b.ko.Spec.SSESpecification.Enabled {
+				delta.Add("Spec.SSESpecification.Enabled", a.ko.Spec.SSESpecification.Enabled, b.ko.Spec.SSESpecification.Enabled)
+			}
+		}
+		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID) {
+			if a.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
+				delta.Add("Spec.SSESpecification.KMSMasterKeyID", a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID)
+			}
+		} else if a.ko.Spec.SSESpecification.KMSMasterKeyID != nil && b.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
+			if *a.ko.Spec.SSESpecification.KMSMasterKeyID != *b.ko.Spec.SSESpecification.KMSMasterKeyID {
+				delta.Add("Spec.SSESpecification.KMSMasterKeyID", a.ko.Spec.SSESpecification.KMSMasterKeyID, b.ko.Spec.SSESpecification.KMSMasterKeyID)
+			}
+		}
+		if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType) {
+			delta.Add("Spec.SSESpecification.SSEType", a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType)
+		} else if a.ko.Spec.SSESpecification.SSEType != nil && b.ko.Spec.SSESpecification.SSEType != nil {
+			if *a.ko.Spec.SSESpecification.SSEType != *b.ko.Spec.SSESpecification.SSEType {
+				delta.Add("Spec.SSESpecification.SSEType", a.ko.Spec.SSESpecification.SSEType, b.ko.Spec.SSESpecification.SSEType)
+			}
+		}
+	}
+
+	if len(a.ko.Spec.KeySchema) != len(b.ko.Spec.KeySchema) {
+		delta.Add("Spec.KeySchema", a.ko.Spec.KeySchema, b.ko.Spec.KeySchema)
+	} else if a.ko.Spec.KeySchema != nil && b.ko.Spec.KeySchema != nil {
+		if !equalKeySchemaArrays(a.ko.Spec.KeySchema, b.ko.Spec.KeySchema) {
+			delta.Add("Spec.KeySchema", a.ko.Spec.KeySchema, b.ko.Spec.KeySchema)
+		}
+	}
+
 	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
 		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
 	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
@@ -428,8 +453,29 @@ func customPreCompare(
 			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
 		}
 	}
-	// TODO(hilalymh): customDeltaFunctions for GlobalSecondaryIndexes
 
+	if len(a.ko.Spec.GlobalSecondaryIndexes) != len(b.ko.Spec.GlobalSecondaryIndexes) {
+		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+	} else if a.ko.Spec.GlobalSecondaryIndexes != nil && b.ko.Spec.GlobalSecondaryIndexes != nil {
+		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+			delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+		}
+	}
+
+	if len(a.ko.Spec.LocalSecondaryIndexes) != len(b.ko.Spec.LocalSecondaryIndexes) {
+		delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
+	} else if a.ko.Spec.LocalSecondaryIndexes != nil && b.ko.Spec.LocalSecondaryIndexes != nil {
+		if !equalLocalSecondaryIndexesArrays(a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes) {
+			delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
+		}
+	}
+
+	if a.ko.Spec.BillingMode == nil {
+		a.ko.Spec.BillingMode = aws.String(string(v1alpha1.BillingMode_PROVISIONED))
+	}
+	if a.ko.Spec.TableClass == nil {
+		a.ko.Spec.TableClass = aws.String(string(v1alpha1.TableClass_STANDARD))
+	}
 	// See https://github.com/aws-controllers-k8s/community/issues/1595
 	if aws.StringValue(a.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		a.ko.Spec.ProvisionedThroughput = nil
@@ -445,7 +491,6 @@ func customPreCompare(
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 		}
 	}
-
 	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
 		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
 			Enabled: &DefaultTTLEnabledValue,
@@ -453,6 +498,7 @@ func customPreCompare(
 	}
 }
 
+// equalAttributeDefinitions return whether two AttributeDefinition arrays are equal or not.
 func equalAttributeDefinitions(a, b []*v1alpha1.AttributeDefinition) bool {
 	for _, aElement := range a {
 		found := false
@@ -465,6 +511,117 @@ func equalAttributeDefinitions(a, b []*v1alpha1.AttributeDefinition) bool {
 			}
 		}
 		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// equalKeySchemaArrays return whether two KeySchemaElement arrays are equal or not.
+func equalKeySchemaArrays(
+	a []*v1alpha1.KeySchemaElement,
+	b []*v1alpha1.KeySchemaElement,
+) bool {
+	for _, aElement := range a {
+		found := false
+		for _, bElement := range b {
+			if equalStrings(aElement.AttributeName, bElement.AttributeName) {
+				found = true
+				if !equalStrings(aElement.KeyType, bElement.KeyType) {
+					return false
+				}
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// newSDKAttributesDefinition builds a new []*svcsdk.AttributeDefinition
+func newSDKAttributesDefinition(ads []*v1alpha1.AttributeDefinition) []*svcsdk.AttributeDefinition {
+	attributeDefintions := []*svcsdk.AttributeDefinition{}
+	for _, ad := range ads {
+		attributeDefintion := &svcsdk.AttributeDefinition{}
+		if ad != nil {
+			if ad.AttributeName != nil {
+				attributeDefintion.AttributeName = aws.String(*ad.AttributeName)
+			} else {
+				attributeDefintion.AttributeName = aws.String("")
+			}
+			if ad.AttributeType != nil {
+				attributeDefintion.AttributeType = aws.String(*ad.AttributeType)
+			} else {
+				attributeDefintion.AttributeType = aws.String("")
+			}
+		} else {
+			attributeDefintion.AttributeType = aws.String("")
+			attributeDefintion.AttributeName = aws.String("")
+		}
+		attributeDefintions = append(attributeDefintions, attributeDefintion)
+	}
+	return attributeDefintions
+}
+
+func computeLocalSecondaryIndexDelta(
+	a []*v1alpha1.LocalSecondaryIndex,
+	b []*v1alpha1.LocalSecondaryIndex,
+) (added, updated []*v1alpha1.LocalSecondaryIndex, removed []string) {
+	var visitedIndexes []string
+loopA:
+	for _, aElement := range a {
+		visitedIndexes = append(visitedIndexes, *aElement.IndexName)
+		for _, bElement := range b {
+			if *aElement.IndexName == *bElement.IndexName {
+				if !equalLocalSecondaryIndexes(aElement, bElement) {
+					updated = append(updated, bElement)
+				}
+				continue loopA
+			}
+		}
+		removed = append(removed, *aElement.IndexName)
+
+	}
+	for _, bElement := range b {
+		if !ackutil.InStrings(*bElement.IndexName, visitedIndexes) {
+			added = append(added, bElement)
+		}
+	}
+	return added, updated, removed
+}
+
+// equalLocalSecondaryIndexesArrays returns true if two LocalSecondaryIndex arrays are equal regardless
+// of the order of their elements.
+func equalLocalSecondaryIndexesArrays(
+	a []*v1alpha1.LocalSecondaryIndex,
+	b []*v1alpha1.LocalSecondaryIndex,
+) bool {
+	added, updated, removed := computeLocalSecondaryIndexDelta(a, b)
+	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
+}
+
+// equalLocalSecondaryIndexes returns whether two LocalSecondaryIndex objects are
+// equal or not.
+func equalLocalSecondaryIndexes(
+	a *v1alpha1.LocalSecondaryIndex,
+	b *v1alpha1.LocalSecondaryIndex,
+) bool {
+	if ackcompare.HasNilDifference(a.Projection, b.Projection) {
+		return false
+	}
+	if a.Projection != nil && b.Projection != nil {
+		if !equalStrings(a.Projection.ProjectionType, b.Projection.ProjectionType) {
+			return false
+		}
+		if !ackcompare.SliceStringPEqual(a.Projection.NonKeyAttributes, b.Projection.NonKeyAttributes) {
+			return false
+		}
+	}
+	if len(a.KeySchema) != len(b.KeySchema) {
+		return false
+	} else if len(a.KeySchema) > 0 {
+		if !equalKeySchemaArrays(a.KeySchema, b.KeySchema) {
 			return false
 		}
 	}
