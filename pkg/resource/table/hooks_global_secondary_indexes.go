@@ -84,8 +84,18 @@ func equalGlobalSecondaryIndexes(
 	b *v1alpha1.GlobalSecondaryIndex,
 ) bool {
 	if ackcompare.HasNilDifference(a.ProvisionedThroughput, b.ProvisionedThroughput) {
+		// catch the exceptional case for PAY_PER_REQUEST billing mode
+		// if a.ProvisionedThroughput is nil and b.ProvisionedThroughput is not nil but with 0 capacity
+		if a.ProvisionedThroughput == nil && b.ProvisionedThroughput != nil {
+			if aws.Int64Value(b.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
+				aws.Int64Value(b.ProvisionedThroughput.ReadCapacityUnits) == 0 {
+				goto next
+			}
+		}
+
 		return false
 	}
+next:
 	if a.ProvisionedThroughput != nil && b.ProvisionedThroughput != nil {
 		if !equalInt64s(a.ProvisionedThroughput.ReadCapacityUnits, b.ProvisionedThroughput.ReadCapacityUnits) {
 			return false
