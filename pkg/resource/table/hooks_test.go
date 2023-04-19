@@ -19,6 +19,7 @@ import (
 
 	"github.com/aws-controllers-k8s/runtime/pkg/compare"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/stretchr/testify/require"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -146,6 +147,68 @@ func Test_customPreCompare(t *testing.T) {
 		if b.ko.Spec.ProvisionedThroughput != nil {
 			t.Errorf("b.Spec.ProvisionedThroughput should be nil, but got %+v", a.ko.Spec.ProvisionedThroughput)
 		}
+	})
+
+	t.Run("GSI ProvisionedThroughput should be equal when nil and 0 capacity", func(t *testing.T) {
+		a := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+				GlobalSecondaryIndexes: []*v1alpha1.GlobalSecondaryIndex{
+					{
+						IndexName: aws.String("index1"),
+						KeySchema: []*v1alpha1.KeySchemaElement{
+							{
+								AttributeName: aws.String("id"),
+								KeyType:       aws.String("HASH"),
+							},
+							{
+								AttributeName: aws.String("email"),
+								KeyType:       aws.String("RANGE"),
+							},
+						},
+						Projection: &v1alpha1.Projection{
+							ProjectionType: aws.String("ALL"),
+						},
+						ProvisionedThroughput: nil,
+					},
+				},
+			},
+		}}
+
+		b := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+				GlobalSecondaryIndexes: []*v1alpha1.GlobalSecondaryIndex{
+					{
+						IndexName: aws.String("index1"),
+						KeySchema: []*v1alpha1.KeySchemaElement{
+							{
+								AttributeName: aws.String("id"),
+								KeyType:       aws.String("HASH"),
+							},
+							{
+								AttributeName: aws.String("email"),
+								KeyType:       aws.String("RANGE"),
+							},
+						},
+						Projection: &v1alpha1.Projection{
+							ProjectionType: aws.String("ALL"),
+						},
+						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+							ReadCapacityUnits:  aws.Int64(0),
+							WriteCapacityUnits: aws.Int64(0),
+						},
+					},
+				},
+			},
+		}}
+		delta := &compare.Delta{}
+		customPreCompare(delta, a, b)
+		//diff := delta.Differences[0]
+		require.False(t, delta.DifferentAt("Spec.GlobalSecondaryIndexes"))
+		//"Spec should be equal but Path: %+v, A: %+v, B: %+v", diff.Path, diff.A.([]*v1alpha1.GlobalSecondaryIndex), diff.B.([]*v1alpha1.GlobalSecondaryIndex))
 	})
 }
 
