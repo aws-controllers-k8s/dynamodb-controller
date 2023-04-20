@@ -206,9 +206,65 @@ func Test_customPreCompare(t *testing.T) {
 		}}
 		delta := &compare.Delta{}
 		customPreCompare(delta, a, b)
-		//diff := delta.Differences[0]
 		require.False(t, delta.DifferentAt("Spec.GlobalSecondaryIndexes"))
-		//"Spec should be equal but Path: %+v, A: %+v, B: %+v", diff.Path, diff.A.([]*v1alpha1.GlobalSecondaryIndex), diff.B.([]*v1alpha1.GlobalSecondaryIndex))
+
+		// the following case should not happen, just in case
+		c := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+				GlobalSecondaryIndexes: []*v1alpha1.GlobalSecondaryIndex{
+					{
+						IndexName: aws.String("index1"),
+						KeySchema: []*v1alpha1.KeySchemaElement{
+							{
+								AttributeName: aws.String("id"),
+								KeyType:       aws.String("HASH"),
+							},
+							{
+								AttributeName: aws.String("email"),
+								KeyType:       aws.String("RANGE"),
+							},
+						},
+						Projection: &v1alpha1.Projection{
+							ProjectionType: aws.String("ALL"),
+						},
+						ProvisionedThroughput: nil,
+					},
+				},
+			},
+		}}
+
+		d := &resource{ko: &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				BillingMode:           aws.String(string(v1alpha1.BillingMode_PAY_PER_REQUEST)),
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{},
+				GlobalSecondaryIndexes: []*v1alpha1.GlobalSecondaryIndex{
+					{
+						IndexName: aws.String("index1"),
+						KeySchema: []*v1alpha1.KeySchemaElement{
+							{
+								AttributeName: aws.String("id"),
+								KeyType:       aws.String("HASH"),
+							},
+							{
+								AttributeName: aws.String("email"),
+								KeyType:       aws.String("RANGE"),
+							},
+						},
+						Projection: &v1alpha1.Projection{
+							ProjectionType: aws.String("ALL"),
+						},
+						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+							ReadCapacityUnits:  aws.Int64(0),
+							WriteCapacityUnits: aws.Int64(0),
+						},
+					},
+				},
+			},
+		}}
+		customPreCompare(delta, c, d)
+		require.False(t, delta.DifferentAt("Spec.GlobalSecondaryIndexes"))
 	})
 }
 
