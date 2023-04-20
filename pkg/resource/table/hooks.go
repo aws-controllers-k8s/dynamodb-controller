@@ -200,7 +200,7 @@ func (rm *resourceManager) customUpdateTable(
 			if err := rm.syncTableProvisionedThroughput(ctx, desired); err != nil {
 				return nil, err
 			}
-		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && delta.DifferentAt("Spec.AttributeDefinitions"):
+		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") || delta.DifferentAt("Spec.AttributeDefinitions"):
 			if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
 				if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "LimitExceededException" {
 					return nil, requeueWaitGSIReady

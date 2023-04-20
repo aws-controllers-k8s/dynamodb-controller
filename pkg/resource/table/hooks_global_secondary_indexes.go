@@ -233,6 +233,9 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 
 // newSDKProvisionedThroughput builds a new *svcsdk.ProvisionedThroughput
 func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.ProvisionedThroughput {
+	if pt == nil {
+		return nil
+	}
 	provisionedThroughput := &svcsdk.ProvisionedThroughput{}
 	if pt != nil {
 		if pt.ReadCapacityUnits != nil {
@@ -264,7 +267,7 @@ func newSDKProjection(p *v1alpha1.Projection) *svcsdk.Projection {
 		if p.NonKeyAttributes != nil {
 			projection.NonKeyAttributes = p.NonKeyAttributes
 		} else {
-			projection.NonKeyAttributes = []*string{}
+			projection.NonKeyAttributes = nil
 		}
 	} else {
 		projection.ProjectionType = aws.String("")
