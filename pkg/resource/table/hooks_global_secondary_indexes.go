@@ -84,7 +84,9 @@ func equalGlobalSecondaryIndexes(
 	b *v1alpha1.GlobalSecondaryIndex,
 ) bool {
 	if ackcompare.HasNilDifference(a.ProvisionedThroughput, b.ProvisionedThroughput) {
-		return false
+		if !isPayPerRequestMode(a, b) {
+			return false
+		}
 	}
 	if a.ProvisionedThroughput != nil && b.ProvisionedThroughput != nil {
 		if !equalInt64s(a.ProvisionedThroughput.ReadCapacityUnits, b.ProvisionedThroughput.ReadCapacityUnits) {
@@ -113,6 +115,29 @@ func equalGlobalSecondaryIndexes(
 		}
 	}
 	return true
+}
+
+// isPayPerRequestMode catches the exceptional case for GSI with PAY_PER_REQUEST billing mode
+// if a.ProvisionedThroughput is nil and b.ProvisionedThroughput is not nil but with 0 capacity
+// because aws set the default value to 0 for provisioned throughput when billing mode is PAY_PER_REQUEST
+// see https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ProvisionedThroughput.html
+func isPayPerRequestMode(desired *v1alpha1.GlobalSecondaryIndex, latest *v1alpha1.GlobalSecondaryIndex) bool {
+	if desired.ProvisionedThroughput == nil &&
+		latest.ProvisionedThroughput != nil &&
+		aws.Int64Value(latest.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
+		aws.Int64Value(latest.ProvisionedThroughput.ReadCapacityUnits) == 0 {
+		return true
+	}
+
+	// this case should not happen with dynamodb request validation, but just in case
+	if desired.ProvisionedThroughput != nil &&
+		latest.ProvisionedThroughput == nil &&
+		aws.Int64Value(desired.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
+		aws.Int64Value(desired.ProvisionedThroughput.ReadCapacityUnits) == 0 {
+		return true
+	}
+
+	return false
 }
 
 // syncTableGlobalSecondaryIndexes updates a global table secondary indexes.
