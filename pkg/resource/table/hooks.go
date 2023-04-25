@@ -113,6 +113,33 @@ func isTableUpdating(r *resource) bool {
 	return dbis == string(v1alpha1.TableStatus_SDK_UPDATING)
 }
 
+// isGSICreating returns true if any GSI is in the process of being created
+//
+// of being deleted
+func isGSICreating(r *resource) bool {
+	return isGSIinStatus(r, v1alpha1.IndexStatus_CREATING)
+}
+
+// isGSIUpdating returns true if any GSI is in the process of being created
+//
+// of being deleted
+func isGSIUpdating(r *resource) bool {
+	return isGSIinStatus(r, v1alpha1.IndexStatus_UPDATING)
+}
+
+func isGSIinStatus(r *resource, indexStatus v1alpha1.IndexStatus) bool {
+	if len(r.ko.Status.GlobalSecondaryIndexesDescriptions) == 0 {
+		return false
+	}
+	gsiDescs := r.ko.Status.GlobalSecondaryIndexesDescriptions
+	for _, gsi := range gsiDescs {
+		if aws.StringValue(gsi.IndexStatus) == string(indexStatus) {
+			return true
+		}
+	}
+	return false
+}
+
 func (rm *resourceManager) customUpdateTable(
 	ctx context.Context,
 	desired *resource,

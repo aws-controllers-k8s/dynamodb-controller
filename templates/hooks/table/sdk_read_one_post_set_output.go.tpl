@@ -59,6 +59,24 @@
 	if isTableUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
 	}
+	if isGSICreating(&resource{ko}) {
+		ackcondition.SetSynced(
+			&resource{ko},
+			corev1.ConditionFalse,
+			aws.String("Global Secondary Indexes are being created..."),
+			nil,
+		)
+		return &resource{ko}, requeueWaitWhileCreating
+	}
+	if isGSIUpdating(&resource{ko}) {
+		ackcondition.SetSynced(
+			&resource{ko},
+			corev1.ConditionFalse,
+			aws.String("Global Secondary Indexes are being updated..."),
+			nil,
+		)
+		return &resource{ko}, requeueWaitWhileCreating
+	}
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err
 	}
