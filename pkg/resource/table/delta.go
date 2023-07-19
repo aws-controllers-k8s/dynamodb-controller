@@ -51,6 +51,17 @@ func newResourceDelta(
 			delta.Add("Spec.BillingMode", a.ko.Spec.BillingMode, b.ko.Spec.BillingMode)
 		}
 	}
+	if ackcompare.HasNilDifference(a.ko.Spec.ContinuousBackups, b.ko.Spec.ContinuousBackups) {
+		delta.Add("Spec.ContinuousBackups", a.ko.Spec.ContinuousBackups, b.ko.Spec.ContinuousBackups)
+	} else if a.ko.Spec.ContinuousBackups != nil && b.ko.Spec.ContinuousBackups != nil {
+		if ackcompare.HasNilDifference(a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled, b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled) {
+			delta.Add("Spec.ContinuousBackups.PointInTimeRecoveryEnabled", a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled, b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled)
+		} else if a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil && b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
+			if *a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != *b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled {
+				delta.Add("Spec.ContinuousBackups.PointInTimeRecoveryEnabled", a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled, b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled)
+			}
+		}
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput) {
 		delta.Add("Spec.ProvisionedThroughput", a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput)
 	} else if a.ko.Spec.ProvisionedThroughput != nil && b.ko.Spec.ProvisionedThroughput != nil {

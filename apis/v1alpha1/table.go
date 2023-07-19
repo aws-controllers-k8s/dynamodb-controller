@@ -35,6 +35,8 @@ type TableSpec struct {
 	//   - PAY_PER_REQUEST - We recommend using PAY_PER_REQUEST for unpredictable
 	//     workloads. PAY_PER_REQUEST sets the billing mode to On-Demand Mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.OnDemand).
 	BillingMode *string `json:"billingMode,omitempty"`
+	// Represents the settings used to enable point in time recovery.
+	ContinuousBackups *PointInTimeRecoverySpecification `json:"continuousBackups,omitempty"`
 	// One or more global secondary indexes (the maximum is 20) to be created on
 	// the table. Each global secondary index in the array includes the following:
 	//
