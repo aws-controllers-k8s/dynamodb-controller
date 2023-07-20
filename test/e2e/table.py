@@ -72,6 +72,18 @@ class TTLAttributeMatcher:
 def ttl_on_attribute_matches(attr_name: str) -> TableMatchFunc:
     return TTLAttributeMatcher(attr_name)
 
+class PITRMatcher:
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
+
+    def __call__(self, record: dict) -> bool:
+        pitr_enabled = get_point_in_time_recovery_enabled(record['TableName'])
+        if pitr_enabled is None:
+            return False
+        return pitr_enabled == self.enabled
+
+def point_in_time_recovery_matches(enabled: bool) -> TableMatchFunc:
+    return PITRMatcher(enabled)
 
 class StreamSpecificationMatcher:
     def __init__(self, enabled: bool):
@@ -229,5 +241,17 @@ def get_time_to_live(table_name):
     try:
         resp = c.describe_time_to_live(TableName=table_name)
         return resp['TimeToLiveDescription']
+    except c.exceptions.ResourceNotFoundException:
+        return None
+
+def get_point_in_time_recovery_enabled(table_name):
+    """Returns whether point in time recovery is enabled for the table with a supplied name.
+
+    If no such Table exists, returns None.
+    """
+    c = boto3.client('dynamodb', region_name=get_region())
+    try:
+        resp = c.describe_continuous_backups(TableName=table_name)
+        return resp['ContinuousBackupsDescription']['PointInTimeRecoveryDescription']['PointInTimeRecoveryStatus'] == 'ENABLED'
     except c.exceptions.ResourceNotFoundException:
         return None
