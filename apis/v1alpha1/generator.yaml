@@ -23,6 +23,11 @@ resources:
         from:
           operation: UpdateTimeToLive
           path: TimeToLiveSpecification
+      ContinuousBackups:
+        is_required: false
+        from:
+          operation: UpdateContinuousBackups
+          path: PointInTimeRecoverySpecification
       AttributeDefinitions:
         compare:
           is_ignored: true

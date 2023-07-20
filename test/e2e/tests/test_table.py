@@ -265,6 +265,59 @@ class TestTable:
         ttl_status = ttl["TimeToLiveStatus"]
         assert ttl_status in ("ENABLED", "ENABLING")
 
+    def test_enable_point_in_time_recovery(self, table_lsi):
+        (ref, res) = table_lsi
+
+        table_name = res["spec"]["tableName"]
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+
+        # Get CR latest revision
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Update PITR
+        updates = {
+            "spec": {
+                "continuousBackups": {
+                    "pointInTimeRecoveryEnabled": True
+                }
+            }
+        }
+
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, updates)
+
+        table.wait_until(
+            table_name,
+            table.point_in_time_recovery_matches(True),
+        )
+
+        pitr_enabled = table.get_point_in_time_recovery_enabled(table_name)
+        assert pitr_enabled is not None
+        assert pitr_enabled
+
+        # turn off pitr again and ensure it is disabled
+        updates = {
+            "spec": {
+                "continuousBackups": {
+                    "pointInTimeRecoveryEnabled": False
+                }
+            }
+        }
+
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, updates)
+
+        table.wait_until(
+            table_name,
+            table.point_in_time_recovery_matches(False),
+        )
+
+        pitr_enabled = table.get_point_in_time_recovery_enabled(table_name)
+        assert pitr_enabled is not None
+        assert not pitr_enabled
+
     def test_enable_stream_specification(self, table_lsi):
         (ref, res) = table_lsi
 

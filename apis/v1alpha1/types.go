@@ -44,16 +44,29 @@ type AttributeDefinition struct {
 // Represents the auto scaling settings for a global table or global secondary
 // index.
 type AutoScalingSettingsDescription struct {
-	AutoScalingRoleARN *string `json:"autoScalingRoleARN,omitempty"`
-	MaximumUnits       *int64  `json:"maximumUnits,omitempty"`
-	MinimumUnits       *int64  `json:"minimumUnits,omitempty"`
+	AutoScalingDisabled *bool   `json:"autoScalingDisabled,omitempty"`
+	AutoScalingRoleARN  *string `json:"autoScalingRoleARN,omitempty"`
+	MaximumUnits        *int64  `json:"maximumUnits,omitempty"`
+	MinimumUnits        *int64  `json:"minimumUnits,omitempty"`
 }
 
 // Represents the auto scaling settings to be modified for a global table or
 // global secondary index.
 type AutoScalingSettingsUpdate struct {
-	MaximumUnits *int64 `json:"maximumUnits,omitempty"`
-	MinimumUnits *int64 `json:"minimumUnits,omitempty"`
+	AutoScalingDisabled *bool  `json:"autoScalingDisabled,omitempty"`
+	MaximumUnits        *int64 `json:"maximumUnits,omitempty"`
+	MinimumUnits        *int64 `json:"minimumUnits,omitempty"`
+}
+
+// Represents the properties of a target tracking scaling policy.
+type AutoScalingTargetTrackingScalingPolicyConfigurationDescription struct {
+	DisableScaleIn *bool `json:"disableScaleIn,omitempty"`
+}
+
+// Represents the settings of a target tracking scaling policy that will be
+// modified.
+type AutoScalingTargetTrackingScalingPolicyConfigurationUpdate struct {
+	DisableScaleIn *bool `json:"disableScaleIn,omitempty"`
 }
 
 // Contains the description of the backup created for the table.
@@ -187,6 +200,30 @@ type DeleteReplicationGroupMemberAction struct {
 type Endpoint struct {
 	Address              *string `json:"address,omitempty"`
 	CachePeriodInMinutes *int64  `json:"cachePeriodInMinutes,omitempty"`
+}
+
+// Represents a condition to be compared with an attribute value. This condition
+// can be used with DeleteItem, PutItem, or UpdateItem operations; if the comparison
+// evaluates to true, the operation succeeds; if not, the operation fails. You
+// can use ExpectedAttributeValue in one of two different ways:
+//
+//   - Use AttributeValueList to specify one or more values to compare against
+//     an attribute. Use ComparisonOperator to specify how you want to perform
+//     the comparison. If the comparison evaluates to true, then the conditional
+//     operation succeeds.
+//
+//   - Use Value to specify a value that DynamoDB will compare against an attribute.
+//     If the values match, then ExpectedAttributeValue evaluates to true and
+//     the conditional operation succeeds. Optionally, you can also set Exists
+//     to false, indicating that you do not expect to find the attribute value
+//     in the table. In this case, the conditional operation succeeds only if
+//     the comparison evaluates to false.
+//
+// Value and Exists are incompatible with AttributeValueList and ComparisonOperator.
+// Note that if you use both sets of parameters at once, DynamoDB will return
+// a ValidationException exception.
+type ExpectedAttributeValue struct {
+	Exists *bool `json:"exists,omitempty"`
 }
 
 // Represents the properties of the exported table.
@@ -373,6 +410,11 @@ type LocalSecondaryIndexInfo struct {
 type PointInTimeRecoveryDescription struct {
 	EarliestRestorableDateTime *metav1.Time `json:"earliestRestorableDateTime,omitempty"`
 	LatestRestorableDateTime   *metav1.Time `json:"latestRestorableDateTime,omitempty"`
+}
+
+// Represents the settings used to enable point in time recovery.
+type PointInTimeRecoverySpecification struct {
+	PointInTimeRecoveryEnabled *bool `json:"pointInTimeRecoveryEnabled,omitempty"`
 }
 
 // Represents attributes that are copied (projected) from the table into an

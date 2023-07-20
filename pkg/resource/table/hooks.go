@@ -32,22 +32,35 @@ import (
 )
 
 var (
-	ErrTableDeleting     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusDeleting)
-	ErrTableCreating     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusCreating)
-	ErrTableUpdating     = fmt.Errorf("Table in '%v' state, cannot be modified or deleted", svcsdk.TableStatusUpdating)
-	ErrTableGSIsUpdating = fmt.Errorf("Table GSIs in '%v' state, cannot be modified or deleted", svcsdk.IndexStatusCreating)
+	ErrTableDeleting = fmt.Errorf(
+		"Table in '%v' state, cannot be modified or deleted",
+		svcsdk.TableStatusDeleting,
+	)
+	ErrTableCreating = fmt.Errorf(
+		"Table in '%v' state, cannot be modified or deleted",
+		svcsdk.TableStatusCreating,
+	)
+	ErrTableUpdating = fmt.Errorf(
+		"Table in '%v' state, cannot be modified or deleted",
+		svcsdk.TableStatusUpdating,
+	)
+	ErrTableGSIsUpdating = fmt.Errorf(
+		"Table GSIs in '%v' state, cannot be modified or deleted",
+		svcsdk.IndexStatusCreating,
+	)
 )
+
+// TerminalStatuses are the status strings that are terminal states for a
+// DynamoDB table
+var TerminalStatuses = []v1alpha1.TableStatus_SDK{
+	v1alpha1.TableStatus_SDK_ARCHIVING,
+	v1alpha1.TableStatus_SDK_DELETING,
+}
 
 var (
-	// TerminalStatuses are the status strings that are terminal states for a
-	// DynamoDB table
-	TerminalStatuses = []v1alpha1.TableStatus_SDK{
-		v1alpha1.TableStatus_SDK_ARCHIVING,
-		v1alpha1.TableStatus_SDK_DELETING,
-	}
+	DefaultTTLEnabledValue  = false
+	DefaultPITREnabledValue = false
 )
-
-var DefaultTTLEnabledValue = false
 
 var (
 	requeueWaitWhileDeleting = ackrequeue.NeededAfter(
@@ -124,7 +137,10 @@ func (rm *resourceManager) customUpdateTable(
 	defer func(err error) { exit(err) }(err)
 
 	if immutableFieldChanges := rm.getImmutableFieldChanges(delta); len(immutableFieldChanges) > 0 {
-		msg := fmt.Sprintf("Immutable Spec fields have been modified: %s", strings.Join(immutableFieldChanges, ","))
+		msg := fmt.Sprintf(
+			"Immutable Spec fields have been modified: %s",
+			strings.Join(immutableFieldChanges, ","),
+		)
 		return nil, ackerr.NewTerminalError(fmt.Errorf(msg))
 	}
 
@@ -187,6 +203,13 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
+	if delta.DifferentAt("Spec.ContinuousBackups") {
+		err = rm.syncContinuousBackup(ctx, desired)
+		if err != nil {
+			return nil, fmt.Errorf("cannot update table %v", err)
+		}
+	}
+
 	// We want to update fast fields first
 	// Then attributes
 	// then GSI
@@ -202,7 +225,8 @@ func (rm *resourceManager) customUpdateTable(
 			}
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && delta.DifferentAt("Spec.AttributeDefinitions"):
 			if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
-				if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "LimitExceededException" {
+				if awsErr, ok := ackerr.AWSError(err); ok &&
+					awsErr.Code() == "LimitExceededException" {
 					return nil, requeueWaitGSIReady
 				}
 				return nil, err
@@ -257,13 +281,17 @@ func (rm *resourceManager) newUpdateTablePayload(
 			input.ProvisionedThroughput = &svcsdk.ProvisionedThroughput{}
 			if r.ko.Spec.ProvisionedThroughput != nil {
 				if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
-					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(
+						*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits,
+					)
 				} else {
 					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
 				}
 
 				if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
-					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(
+						*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits,
+					)
 				} else {
 					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 				}
@@ -277,8 +305,11 @@ func (rm *resourceManager) newUpdateTablePayload(
 					StreamEnabled: aws.Bool(*r.ko.Spec.StreamSpecification.StreamEnabled),
 				}
 				// Only set streamViewType when streamSpefication is enabled and streamViewType is non-nil.
-				if *r.ko.Spec.StreamSpecification.StreamEnabled && r.ko.Spec.StreamSpecification.StreamViewType != nil {
-					input.StreamSpecification.StreamViewType = aws.String(*r.ko.Spec.StreamSpecification.StreamViewType)
+				if *r.ko.Spec.StreamSpecification.StreamEnabled &&
+					r.ko.Spec.StreamSpecification.StreamViewType != nil {
+					input.StreamSpecification.StreamViewType = aws.String(
+						*r.ko.Spec.StreamSpecification.StreamViewType,
+					)
 				}
 			} else {
 				input.StreamSpecification = &svcsdk.StreamSpecification{
@@ -317,7 +348,9 @@ func (rm *resourceManager) syncTableSSESpecification(
 					input.SSESpecification.SSEType = aws.String(*r.ko.Spec.SSESpecification.SSEType)
 				}
 				if r.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
-					input.SSESpecification.KMSMasterKeyId = aws.String(*r.ko.Spec.SSESpecification.KMSMasterKeyID)
+					input.SSESpecification.KMSMasterKeyId = aws.String(
+						*r.ko.Spec.SSESpecification.KMSMasterKeyID,
+					)
 				}
 			}
 		} else {
@@ -350,13 +383,17 @@ func (rm *resourceManager) syncTableProvisionedThroughput(
 	}
 	if r.ko.Spec.ProvisionedThroughput != nil {
 		if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
-			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(
+				*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits,
+			)
 		} else {
 			input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
 		}
 
 		if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
-			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(
+				*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits,
+			)
 		} else {
 			input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 		}
@@ -395,6 +432,12 @@ func (rm *resourceManager) setResourceAdditionalFields(
 		ko.Spec.TimeToLive = ttlSpec
 	}
 
+	if pitrSpec, err := rm.getResourcePointInTimeRecoveryWithContext(ctx, ko.Spec.TableName); err != nil {
+		return err
+	} else {
+		ko.Spec.ContinuousBackups = pitrSpec
+	}
+
 	return nil
 }
 
@@ -403,11 +446,14 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
-
 	if ackcompare.HasNilDifference(a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification) {
 		if a.ko.Spec.SSESpecification != nil && b.ko.Spec.SSESpecification == nil {
 			if *a.ko.Spec.SSESpecification.Enabled {
-				delta.Add("Spec.SSESpecification", a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification)
+				delta.Add(
+					"Spec.SSESpecification",
+					a.ko.Spec.SSESpecification,
+					b.ko.Spec.SSESpecification,
+				)
 			}
 		} else {
 			delta.Add("Spec.SSESpecification", a.ko.Spec.SSESpecification, b.ko.Spec.SSESpecification)
@@ -447,7 +493,11 @@ func customPreCompare(
 	}
 
 	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
-		delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
+		delta.Add(
+			"Spec.AttributeDefinitions",
+			a.ko.Spec.AttributeDefinitions,
+			b.ko.Spec.AttributeDefinitions,
+		)
 	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
 		if !equalAttributeDefinitions(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
 			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
@@ -455,7 +505,11 @@ func customPreCompare(
 	}
 
 	if len(a.ko.Spec.GlobalSecondaryIndexes) != len(b.ko.Spec.GlobalSecondaryIndexes) {
-		delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
+		delta.Add(
+			"Spec.GlobalSecondaryIndexes",
+			a.ko.Spec.GlobalSecondaryIndexes,
+			b.ko.Spec.GlobalSecondaryIndexes,
+		)
 	} else if a.ko.Spec.GlobalSecondaryIndexes != nil && b.ko.Spec.GlobalSecondaryIndexes != nil {
 		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
 			delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
@@ -463,7 +517,11 @@ func customPreCompare(
 	}
 
 	if len(a.ko.Spec.LocalSecondaryIndexes) != len(b.ko.Spec.LocalSecondaryIndexes) {
-		delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
+		delta.Add(
+			"Spec.LocalSecondaryIndexes",
+			a.ko.Spec.LocalSecondaryIndexes,
+			b.ko.Spec.LocalSecondaryIndexes,
+		)
 	} else if a.ko.Spec.LocalSecondaryIndexes != nil && b.ko.Spec.LocalSecondaryIndexes != nil {
 		if !equalLocalSecondaryIndexesArrays(a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes) {
 			delta.Add("Spec.LocalSecondaryIndexes", a.ko.Spec.LocalSecondaryIndexes, b.ko.Spec.LocalSecondaryIndexes)
@@ -494,6 +552,12 @@ func customPreCompare(
 	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
 		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
 			Enabled: &DefaultTTLEnabledValue,
+		}
+	}
+	if a.ko.Spec.ContinuousBackups == nil && b.ko.Spec.ContinuousBackups != nil &&
+		b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
+		a.ko.Spec.ContinuousBackups = &v1alpha1.PointInTimeRecoverySpecification{
+			PointInTimeRecoveryEnabled: &DefaultPITREnabledValue,
 		}
 	}
 }
@@ -614,7 +678,10 @@ func equalLocalSecondaryIndexes(
 		if !equalStrings(a.Projection.ProjectionType, b.Projection.ProjectionType) {
 			return false
 		}
-		if !ackcompare.SliceStringPEqual(a.Projection.NonKeyAttributes, b.Projection.NonKeyAttributes) {
+		if !ackcompare.SliceStringPEqual(
+			a.Projection.NonKeyAttributes,
+			b.Projection.NonKeyAttributes,
+		) {
 			return false
 		}
 	}
