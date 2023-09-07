@@ -197,7 +197,7 @@ func (rm *resourceManager) customUpdateTable(
 	}
 
 	if delta.DifferentAt("Spec.BillingMode") ||
-		delta.DifferentAt("Spec.TableClass") {
+		delta.DifferentAt("Spec.TableClass") || delta.DifferentAt("Spec.DeletionProtectionEnabled") {
 		if err := rm.syncTable(ctx, desired, delta); err != nil {
 			return nil, fmt.Errorf("cannot update table %v", err)
 		}
@@ -322,6 +322,10 @@ func (rm *resourceManager) newUpdateTablePayload(
 		if r.ko.Spec.TableClass != nil {
 			input.TableClass = aws.String(*r.ko.Spec.TableClass)
 		}
+	}
+
+	if delta.DifferentAt("Spec.DeletionProtectionEnabled") {
+		input.DeletionProtectionEnabled = aws.Bool(*r.ko.Spec.DeletionProtectionEnabled)
 	}
 
 	return input, nil
@@ -559,6 +563,10 @@ func customPreCompare(
 		a.ko.Spec.ContinuousBackups = &v1alpha1.PointInTimeRecoverySpecification{
 			PointInTimeRecoveryEnabled: &DefaultPITREnabledValue,
 		}
+	}
+
+	if a.ko.Spec.DeletionProtectionEnabled == nil {
+		a.ko.Spec.DeletionProtectionEnabled = aws.Bool(false)
 	}
 }
 

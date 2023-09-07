@@ -37,6 +37,9 @@ type TableSpec struct {
 	BillingMode *string `json:"billingMode,omitempty"`
 	// Represents the settings used to enable point in time recovery.
 	ContinuousBackups *PointInTimeRecoverySpecification `json:"continuousBackups,omitempty"`
+	// Indicates whether deletion protection is to be enabled (true) or disabled
+	// (false) on the table.
+	DeletionProtectionEnabled *bool `json:"deletionProtectionEnabled,omitempty"`
 	// One or more global secondary indexes (the maximum is 20) to be created on
 	// the table. Each global secondary index in the array includes the following:
 	//
@@ -230,7 +233,8 @@ type TableStatus struct {
 	//
 	//    * CREATING - The table is being created.
 	//
-	//    * UPDATING - The table is being updated.
+	//    * UPDATING - The table/index configuration is being updated. The table/index
+	//    remains available for data operations when UPDATING.
 	//
 	//    * DELETING - The table is being deleted.
 	//

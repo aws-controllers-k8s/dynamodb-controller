@@ -115,7 +115,12 @@ type BatchStatementResponse struct {
 	TableName *string `json:"tableName,omitempty"`
 }
 
-// Contains the details for the read/write capacity mode.
+// Contains the details for the read/write capacity mode. This page talks about
+// PROVISIONED and PAY_PER_REQUEST billing modes. For more information about
+// these modes, see Read/write capacity mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html).
+//
+// You may need to switch to on-demand mode at least once in order to return
+// a BillingModeSummary response.
 type BillingModeSummary struct {
 	BillingMode                       *string      `json:"billingMode,omitempty"`
 	LastUpdateToPayPerRequestDateTime *metav1.Time `json:"lastUpdateToPayPerRequestDateTime,omitempty"`
@@ -198,8 +203,7 @@ type DeleteReplicationGroupMemberAction struct {
 
 // An endpoint information details.
 type Endpoint struct {
-	Address              *string `json:"address,omitempty"`
-	CachePeriodInMinutes *int64  `json:"cachePeriodInMinutes,omitempty"`
+	Address *string `json:"address,omitempty"`
 }
 
 // Represents a condition to be compared with an attribute value. This condition
@@ -682,16 +686,17 @@ type TableCreationParameters struct {
 // Represents the properties of a table.
 type TableDescription struct {
 	// Contains details of a table archival operation.
-	ArchivalSummary        *ArchivalSummary                   `json:"archivalSummary,omitempty"`
-	AttributeDefinitions   []*AttributeDefinition             `json:"attributeDefinitions,omitempty"`
-	CreationDateTime       *metav1.Time                       `json:"creationDateTime,omitempty"`
-	GlobalSecondaryIndexes []*GlobalSecondaryIndexDescription `json:"globalSecondaryIndexes,omitempty"`
-	GlobalTableVersion     *string                            `json:"globalTableVersion,omitempty"`
-	ItemCount              *int64                             `json:"itemCount,omitempty"`
-	KeySchema              []*KeySchemaElement                `json:"keySchema,omitempty"`
-	LatestStreamARN        *string                            `json:"latestStreamARN,omitempty"`
-	LatestStreamLabel      *string                            `json:"latestStreamLabel,omitempty"`
-	LocalSecondaryIndexes  []*LocalSecondaryIndexDescription  `json:"localSecondaryIndexes,omitempty"`
+	ArchivalSummary           *ArchivalSummary                   `json:"archivalSummary,omitempty"`
+	AttributeDefinitions      []*AttributeDefinition             `json:"attributeDefinitions,omitempty"`
+	CreationDateTime          *metav1.Time                       `json:"creationDateTime,omitempty"`
+	DeletionProtectionEnabled *bool                              `json:"deletionProtectionEnabled,omitempty"`
+	GlobalSecondaryIndexes    []*GlobalSecondaryIndexDescription `json:"globalSecondaryIndexes,omitempty"`
+	GlobalTableVersion        *string                            `json:"globalTableVersion,omitempty"`
+	ItemCount                 *int64                             `json:"itemCount,omitempty"`
+	KeySchema                 []*KeySchemaElement                `json:"keySchema,omitempty"`
+	LatestStreamARN           *string                            `json:"latestStreamARN,omitempty"`
+	LatestStreamLabel         *string                            `json:"latestStreamLabel,omitempty"`
+	LocalSecondaryIndexes     []*LocalSecondaryIndexDescription  `json:"localSecondaryIndexes,omitempty"`
 	// Represents the provisioned throughput settings for the table, consisting
 	// of read and write capacity units, along with data about increases and decreases.
 	ProvisionedThroughput *ProvisionedThroughputDescription `json:"provisionedThroughput,omitempty"`
