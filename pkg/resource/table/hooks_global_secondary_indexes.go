@@ -236,17 +236,18 @@ func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.Pro
 	if pt == nil {
 		return nil
 	}
-	provisionedThroughput := &svcsdk.ProvisionedThroughput{}
+	provisionedThroughput := &svcsdk.ProvisionedThroughput{
+		// ref: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ProvisionedThroughput.html
+		// Minimum capacity units is 1 when using on-demand mode
+		ReadCapacityUnits:  aws.Int64(1),
+		WriteCapacityUnits: aws.Int64(1),
+	}
 	if pt.ReadCapacityUnits != nil {
 		provisionedThroughput.ReadCapacityUnits = aws.Int64(*pt.ReadCapacityUnits)
-	} else {
-		provisionedThroughput.ReadCapacityUnits = aws.Int64(0)
 	}
 
 	if pt.WriteCapacityUnits != nil {
 		provisionedThroughput.WriteCapacityUnits = aws.Int64(*pt.WriteCapacityUnits)
-	} else {
-		provisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 	}
 	return provisionedThroughput
 }
