@@ -238,7 +238,7 @@ func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.Pro
 	}
 	provisionedThroughput := &svcsdk.ProvisionedThroughput{
 		// ref: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ProvisionedThroughput.html
-		// Minimum capacity units is 1 when using on-demand mode
+		// Minimum capacity units is 1 when using provisioned capacity mode
 		ReadCapacityUnits:  aws.Int64(1),
 		WriteCapacityUnits: aws.Int64(1),
 	}
