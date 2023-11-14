@@ -166,11 +166,16 @@ class GSIMatcher:
         self.match_on = gsis
 
     def __call__(self, record: dict) -> bool:
+        gsi_key = "GlobalSecondaryIndexes"
         if len(self.match_on) == 0:
-            return (not 'GlobalSecondaryIndexes' in record) or len(record["GlobalSecondaryIndexes"] == 0)
+            return (gsi_key not in record) or len(record[gsi_key]) == 0
 
-        awsGSIs = record["GlobalSecondaryIndexes"]
-        if len(self.match_on) != len(record["GlobalSecondaryIndexes"]):
+        # if GSI is still in creating status , it will not be present in the record
+        if gsi_key not in record:
+            return False
+
+        awsGSIs = record[gsi_key]
+        if len(self.match_on) != len(record[gsi_key]):
             return False
 
         for awsGSI in awsGSIs:

@@ -140,6 +140,18 @@ def table_basic():
     except:
         pass
 
+@pytest.fixture(scope="module")
+def table_basic_pay_per_request():
+    resource_name = random_suffix_name("table-basic-pay-per-request", 32)
+    (ref, cr) = create_table(resource_name, "table_basic_pay_per_request")
+
+    yield ref, cr
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
 @service_marker
 @pytest.mark.canary
 class TestTable:
@@ -726,7 +738,7 @@ class TestTable:
             "readCapacityUnits": 10,
             "writeCapacityUnits": 10
         }
-        cr["spec"][ "sseSpecification"] = {
+        cr["spec"]["sseSpecification"] = {
             "enabled": True,
             "sseType": "KMS"
         }
@@ -750,7 +762,11 @@ class TestTable:
         # GSI is the last element to get update in the code path... so we just wait for it
         # to know that all the fields got updated.
 
+        # encounter an issue when running E2E test locally, sometimes the gsi is updated,
+        # but SSEDescription is still being updated, add 2mins to wait (Julian Chu)
+        time.sleep(120)
         latestTable = table.get(table_name)
+        logging.info("latestTable: %s", latestTable)
         assert latestTable["StreamSpecification"] is not None
         assert latestTable["StreamSpecification"]["StreamEnabled"]
 
@@ -760,3 +776,66 @@ class TestTable:
         assert latestTable["ProvisionedThroughput"] is not None
         assert latestTable["ProvisionedThroughput"]["ReadCapacityUnits"] == 10
         assert latestTable["ProvisionedThroughput"]["WriteCapacityUnits"] == 10
+
+    def test_create_gsi_pay_per_request(self, table_basic_pay_per_request):
+        (ref, res) = table_basic_pay_per_request
+
+        table_name = res["spec"]["tableName"]
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+
+        # Get CR latest revision
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Creating two more GSIs
+        cr["spec"]["attributeDefinitions"] = [
+            {
+                "attributeName": "Bill",
+                "attributeType": "S"
+            },
+            {
+                "attributeName": "Total",
+                "attributeType": "S"
+            },
+            {
+                "attributeName": "User",
+                "attributeType": "S"
+            },
+        ]
+
+        gsi = {
+            "indexName": "bill-per-user",
+            "keySchema": [
+                {
+                    "attributeName": "User",
+                    "keyType": "HASH",
+                },
+                {
+                    "attributeName": "Bill",
+                    "keyType": "RANGE",
+                }
+            ],
+            "projection": {
+                "projectionType": "ALL",
+            }
+        }
+
+        cr["spec"]['globalSecondaryIndexes'] = [
+            gsi,
+        ]
+
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, cr)
+        k8s.wait_resource_consumed_by_controller(ref)
+        table.wait_until(
+            table_name,
+            table.gsi_matches(
+                [
+                    gsi
+                ],
+            ),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
+            interval_seconds=15,
+        )
+

@@ -458,6 +458,9 @@ func (rm *resourceManager) sdkFind(
 	if isTableUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
 	}
+	if !canUpdateTableGSIs(&resource{ko}) {
+		return &resource{ko}, requeueWaitGSIReady
+	}
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err
 	}

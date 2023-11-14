@@ -233,21 +233,21 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 
 // newSDKProvisionedThroughput builds a new *svcsdk.ProvisionedThroughput
 func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.ProvisionedThroughput {
-	provisionedThroughput := &svcsdk.ProvisionedThroughput{}
-	if pt != nil {
-		if pt.ReadCapacityUnits != nil {
-			provisionedThroughput.ReadCapacityUnits = aws.Int64(*pt.ReadCapacityUnits)
-		} else {
-			provisionedThroughput.ReadCapacityUnits = aws.Int64(0)
-		}
-		if pt.WriteCapacityUnits != nil {
-			provisionedThroughput.WriteCapacityUnits = aws.Int64(*pt.WriteCapacityUnits)
-		} else {
-			provisionedThroughput.WriteCapacityUnits = aws.Int64(0)
-		}
-	} else {
-		provisionedThroughput.ReadCapacityUnits = aws.Int64(0)
-		provisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+	if pt == nil {
+		return nil
+	}
+	provisionedThroughput := &svcsdk.ProvisionedThroughput{
+		// ref: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ProvisionedThroughput.html
+		// Minimum capacity units is 1 when using provisioned capacity mode
+		ReadCapacityUnits:  aws.Int64(1),
+		WriteCapacityUnits: aws.Int64(1),
+	}
+	if pt.ReadCapacityUnits != nil {
+		provisionedThroughput.ReadCapacityUnits = aws.Int64(*pt.ReadCapacityUnits)
+	}
+
+	if pt.WriteCapacityUnits != nil {
+		provisionedThroughput.WriteCapacityUnits = aws.Int64(*pt.WriteCapacityUnits)
 	}
 	return provisionedThroughput
 }
@@ -263,12 +263,10 @@ func newSDKProjection(p *v1alpha1.Projection) *svcsdk.Projection {
 		}
 		if p.NonKeyAttributes != nil {
 			projection.NonKeyAttributes = p.NonKeyAttributes
-		} else {
-			projection.NonKeyAttributes = []*string{}
 		}
 	} else {
 		projection.ProjectionType = aws.String("")
-		projection.NonKeyAttributes = []*string{}
+		projection.NonKeyAttributes = nil
 	}
 	return projection
 }
