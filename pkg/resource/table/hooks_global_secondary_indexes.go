@@ -246,8 +246,7 @@ func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.Pro
 			provisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 		}
 	} else {
-		provisionedThroughput.ReadCapacityUnits = aws.Int64(0)
-		provisionedThroughput.WriteCapacityUnits = aws.Int64(0)
+		provisionedThroughput = nil
 	}
 	return provisionedThroughput
 }
@@ -264,7 +263,7 @@ func newSDKProjection(p *v1alpha1.Projection) *svcsdk.Projection {
 		if p.NonKeyAttributes != nil {
 			projection.NonKeyAttributes = p.NonKeyAttributes
 		} else {
-			projection.NonKeyAttributes = []*string{}
+			projection.NonKeyAttributes = nil
 		}
 	} else {
 		projection.ProjectionType = aws.String("")
