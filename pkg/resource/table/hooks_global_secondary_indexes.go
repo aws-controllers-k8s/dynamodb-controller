@@ -263,11 +263,6 @@ func newSDKProjection(p *v1alpha1.Projection) *svcsdk.Projection {
 		}
 		if p.NonKeyAttributes != nil {
 			projection.NonKeyAttributes = p.NonKeyAttributes
-<<<<<<< HEAD
-		} else {
-			projection.NonKeyAttributes = nil
-=======
->>>>>>> main
 		}
 	} else {
 		projection.ProjectionType = aws.String("")
