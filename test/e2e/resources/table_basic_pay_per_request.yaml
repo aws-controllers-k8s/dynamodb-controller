@@ -1,0 +1,19 @@
+# Table used to test GSI creation under on-demand billing mode
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  billingMode: PAY_PER_REQUEST
+  tableClass: STANDARD
+  attributeDefinitions:
+    - attributeName: Bill
+      attributeType: S
+    - attributeName: Total
+      attributeType: S
+  keySchema:
+    - attributeName: Bill
+      keyType: HASH
+    - attributeName: Total
+      keyType: RANGE
