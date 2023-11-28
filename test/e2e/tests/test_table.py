@@ -141,6 +141,18 @@ def table_basic():
         pass
 
 @pytest.fixture(scope="module")
+def table_basic_gsi_same_attr():
+    resource_name = random_suffix_name("table-basic-gsi-same-attr", 32)
+    (ref, cr) = create_table(resource_name, "table_basic")
+
+    yield ref, cr
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
+@pytest.fixture(scope="module")
 def table_basic_pay_per_request():
     resource_name = random_suffix_name("table-basic-pay-per-request", 32)
     (ref, cr) = create_table(resource_name, "table_basic_pay_per_request")
@@ -838,8 +850,8 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
             interval_seconds=15,
         )
-    def test_create_gsi_same_attributes(self, table_basic):
-        (ref, res) = table_basic
+    def test_create_gsi_same_attributes(self, table_basic_gsi_same_attr):
+        (ref, res) = table_basic_gsi_same_attr
 
         table_name = res["spec"]["tableName"]
 
