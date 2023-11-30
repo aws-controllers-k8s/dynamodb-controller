@@ -128,21 +128,9 @@ def all_in_table():
     except:
         pass
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def table_basic():
     resource_name = random_suffix_name("table-basic", 32)
-    (ref, cr) = create_table(resource_name, "table_basic")
-
-    yield ref, cr
-    try:
-        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
-        assert deleted
-    except:
-        pass
-
-@pytest.fixture(scope="module")
-def table_basic_gsi_same_attr():
-    resource_name = random_suffix_name("table-basic-gsi-same-attr", 32)
     (ref, cr) = create_table(resource_name, "table_basic")
 
     yield ref, cr
@@ -850,8 +838,8 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
             interval_seconds=15,
         )
-    def test_create_gsi_same_attributes(self, table_basic_gsi_same_attr):
-        (ref, res) = table_basic_gsi_same_attr
+    def test_create_gsi_same_attributes(self, table_basic):
+        (ref, res) = table_basic
 
         table_name = res["spec"]["tableName"]
 
