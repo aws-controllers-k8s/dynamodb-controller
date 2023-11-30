@@ -871,7 +871,6 @@ class TestTable:
             gsi,
         ]
     
-
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
         k8s.wait_resource_consumed_by_controller(ref)
