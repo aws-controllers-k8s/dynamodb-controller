@@ -128,7 +128,7 @@ def all_in_table():
     except:
         pass
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def table_basic():
     resource_name = random_suffix_name("table-basic", 32)
     (ref, cr) = create_table(resource_name, "table_basic")
@@ -825,6 +825,52 @@ class TestTable:
             gsi,
         ]
 
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, cr)
+        k8s.wait_resource_consumed_by_controller(ref)
+        table.wait_until(
+            table_name,
+            table.gsi_matches(
+                [
+                    gsi
+                ],
+            ),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
+            interval_seconds=15,
+        )
+    def test_create_gsi_same_attributes(self, table_basic):
+        (ref, res) = table_basic
+
+        table_name = res["spec"]["tableName"]
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+
+        # Get CR latest revision
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Creating two GSI using the same attributes
+        gsi = {
+            "indexName": "total-bill",
+            "keySchema": [
+                {
+                    "attributeName": "Total",
+                    "keyType": "HASH",
+                },
+                {
+                    "attributeName": "Bill",
+                    "keyType": "RANGE",
+                }
+            ],
+            "projection": {
+                "projectionType": "ALL",
+            }
+        }
+
+        cr["spec"]['globalSecondaryIndexes'] = [
+            gsi,
+        ]
+    
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
         k8s.wait_resource_consumed_by_controller(ref)
