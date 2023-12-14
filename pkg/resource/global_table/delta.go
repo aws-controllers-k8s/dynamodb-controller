@@ -50,8 +50,12 @@ func newResourceDelta(
 			delta.Add("Spec.GlobalTableName", a.ko.Spec.GlobalTableName, b.ko.Spec.GlobalTableName)
 		}
 	}
-	if !reflect.DeepEqual(a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup) {
+	if len(a.ko.Spec.ReplicationGroup) != len(b.ko.Spec.ReplicationGroup) {
 		delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
+	} else if len(a.ko.Spec.ReplicationGroup) > 0 {
+		if !reflect.DeepEqual(a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup) {
+			delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
+		}
 	}
 
 	return delta
