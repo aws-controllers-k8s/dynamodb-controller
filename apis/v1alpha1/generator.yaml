@@ -7,7 +7,9 @@ ignore:
   - TableDescription.TableClassSummary
 operations:
   UpdateGlobalTable:
-    operation_type: Delete
+    operation_type:
+    - Update
+    - Delete
     resource_name: GlobalTable
   DescribeBackup:
     output_wrapper_field_path: BackupDescription.BackupDetails
