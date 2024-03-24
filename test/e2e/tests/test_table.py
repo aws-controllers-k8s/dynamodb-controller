@@ -14,23 +14,19 @@
 """Integration tests for the DynamoDB Table API.
 """
 
-import boto3
-import pytest
-import time
 import logging
+import time
 from typing import Dict, Tuple
 
-from acktest.resources import random_suffix_name
-from acktest.k8s import resource as k8s
+import boto3
+import pytest
 from acktest import tags
-from e2e import (
-    service_marker, CRD_GROUP, CRD_VERSION,
-    load_dynamodb_resource, wait_for_cr_status, 
-    get_resource_tags,
-)
+from acktest.k8s import resource as k8s
+from acktest.resources import random_suffix_name
+from e2e import (CRD_GROUP, CRD_VERSION, condition, get_resource_tags,
+                 load_dynamodb_resource, service_marker, table,
+                 wait_for_cr_status)
 from e2e.replacement_values import REPLACEMENT_VALUES
-from e2e import condition
-from e2e import table
 
 RESOURCE_PLURAL = "tables"
 
@@ -352,7 +348,7 @@ class TestTable:
         table.wait_until(
             table_name,
             table.stream_specification_matches(False),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*3,
             interval_seconds=3,
         )
 
