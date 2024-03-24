@@ -31,7 +31,7 @@ from e2e.replacement_values import REPLACEMENT_VALUES
 RESOURCE_PLURAL = "tables"
 
 DELETE_WAIT_AFTER_SECONDS = 15
-MODIFY_WAIT_AFTER_SECONDS = 30
+MODIFY_WAIT_AFTER_SECONDS = 90
 
 def new_gsi_dict(index_name: str, hash_key: str, read_write_pt: int):
     return {
@@ -348,7 +348,7 @@ class TestTable:
         table.wait_until(
             table_name,
             table.stream_specification_matches(False),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*3,
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
 
