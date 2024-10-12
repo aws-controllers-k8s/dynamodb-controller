@@ -55,6 +55,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - secrets
   verbs:
   - get
   - list
@@ -69,57 +70,10 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
   - dynamodb.services.k8s.aws
   resources:
   - backups
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - dynamodb.services.k8s.aws
-  resources:
-  - backups/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - dynamodb.services.k8s.aws
-  resources:
   - globaltables
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - dynamodb.services.k8s.aws
-  resources:
-  - globaltables/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - dynamodb.services.k8s.aws
-  resources:
   - tables
   verbs:
   - create
@@ -132,6 +86,8 @@ rules:
 - apiGroups:
   - dynamodb.services.k8s.aws
   resources:
+  - backups/status
+  - globaltables/status
   - tables/status
   verbs:
   - get
@@ -141,25 +97,6 @@ rules:
   - services.k8s.aws
   resources:
   - adoptedresources
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - services.k8s.aws
-  resources:
-  - adoptedresources/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - services.k8s.aws
-  resources:
   - fieldexports
   verbs:
   - create
@@ -172,6 +109,7 @@ rules:
 - apiGroups:
   - services.k8s.aws
   resources:
+  - adoptedresources/status
   - fieldexports/status
   verbs:
   - get
