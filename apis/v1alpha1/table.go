@@ -30,10 +30,11 @@ type TableSpec struct {
 	// capacity. This setting can be changed later.
 	//
 	//   - PROVISIONED - We recommend using PROVISIONED for predictable workloads.
-	//     PROVISIONED sets the billing mode to Provisioned Mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.ProvisionedThroughput.Manual).
+	//     PROVISIONED sets the billing mode to Provisioned capacity mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/provisioned-capacity-mode.html).
 	//
 	//   - PAY_PER_REQUEST - We recommend using PAY_PER_REQUEST for unpredictable
-	//     workloads. PAY_PER_REQUEST sets the billing mode to On-Demand Mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.OnDemand).
+	//     workloads. PAY_PER_REQUEST sets the billing mode to On-demand capacity
+	//     mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode.html).
 	BillingMode *string `json:"billingMode,omitempty"`
 	// Represents the settings used to enable point in time recovery.
 	ContinuousBackups *PointInTimeRecoverySpecification `json:"continuousBackups,omitempty"`
@@ -156,7 +157,8 @@ type TableSpec struct {
 	StreamSpecification *StreamSpecification `json:"streamSpecification,omitempty"`
 	// The table class of the new table. Valid values are STANDARD and STANDARD_INFREQUENT_ACCESS.
 	TableClass *string `json:"tableClass,omitempty"`
-	// The name of the table to create.
+	// The name of the table to create. You can also provide the Amazon Resource
+	// Name (ARN) of the table in this parameter.
 	// +kubebuilder:validation:Required
 	TableName *string `json:"tableName"`
 	// A list of key-value pairs to label the table. For more information, see Tagging

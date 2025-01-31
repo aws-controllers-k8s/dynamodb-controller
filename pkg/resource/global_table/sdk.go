@@ -28,8 +28,10 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +42,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.DynamoDB{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.GlobalTable{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +50,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -74,13 +76,11 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	var resp *svcsdk.DescribeGlobalTableOutput
-	resp, err = rm.sdkapi.DescribeGlobalTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.DescribeGlobalTable(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "DescribeGlobalTable", err)
 	if err != nil {
-		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-			return nil, ackerr.NotFound
-		}
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "GlobalTableNotFoundException" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "GlobalTableNotFoundException" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -107,8 +107,8 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Spec.GlobalTableName = nil
 	}
-	if resp.GlobalTableDescription.GlobalTableStatus != nil {
-		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	if resp.GlobalTableDescription.GlobalTableStatus != "" {
+		ko.Status.GlobalTableStatus = aws.String(string(resp.GlobalTableDescription.GlobalTableStatus))
 	} else {
 		ko.Status.GlobalTableStatus = nil
 	}
@@ -148,7 +148,7 @@ func (rm *resourceManager) newDescribeRequestPayload(
 	res := &svcsdk.DescribeGlobalTableInput{}
 
 	if r.ko.Spec.GlobalTableName != nil {
-		res.SetGlobalTableName(*r.ko.Spec.GlobalTableName)
+		res.GlobalTableName = r.ko.Spec.GlobalTableName
 	}
 
 	return res, nil
@@ -173,7 +173,7 @@ func (rm *resourceManager) sdkCreate(
 
 	var resp *svcsdk.CreateGlobalTableOutput
 	_ = resp
-	resp, err = rm.sdkapi.CreateGlobalTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.CreateGlobalTable(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateGlobalTable", err)
 	if err != nil {
 		return nil, err
@@ -199,8 +199,8 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Spec.GlobalTableName = nil
 	}
-	if resp.GlobalTableDescription.GlobalTableStatus != nil {
-		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	if resp.GlobalTableDescription.GlobalTableStatus != "" {
+		ko.Status.GlobalTableStatus = aws.String(string(resp.GlobalTableDescription.GlobalTableStatus))
 	} else {
 		ko.Status.GlobalTableStatus = nil
 	}
@@ -231,18 +231,18 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.CreateGlobalTableInput{}
 
 	if r.ko.Spec.GlobalTableName != nil {
-		res.SetGlobalTableName(*r.ko.Spec.GlobalTableName)
+		res.GlobalTableName = r.ko.Spec.GlobalTableName
 	}
 	if r.ko.Spec.ReplicationGroup != nil {
-		f1 := []*svcsdk.Replica{}
+		f1 := []svcsdktypes.Replica{}
 		for _, f1iter := range r.ko.Spec.ReplicationGroup {
-			f1elem := &svcsdk.Replica{}
+			f1elem := &svcsdktypes.Replica{}
 			if f1iter.RegionName != nil {
-				f1elem.SetRegionName(*f1iter.RegionName)
+				f1elem.RegionName = f1iter.RegionName
 			}
-			f1 = append(f1, f1elem)
+			f1 = append(f1, *f1elem)
 		}
-		res.SetReplicationGroup(f1)
+		res.ReplicationGroup = f1
 	}
 
 	return res, nil
@@ -268,7 +268,7 @@ func (rm *resourceManager) sdkUpdate(
 
 	var resp *svcsdk.UpdateGlobalTableOutput
 	_ = resp
-	resp, err = rm.sdkapi.UpdateGlobalTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.UpdateGlobalTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateGlobalTable", err)
 	if err != nil {
 		return nil, err
@@ -294,8 +294,8 @@ func (rm *resourceManager) sdkUpdate(
 	} else {
 		ko.Spec.GlobalTableName = nil
 	}
-	if resp.GlobalTableDescription.GlobalTableStatus != nil {
-		ko.Status.GlobalTableStatus = resp.GlobalTableDescription.GlobalTableStatus
+	if resp.GlobalTableDescription.GlobalTableStatus != "" {
+		ko.Status.GlobalTableStatus = aws.String(string(resp.GlobalTableDescription.GlobalTableStatus))
 	} else {
 		ko.Status.GlobalTableStatus = nil
 	}
@@ -327,7 +327,7 @@ func (rm *resourceManager) newUpdateRequestPayload(
 	res := &svcsdk.UpdateGlobalTableInput{}
 
 	if r.ko.Spec.GlobalTableName != nil {
-		res.SetGlobalTableName(*r.ko.Spec.GlobalTableName)
+		res.GlobalTableName = r.ko.Spec.GlobalTableName
 	}
 
 	return res, nil
@@ -350,7 +350,7 @@ func (rm *resourceManager) sdkDelete(
 	customSetDeleteInput(r, input)
 	var resp *svcsdk.UpdateGlobalTableOutput
 	_ = resp
-	resp, err = rm.sdkapi.UpdateGlobalTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.UpdateGlobalTable(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "UpdateGlobalTable", err)
 	return nil, err
 }
@@ -363,7 +363,7 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.UpdateGlobalTableInput{}
 
 	if r.ko.Spec.GlobalTableName != nil {
-		res.SetGlobalTableName(*r.ko.Spec.GlobalTableName)
+		res.GlobalTableName = r.ko.Spec.GlobalTableName
 	}
 
 	return res, nil

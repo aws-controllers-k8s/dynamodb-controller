@@ -18,7 +18,8 @@ import (
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -42,7 +43,7 @@ func (rm *resourceManager) syncTableTags(
 	// delete it and then recreate it with the new value.
 
 	if len(removed) > 0 {
-		_, err = rm.sdkapi.UntagResourceWithContext(
+		_, err = rm.sdkapi.UntagResource(
 			ctx,
 			&svcsdk.UntagResourceInput{
 				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
@@ -56,7 +57,7 @@ func (rm *resourceManager) syncTableTags(
 	}
 
 	if len(added) > 0 {
-		_, err = rm.sdkapi.TagResourceWithContext(
+		_, err = rm.sdkapi.TagResource(
 			ctx,
 			&svcsdk.TagResourceInput{
 				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
@@ -82,7 +83,7 @@ func equalTags(
 }
 
 // resourceTagsFromSDKTags transforms a *svcsdk.Tag array to a *v1alpha1.Tag array.
-func resourceTagsFromSDKTags(svcTags []*svcsdk.Tag) []*v1alpha1.Tag {
+func resourceTagsFromSDKTags(svcTags []svcsdktypes.Tag) []*v1alpha1.Tag {
 	tags := make([]*v1alpha1.Tag, len(svcTags))
 	for i := range svcTags {
 		tags[i] = &v1alpha1.Tag{
@@ -94,10 +95,10 @@ func resourceTagsFromSDKTags(svcTags []*svcsdk.Tag) []*v1alpha1.Tag {
 }
 
 // svcTagsFromResourceTags transforms a *v1alpha1.Tag array to a *svcsdk.Tag array.
-func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []*svcsdk.Tag {
-	tags := make([]*svcsdk.Tag, len(rTags))
+func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []svcsdktypes.Tag {
+	tags := make([]svcsdktypes.Tag, len(rTags))
 	for i := range rTags {
-		tags[i] = &svcsdk.Tag{
+		tags[i] = svcsdktypes.Tag{
 			Key:   rTags[i].Key,
 			Value: rTags[i].Value,
 		}
@@ -111,7 +112,7 @@ func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []*svcsdk.Tag {
 func computeTagsDelta(
 	a []*v1alpha1.Tag,
 	b []*v1alpha1.Tag,
-) (added []*v1alpha1.Tag, removed []*string) {
+) (added []*v1alpha1.Tag, removed []string) {
 	var visitedIndexes []string
 mainLoop:
 	for _, aElement := range b {
@@ -124,7 +125,7 @@ mainLoop:
 				continue mainLoop
 			}
 		}
-		removed = append(removed, aElement.Key)
+		removed = append(removed, *aElement.Key)
 	}
 	for _, bElement := range a {
 		if !ackutil.InStrings(*bElement.Key, visitedIndexes) {
@@ -146,7 +147,7 @@ func (rm *resourceManager) getResourceTagsPagesWithContext(ctx context.Context, 
 	var token *string = nil
 	for {
 		var listTagsOfResourceOutput *svcsdk.ListTagsOfResourceOutput
-		listTagsOfResourceOutput, err = rm.sdkapi.ListTagsOfResourceWithContext(
+		listTagsOfResourceOutput, err = rm.sdkapi.ListTagsOfResource(
 			ctx,
 			&svcsdk.ListTagsOfResourceInput{
 				NextToken:   token,

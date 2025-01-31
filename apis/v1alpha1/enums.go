@@ -15,78 +15,85 @@
 
 package v1alpha1
 
+type ApproximateCreationDateTimePrecision string
+
+const (
+	ApproximateCreationDateTimePrecision_MICROSECOND ApproximateCreationDateTimePrecision = "MICROSECOND"
+	ApproximateCreationDateTimePrecision_MILLISECOND ApproximateCreationDateTimePrecision = "MILLISECOND"
+)
+
 type AttributeAction string
 
 const (
 	AttributeAction_ADD    AttributeAction = "ADD"
-	AttributeAction_PUT    AttributeAction = "PUT"
 	AttributeAction_DELETE AttributeAction = "DELETE"
+	AttributeAction_PUT    AttributeAction = "PUT"
 )
 
 type BackupStatus_SDK string
 
 const (
+	BackupStatus_SDK_AVAILABLE BackupStatus_SDK = "AVAILABLE"
 	BackupStatus_SDK_CREATING  BackupStatus_SDK = "CREATING"
 	BackupStatus_SDK_DELETED   BackupStatus_SDK = "DELETED"
-	BackupStatus_SDK_AVAILABLE BackupStatus_SDK = "AVAILABLE"
 )
 
 type BackupType string
 
 const (
-	BackupType_USER       BackupType = "USER"
-	BackupType_SYSTEM     BackupType = "SYSTEM"
 	BackupType_AWS_BACKUP BackupType = "AWS_BACKUP"
+	BackupType_SYSTEM     BackupType = "SYSTEM"
+	BackupType_USER       BackupType = "USER"
 )
 
 type BackupTypeFilter string
 
 const (
-	BackupTypeFilter_USER       BackupTypeFilter = "USER"
-	BackupTypeFilter_SYSTEM     BackupTypeFilter = "SYSTEM"
-	BackupTypeFilter_AWS_BACKUP BackupTypeFilter = "AWS_BACKUP"
 	BackupTypeFilter_ALL        BackupTypeFilter = "ALL"
+	BackupTypeFilter_AWS_BACKUP BackupTypeFilter = "AWS_BACKUP"
+	BackupTypeFilter_SYSTEM     BackupTypeFilter = "SYSTEM"
+	BackupTypeFilter_USER       BackupTypeFilter = "USER"
 )
 
 type BatchStatementErrorCodeEnum string
 
 const (
-	BatchStatementErrorCodeEnum_ConditionalCheckFailed          BatchStatementErrorCodeEnum = "ConditionalCheckFailed"
-	BatchStatementErrorCodeEnum_ItemCollectionSizeLimitExceeded BatchStatementErrorCodeEnum = "ItemCollectionSizeLimitExceeded"
-	BatchStatementErrorCodeEnum_RequestLimitExceeded            BatchStatementErrorCodeEnum = "RequestLimitExceeded"
-	BatchStatementErrorCodeEnum_ValidationError                 BatchStatementErrorCodeEnum = "ValidationError"
-	BatchStatementErrorCodeEnum_ProvisionedThroughputExceeded   BatchStatementErrorCodeEnum = "ProvisionedThroughputExceeded"
-	BatchStatementErrorCodeEnum_TransactionConflict             BatchStatementErrorCodeEnum = "TransactionConflict"
-	BatchStatementErrorCodeEnum_ThrottlingError                 BatchStatementErrorCodeEnum = "ThrottlingError"
-	BatchStatementErrorCodeEnum_InternalServerError             BatchStatementErrorCodeEnum = "InternalServerError"
-	BatchStatementErrorCodeEnum_ResourceNotFound                BatchStatementErrorCodeEnum = "ResourceNotFound"
 	BatchStatementErrorCodeEnum_AccessDenied                    BatchStatementErrorCodeEnum = "AccessDenied"
+	BatchStatementErrorCodeEnum_ConditionalCheckFailed          BatchStatementErrorCodeEnum = "ConditionalCheckFailed"
 	BatchStatementErrorCodeEnum_DuplicateItem                   BatchStatementErrorCodeEnum = "DuplicateItem"
+	BatchStatementErrorCodeEnum_InternalServerError             BatchStatementErrorCodeEnum = "InternalServerError"
+	BatchStatementErrorCodeEnum_ItemCollectionSizeLimitExceeded BatchStatementErrorCodeEnum = "ItemCollectionSizeLimitExceeded"
+	BatchStatementErrorCodeEnum_ProvisionedThroughputExceeded   BatchStatementErrorCodeEnum = "ProvisionedThroughputExceeded"
+	BatchStatementErrorCodeEnum_RequestLimitExceeded            BatchStatementErrorCodeEnum = "RequestLimitExceeded"
+	BatchStatementErrorCodeEnum_ResourceNotFound                BatchStatementErrorCodeEnum = "ResourceNotFound"
+	BatchStatementErrorCodeEnum_ThrottlingError                 BatchStatementErrorCodeEnum = "ThrottlingError"
+	BatchStatementErrorCodeEnum_TransactionConflict             BatchStatementErrorCodeEnum = "TransactionConflict"
+	BatchStatementErrorCodeEnum_ValidationError                 BatchStatementErrorCodeEnum = "ValidationError"
 )
 
 type BillingMode string
 
 const (
-	BillingMode_PROVISIONED     BillingMode = "PROVISIONED"
 	BillingMode_PAY_PER_REQUEST BillingMode = "PAY_PER_REQUEST"
+	BillingMode_PROVISIONED     BillingMode = "PROVISIONED"
 )
 
 type ComparisonOperator string
 
 const (
+	ComparisonOperator_BEGINS_WITH  ComparisonOperator = "BEGINS_WITH"
+	ComparisonOperator_BETWEEN      ComparisonOperator = "BETWEEN"
+	ComparisonOperator_CONTAINS     ComparisonOperator = "CONTAINS"
 	ComparisonOperator_EQ           ComparisonOperator = "EQ"
-	ComparisonOperator_NE           ComparisonOperator = "NE"
+	ComparisonOperator_GE           ComparisonOperator = "GE"
+	ComparisonOperator_GT           ComparisonOperator = "GT"
 	ComparisonOperator_IN           ComparisonOperator = "IN"
 	ComparisonOperator_LE           ComparisonOperator = "LE"
 	ComparisonOperator_LT           ComparisonOperator = "LT"
-	ComparisonOperator_GE           ComparisonOperator = "GE"
-	ComparisonOperator_GT           ComparisonOperator = "GT"
-	ComparisonOperator_BETWEEN      ComparisonOperator = "BETWEEN"
+	ComparisonOperator_NE           ComparisonOperator = "NE"
+	ComparisonOperator_NOT_CONTAINS ComparisonOperator = "NOT_CONTAINS"
 	ComparisonOperator_NOT_NULL     ComparisonOperator = "NOT_NULL"
 	ComparisonOperator_NULL         ComparisonOperator = "NULL"
-	ComparisonOperator_CONTAINS     ComparisonOperator = "CONTAINS"
-	ComparisonOperator_NOT_CONTAINS ComparisonOperator = "NOT_CONTAINS"
-	ComparisonOperator_BEGINS_WITH  ComparisonOperator = "BEGINS_WITH"
 )
 
 type ConditionalOperator string
@@ -99,35 +106,36 @@ const (
 type ContinuousBackupsStatus string
 
 const (
-	ContinuousBackupsStatus_ENABLED  ContinuousBackupsStatus = "ENABLED"
 	ContinuousBackupsStatus_DISABLED ContinuousBackupsStatus = "DISABLED"
+	ContinuousBackupsStatus_ENABLED  ContinuousBackupsStatus = "ENABLED"
 )
 
 type ContributorInsightsAction string
 
 const (
-	ContributorInsightsAction_ENABLE  ContributorInsightsAction = "ENABLE"
 	ContributorInsightsAction_DISABLE ContributorInsightsAction = "DISABLE"
+	ContributorInsightsAction_ENABLE  ContributorInsightsAction = "ENABLE"
 )
 
 type ContributorInsightsStatus string
 
 const (
-	ContributorInsightsStatus_ENABLING  ContributorInsightsStatus = "ENABLING"
-	ContributorInsightsStatus_ENABLED   ContributorInsightsStatus = "ENABLED"
-	ContributorInsightsStatus_DISABLING ContributorInsightsStatus = "DISABLING"
 	ContributorInsightsStatus_DISABLED  ContributorInsightsStatus = "DISABLED"
+	ContributorInsightsStatus_DISABLING ContributorInsightsStatus = "DISABLING"
+	ContributorInsightsStatus_ENABLED   ContributorInsightsStatus = "ENABLED"
+	ContributorInsightsStatus_ENABLING  ContributorInsightsStatus = "ENABLING"
 	ContributorInsightsStatus_FAILED    ContributorInsightsStatus = "FAILED"
 )
 
 type DestinationStatus string
 
 const (
-	DestinationStatus_ENABLING      DestinationStatus = "ENABLING"
 	DestinationStatus_ACTIVE        DestinationStatus = "ACTIVE"
-	DestinationStatus_DISABLING     DestinationStatus = "DISABLING"
 	DestinationStatus_DISABLED      DestinationStatus = "DISABLED"
+	DestinationStatus_DISABLING     DestinationStatus = "DISABLING"
 	DestinationStatus_ENABLE_FAILED DestinationStatus = "ENABLE_FAILED"
+	DestinationStatus_ENABLING      DestinationStatus = "ENABLING"
+	DestinationStatus_UPDATING      DestinationStatus = "UPDATING"
 )
 
 type ExportFormat string
@@ -140,9 +148,9 @@ const (
 type ExportStatus string
 
 const (
-	ExportStatus_IN_PROGRESS ExportStatus = "IN_PROGRESS"
 	ExportStatus_COMPLETED   ExportStatus = "COMPLETED"
 	ExportStatus_FAILED      ExportStatus = "FAILED"
+	ExportStatus_IN_PROGRESS ExportStatus = "IN_PROGRESS"
 )
 
 type ExportType string
@@ -155,15 +163,15 @@ const (
 type ExportViewType string
 
 const (
-	ExportViewType_NEW_IMAGE          ExportViewType = "NEW_IMAGE"
 	ExportViewType_NEW_AND_OLD_IMAGES ExportViewType = "NEW_AND_OLD_IMAGES"
+	ExportViewType_NEW_IMAGE          ExportViewType = "NEW_IMAGE"
 )
 
 type GlobalTableStatus_SDK string
 
 const (
-	GlobalTableStatus_SDK_CREATING GlobalTableStatus_SDK = "CREATING"
 	GlobalTableStatus_SDK_ACTIVE   GlobalTableStatus_SDK = "ACTIVE"
+	GlobalTableStatus_SDK_CREATING GlobalTableStatus_SDK = "CREATING"
 	GlobalTableStatus_SDK_DELETING GlobalTableStatus_SDK = "DELETING"
 	GlobalTableStatus_SDK_UPDATING GlobalTableStatus_SDK = "UPDATING"
 )
@@ -171,36 +179,36 @@ const (
 type ImportStatus string
 
 const (
-	ImportStatus_IN_PROGRESS ImportStatus = "IN_PROGRESS"
-	ImportStatus_COMPLETED   ImportStatus = "COMPLETED"
-	ImportStatus_CANCELLING  ImportStatus = "CANCELLING"
 	ImportStatus_CANCELLED   ImportStatus = "CANCELLED"
+	ImportStatus_CANCELLING  ImportStatus = "CANCELLING"
+	ImportStatus_COMPLETED   ImportStatus = "COMPLETED"
 	ImportStatus_FAILED      ImportStatus = "FAILED"
+	ImportStatus_IN_PROGRESS ImportStatus = "IN_PROGRESS"
 )
 
 type IndexStatus string
 
 const (
-	IndexStatus_CREATING IndexStatus = "CREATING"
-	IndexStatus_UPDATING IndexStatus = "UPDATING"
-	IndexStatus_DELETING IndexStatus = "DELETING"
 	IndexStatus_ACTIVE   IndexStatus = "ACTIVE"
+	IndexStatus_CREATING IndexStatus = "CREATING"
+	IndexStatus_DELETING IndexStatus = "DELETING"
+	IndexStatus_UPDATING IndexStatus = "UPDATING"
 )
 
 type InputCompressionType string
 
 const (
 	InputCompressionType_GZIP InputCompressionType = "GZIP"
-	InputCompressionType_ZSTD InputCompressionType = "ZSTD"
 	InputCompressionType_NONE InputCompressionType = "NONE"
+	InputCompressionType_ZSTD InputCompressionType = "ZSTD"
 )
 
 type InputFormat string
 
 const (
+	InputFormat_CSV           InputFormat = "CSV"
 	InputFormat_DYNAMODB_JSON InputFormat = "DYNAMODB_JSON"
 	InputFormat_ION           InputFormat = "ION"
-	InputFormat_CSV           InputFormat = "CSV"
 )
 
 type KeyType string
@@ -213,53 +221,53 @@ const (
 type PointInTimeRecoveryStatus string
 
 const (
-	PointInTimeRecoveryStatus_ENABLED  PointInTimeRecoveryStatus = "ENABLED"
 	PointInTimeRecoveryStatus_DISABLED PointInTimeRecoveryStatus = "DISABLED"
+	PointInTimeRecoveryStatus_ENABLED  PointInTimeRecoveryStatus = "ENABLED"
 )
 
 type ProjectionType string
 
 const (
 	ProjectionType_ALL       ProjectionType = "ALL"
-	ProjectionType_KEYS_ONLY ProjectionType = "KEYS_ONLY"
 	ProjectionType_INCLUDE   ProjectionType = "INCLUDE"
+	ProjectionType_KEYS_ONLY ProjectionType = "KEYS_ONLY"
 )
 
 type ReplicaStatus string
 
 const (
+	ReplicaStatus_ACTIVE                              ReplicaStatus = "ACTIVE"
 	ReplicaStatus_CREATING                            ReplicaStatus = "CREATING"
 	ReplicaStatus_CREATION_FAILED                     ReplicaStatus = "CREATION_FAILED"
-	ReplicaStatus_UPDATING                            ReplicaStatus = "UPDATING"
 	ReplicaStatus_DELETING                            ReplicaStatus = "DELETING"
-	ReplicaStatus_ACTIVE                              ReplicaStatus = "ACTIVE"
-	ReplicaStatus_REGION_DISABLED                     ReplicaStatus = "REGION_DISABLED"
 	ReplicaStatus_INACCESSIBLE_ENCRYPTION_CREDENTIALS ReplicaStatus = "INACCESSIBLE_ENCRYPTION_CREDENTIALS"
+	ReplicaStatus_REGION_DISABLED                     ReplicaStatus = "REGION_DISABLED"
+	ReplicaStatus_UPDATING                            ReplicaStatus = "UPDATING"
 )
 
 type ReturnConsumedCapacity string
 
 const (
 	ReturnConsumedCapacity_INDEXES ReturnConsumedCapacity = "INDEXES"
-	ReturnConsumedCapacity_TOTAL   ReturnConsumedCapacity = "TOTAL"
 	ReturnConsumedCapacity_NONE    ReturnConsumedCapacity = "NONE"
+	ReturnConsumedCapacity_TOTAL   ReturnConsumedCapacity = "TOTAL"
 )
 
 type ReturnItemCollectionMetrics string
 
 const (
-	ReturnItemCollectionMetrics_SIZE ReturnItemCollectionMetrics = "SIZE"
 	ReturnItemCollectionMetrics_NONE ReturnItemCollectionMetrics = "NONE"
+	ReturnItemCollectionMetrics_SIZE ReturnItemCollectionMetrics = "SIZE"
 )
 
 type ReturnValue string
 
 const (
-	ReturnValue_NONE        ReturnValue = "NONE"
-	ReturnValue_ALL_OLD     ReturnValue = "ALL_OLD"
-	ReturnValue_UPDATED_OLD ReturnValue = "UPDATED_OLD"
 	ReturnValue_ALL_NEW     ReturnValue = "ALL_NEW"
+	ReturnValue_ALL_OLD     ReturnValue = "ALL_OLD"
+	ReturnValue_NONE        ReturnValue = "NONE"
 	ReturnValue_UPDATED_NEW ReturnValue = "UPDATED_NEW"
+	ReturnValue_UPDATED_OLD ReturnValue = "UPDATED_OLD"
 )
 
 type ReturnValuesOnConditionCheckFailure string
@@ -279,10 +287,10 @@ const (
 type SSEStatus string
 
 const (
-	SSEStatus_ENABLING  SSEStatus = "ENABLING"
-	SSEStatus_ENABLED   SSEStatus = "ENABLED"
-	SSEStatus_DISABLING SSEStatus = "DISABLING"
 	SSEStatus_DISABLED  SSEStatus = "DISABLED"
+	SSEStatus_DISABLING SSEStatus = "DISABLING"
+	SSEStatus_ENABLED   SSEStatus = "ENABLED"
+	SSEStatus_ENABLING  SSEStatus = "ENABLING"
 	SSEStatus_UPDATING  SSEStatus = "UPDATING"
 )
 
@@ -296,9 +304,9 @@ const (
 type ScalarAttributeType string
 
 const (
-	ScalarAttributeType_S ScalarAttributeType = "S"
-	ScalarAttributeType_N ScalarAttributeType = "N"
 	ScalarAttributeType_B ScalarAttributeType = "B"
+	ScalarAttributeType_N ScalarAttributeType = "N"
+	ScalarAttributeType_S ScalarAttributeType = "S"
 )
 
 type Select string
@@ -306,17 +314,17 @@ type Select string
 const (
 	Select_ALL_ATTRIBUTES           Select = "ALL_ATTRIBUTES"
 	Select_ALL_PROJECTED_ATTRIBUTES Select = "ALL_PROJECTED_ATTRIBUTES"
-	Select_SPECIFIC_ATTRIBUTES      Select = "SPECIFIC_ATTRIBUTES"
 	Select_COUNT                    Select = "COUNT"
+	Select_SPECIFIC_ATTRIBUTES      Select = "SPECIFIC_ATTRIBUTES"
 )
 
 type StreamViewType string
 
 const (
+	StreamViewType_KEYS_ONLY          StreamViewType = "KEYS_ONLY"
+	StreamViewType_NEW_AND_OLD_IMAGES StreamViewType = "NEW_AND_OLD_IMAGES"
 	StreamViewType_NEW_IMAGE          StreamViewType = "NEW_IMAGE"
 	StreamViewType_OLD_IMAGE          StreamViewType = "OLD_IMAGE"
-	StreamViewType_NEW_AND_OLD_IMAGES StreamViewType = "NEW_AND_OLD_IMAGES"
-	StreamViewType_KEYS_ONLY          StreamViewType = "KEYS_ONLY"
 )
 
 type TableClass string
@@ -329,20 +337,20 @@ const (
 type TableStatus_SDK string
 
 const (
-	TableStatus_SDK_CREATING                            TableStatus_SDK = "CREATING"
-	TableStatus_SDK_UPDATING                            TableStatus_SDK = "UPDATING"
-	TableStatus_SDK_DELETING                            TableStatus_SDK = "DELETING"
 	TableStatus_SDK_ACTIVE                              TableStatus_SDK = "ACTIVE"
-	TableStatus_SDK_INACCESSIBLE_ENCRYPTION_CREDENTIALS TableStatus_SDK = "INACCESSIBLE_ENCRYPTION_CREDENTIALS"
-	TableStatus_SDK_ARCHIVING                           TableStatus_SDK = "ARCHIVING"
 	TableStatus_SDK_ARCHIVED                            TableStatus_SDK = "ARCHIVED"
+	TableStatus_SDK_ARCHIVING                           TableStatus_SDK = "ARCHIVING"
+	TableStatus_SDK_CREATING                            TableStatus_SDK = "CREATING"
+	TableStatus_SDK_DELETING                            TableStatus_SDK = "DELETING"
+	TableStatus_SDK_INACCESSIBLE_ENCRYPTION_CREDENTIALS TableStatus_SDK = "INACCESSIBLE_ENCRYPTION_CREDENTIALS"
+	TableStatus_SDK_UPDATING                            TableStatus_SDK = "UPDATING"
 )
 
 type TimeToLiveStatus string
 
 const (
-	TimeToLiveStatus_ENABLING  TimeToLiveStatus = "ENABLING"
+	TimeToLiveStatus_DISABLED  TimeToLiveStatus = "DISABLED"
 	TimeToLiveStatus_DISABLING TimeToLiveStatus = "DISABLING"
 	TimeToLiveStatus_ENABLED   TimeToLiveStatus = "ENABLED"
-	TimeToLiveStatus_DISABLED  TimeToLiveStatus = "DISABLED"
+	TimeToLiveStatus_ENABLING  TimeToLiveStatus = "ENABLING"
 )

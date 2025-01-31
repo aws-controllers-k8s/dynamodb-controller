@@ -11,8 +11,8 @@
 			if fIter.ItemCount != nil {
 				fElem.ItemCount = fIter.ItemCount
 			}
-			if fIter.IndexStatus != nil {
-				fElem.IndexStatus = fIter.IndexStatus
+			if fIter.IndexStatus != "" {
+				fElem.IndexStatus = aws.String(string(fIter.IndexStatus))
 			}
 			if fIter.IndexSizeBytes != nil {
 				fElem.IndexSizeBytes = fIter.IndexSizeBytes
@@ -28,13 +28,13 @@
 	}
 	if resp.Table.SSEDescription != nil {
 		f := &svcapitypes.SSESpecification{}
-		if resp.Table.SSEDescription.Status != nil {
-			f.Enabled = aws.Bool(*resp.Table.SSEDescription.Status == "ENABLED")
+		if resp.Table.SSEDescription.Status != "" {
+			f.Enabled = aws.Bool(resp.Table.SSEDescription.Status == svcsdktypes.SSEStatusEnabled)
 		} else {
 			f.Enabled = aws.Bool(false)
 		}
-		if resp.Table.SSEDescription.SSEType != nil {
-			f.SSEType = resp.Table.SSEDescription.SSEType
+		if resp.Table.SSEDescription.SSEType != "" {
+			f.SSEType = aws.String(string(resp.Table.SSEDescription.SSEType))
 		}
 		if resp.Table.SSEDescription.KMSMasterKeyArn != nil {
 			f.KMSMasterKeyID = resp.Table.SSEDescription.KMSMasterKeyArn
@@ -44,12 +44,12 @@
 		ko.Spec.SSESpecification = nil
 	}
 	if resp.Table.TableClassSummary != nil {
-		ko.Spec.TableClass = resp.Table.TableClassSummary.TableClass
+		ko.Spec.TableClass = aws.String(string(resp.Table.TableClassSummary.TableClass))
 	} else {
 		ko.Spec.TableClass = aws.String("STANDARD")
 	}
-	if resp.Table.BillingModeSummary != nil && resp.Table.BillingModeSummary.BillingMode != nil {
-		ko.Spec.BillingMode = resp.Table.BillingModeSummary.BillingMode
+	if resp.Table.BillingModeSummary != nil && resp.Table.BillingModeSummary.BillingMode != "" {
+		ko.Spec.BillingMode = aws.String(string(resp.Table.BillingModeSummary.BillingMode))
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
