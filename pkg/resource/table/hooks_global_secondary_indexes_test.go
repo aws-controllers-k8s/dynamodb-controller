@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -17,7 +17,7 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *svcsdk.ProvisionedThroughput
+		want *svcsdktypes.ProvisionedThroughput
 	}{
 		{
 			name: "provisioned throughput is  nil",
@@ -34,7 +34,7 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 					WriteCapacityUnits: aws.Int64(10),
 				},
 			},
-			want: &svcsdk.ProvisionedThroughput{
+			want: &svcsdktypes.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(1),
 				WriteCapacityUnits: aws.Int64(10),
 			},
@@ -47,7 +47,7 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 					WriteCapacityUnits: nil,
 				},
 			},
-			want: &svcsdk.ProvisionedThroughput{
+			want: &svcsdktypes.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(1),
 			},
@@ -60,7 +60,7 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 					WriteCapacityUnits: aws.Int64(5),
 				},
 			},
-			want: &svcsdk.ProvisionedThroughput{
+			want: &svcsdktypes.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
 			},

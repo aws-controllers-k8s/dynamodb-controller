@@ -17,7 +17,8 @@ import (
 	"context"
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -31,15 +32,13 @@ func (rm *resourceManager) syncContinuousBackup(
 	exit := rlog.Trace("rm.syncContinuousBackup")
 	defer func(err error) { exit(err) }(err)
 
-	pitrSpec := &svcsdk.PointInTimeRecoverySpecification{}
+	pitrSpec := &svcsdktypes.PointInTimeRecoverySpecification{}
 	if desired.ko.Spec.ContinuousBackups != nil &&
 		desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
-		pitrSpec.SetPointInTimeRecoveryEnabled(
-			*desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled,
-		)
+		pitrSpec.PointInTimeRecoveryEnabled = desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled
 	}
 
-	_, err = rm.sdkapi.UpdateContinuousBackupsWithContext(
+	_, err = rm.sdkapi.UpdateContinuousBackups(
 		ctx,
 		&svcsdk.UpdateContinuousBackupsInput{
 			TableName:                        desired.ko.Spec.TableName,
@@ -60,7 +59,7 @@ func (rm *resourceManager) getResourcePointInTimeRecoveryWithContext(
 	exit := rlog.Trace("rm.getResourcePointInTimeRecoveryWithContext")
 	defer func(err error) { exit(err) }(err)
 
-	res, err := rm.sdkapi.DescribeContinuousBackupsWithContext(
+	res, err := rm.sdkapi.DescribeContinuousBackups(
 		ctx,
 		&svcsdk.DescribeContinuousBackupsInput{
 			TableName: tableName,
@@ -74,7 +73,7 @@ func (rm *resourceManager) getResourcePointInTimeRecoveryWithContext(
 
 	isEnabled := false
 	if res.ContinuousBackupsDescription != nil {
-		isEnabled = *res.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus == svcsdk.PointInTimeRecoveryStatusEnabled
+		isEnabled = res.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus == svcsdktypes.PointInTimeRecoveryStatusEnabled
 	}
 
 	return &v1alpha1.PointInTimeRecoverySpecification{

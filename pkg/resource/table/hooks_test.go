@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/aws-controllers-k8s/runtime/pkg/compare"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/require"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
@@ -52,7 +52,7 @@ func Test_computeTagsDelta(t *testing.T) {
 		name        string
 		args        args
 		wantAdded   []*v1alpha1.Tag
-		wantRemoved []*string
+		wantRemoved []string
 	}{
 		{
 			name: "nil arrays",
@@ -88,7 +88,7 @@ func Test_computeTagsDelta(t *testing.T) {
 				b: []*v1alpha1.Tag{Tag1, Tag2},
 			},
 			wantAdded:   nil,
-			wantRemoved: []*string{aws.String("k1"), aws.String("k2")},
+			wantRemoved: []string{"k1", "k2"},
 		},
 		{
 			name: "updated tags",
@@ -107,7 +107,7 @@ func Test_computeTagsDelta(t *testing.T) {
 				b: []*v1alpha1.Tag{Tag1, Tag2},
 			},
 			wantAdded:   []*v1alpha1.Tag{Tag2Updated, Tag3},
-			wantRemoved: []*string{aws.String("k1")},
+			wantRemoved: []string{"k1"},
 		},
 	}
 	for _, tt := range tests {

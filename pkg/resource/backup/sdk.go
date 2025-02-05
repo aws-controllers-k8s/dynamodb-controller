@@ -28,8 +28,9 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +41,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.DynamoDB{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.Backup{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +49,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -74,13 +75,11 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	var resp *svcsdk.DescribeBackupOutput
-	resp, err = rm.sdkapi.DescribeBackupWithContext(ctx, input)
+	resp, err = rm.sdkapi.DescribeBackup(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "DescribeBackup", err)
 	if err != nil {
-		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-			return nil, ackerr.NotFound
-		}
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "BackupNotFoundException" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "BackupNotFoundException" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -117,13 +116,13 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.BackupSizeBytes = nil
 	}
-	if resp.BackupDescription.BackupDetails.BackupStatus != nil {
-		ko.Status.BackupStatus = resp.BackupDescription.BackupDetails.BackupStatus
+	if resp.BackupDescription.BackupDetails.BackupStatus != "" {
+		ko.Status.BackupStatus = aws.String(string(resp.BackupDescription.BackupDetails.BackupStatus))
 	} else {
 		ko.Status.BackupStatus = nil
 	}
-	if resp.BackupDescription.BackupDetails.BackupType != nil {
-		ko.Status.BackupType = resp.BackupDescription.BackupDetails.BackupType
+	if resp.BackupDescription.BackupDetails.BackupType != "" {
+		ko.Status.BackupType = aws.String(string(resp.BackupDescription.BackupDetails.BackupType))
 	} else {
 		ko.Status.BackupType = nil
 	}
@@ -153,7 +152,7 @@ func (rm *resourceManager) newDescribeRequestPayload(
 	res := &svcsdk.DescribeBackupInput{}
 
 	if r.ko.Status.ACKResourceMetadata != nil && r.ko.Status.ACKResourceMetadata.ARN != nil {
-		res.SetBackupArn(string(*r.ko.Status.ACKResourceMetadata.ARN))
+		res.BackupArn = (*string)(r.ko.Status.ACKResourceMetadata.ARN)
 	}
 
 	return res, nil
@@ -178,7 +177,7 @@ func (rm *resourceManager) sdkCreate(
 
 	var resp *svcsdk.CreateBackupOutput
 	_ = resp
-	resp, err = rm.sdkapi.CreateBackupWithContext(ctx, input)
+	resp, err = rm.sdkapi.CreateBackup(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateBackup", err)
 	if err != nil {
 		return nil, err
@@ -214,13 +213,13 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.BackupSizeBytes = nil
 	}
-	if resp.BackupDetails.BackupStatus != nil {
-		ko.Status.BackupStatus = resp.BackupDetails.BackupStatus
+	if resp.BackupDetails.BackupStatus != "" {
+		ko.Status.BackupStatus = aws.String(string(resp.BackupDetails.BackupStatus))
 	} else {
 		ko.Status.BackupStatus = nil
 	}
-	if resp.BackupDetails.BackupType != nil {
-		ko.Status.BackupType = resp.BackupDetails.BackupType
+	if resp.BackupDetails.BackupType != "" {
+		ko.Status.BackupType = aws.String(string(resp.BackupDetails.BackupType))
 	} else {
 		ko.Status.BackupType = nil
 	}
@@ -238,10 +237,10 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.CreateBackupInput{}
 
 	if r.ko.Spec.BackupName != nil {
-		res.SetBackupName(*r.ko.Spec.BackupName)
+		res.BackupName = r.ko.Spec.BackupName
 	}
 	if r.ko.Spec.TableName != nil {
-		res.SetTableName(*r.ko.Spec.TableName)
+		res.TableName = r.ko.Spec.TableName
 	}
 
 	return res, nil
@@ -274,7 +273,7 @@ func (rm *resourceManager) sdkDelete(
 	}
 	var resp *svcsdk.DeleteBackupOutput
 	_ = resp
-	resp, err = rm.sdkapi.DeleteBackupWithContext(ctx, input)
+	resp, err = rm.sdkapi.DeleteBackup(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "DeleteBackup", err)
 	return nil, err
 }
@@ -287,7 +286,7 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.DeleteBackupInput{}
 
 	if r.ko.Status.ACKResourceMetadata != nil && r.ko.Status.ACKResourceMetadata.ARN != nil {
-		res.SetBackupArn(string(*r.ko.Status.ACKResourceMetadata.ARN))
+		res.BackupArn = (*string)(r.ko.Status.ACKResourceMetadata.ARN)
 	}
 
 	return res, nil

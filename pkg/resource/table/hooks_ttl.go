@@ -17,7 +17,9 @@ import (
 	"context"
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -32,7 +34,7 @@ func (rm *resourceManager) syncTTL(
 	exit := rlog.Trace("rm.syncTTL")
 	defer func(err error) { exit(err) }(err)
 
-	ttlSpec := &svcsdk.TimeToLiveSpecification{}
+	ttlSpec := &svcsdktypes.TimeToLiveSpecification{}
 	if desired.ko.Spec.TimeToLive != nil {
 		ttlSpec.AttributeName = desired.ko.Spec.TimeToLive.AttributeName
 		ttlSpec.Enabled = desired.ko.Spec.TimeToLive.Enabled
@@ -47,11 +49,11 @@ func (rm *resourceManager) syncTTL(
 			currentAttrName = *latest.ko.Spec.TimeToLive.AttributeName
 		}
 
-		ttlSpec.SetAttributeName(currentAttrName)
-		ttlSpec.SetEnabled(false)
+		ttlSpec.AttributeName = &currentAttrName
+		ttlSpec.Enabled = aws.Bool(false)
 	}
 
-	_, err = rm.sdkapi.UpdateTimeToLiveWithContext(
+	_, err = rm.sdkapi.UpdateTimeToLive(
 		ctx,
 		&svcsdk.UpdateTimeToLiveInput{
 			TableName:               desired.ko.Spec.TableName,
@@ -69,7 +71,7 @@ func (rm *resourceManager) getResourceTTLWithContext(ctx context.Context, tableN
 	exit := rlog.Trace("rm.getResourceTTLWithContext")
 	defer func(err error) { exit(err) }(err)
 
-	res, err := rm.sdkapi.DescribeTimeToLiveWithContext(
+	res, err := rm.sdkapi.DescribeTimeToLive(
 		ctx,
 		&svcsdk.DescribeTimeToLiveInput{
 			TableName: tableName,
@@ -81,8 +83,8 @@ func (rm *resourceManager) getResourceTTLWithContext(ctx context.Context, tableN
 	}
 
 	// Treat status "ENABLING" and "ENABLED" as `Enabled` == true
-	isEnabled := *res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabled ||
-		*res.TimeToLiveDescription.TimeToLiveStatus == svcsdk.TimeToLiveStatusEnabling
+	isEnabled := res.TimeToLiveDescription.TimeToLiveStatus == svcsdktypes.TimeToLiveStatusEnabled ||
+		res.TimeToLiveDescription.TimeToLiveStatus == svcsdktypes.TimeToLiveStatusEnabling
 
 	return &v1alpha1.TimeToLiveSpecification{
 		AttributeName: res.TimeToLiveDescription.AttributeName,

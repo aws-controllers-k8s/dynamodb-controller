@@ -35,7 +35,7 @@ type ArchivalSummary struct {
 	ArchivalReason    *string      `json:"archivalReason,omitempty"`
 }
 
-// Represents an attribute for describing the key schema for the table and indexes.
+// Represents an attribute for describing the schema for the table and indexes.
 type AttributeDefinition struct {
 	AttributeName *string `json:"attributeName,omitempty"`
 	AttributeType *string `json:"attributeType,omitempty"`
@@ -135,8 +135,8 @@ type ConditionCheck struct {
 // The capacity units consumed by an operation. The data returned includes the
 // total provisioned throughput consumed, along with statistics for the table
 // and any indexes involved in the operation. ConsumedCapacity is only returned
-// if the request asked for it. For more information, see Provisioned Throughput
-// (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ProvisionedThroughputIntro.html)
+// if the request asked for it. For more information, see Provisioned capacity
+// mode (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/provisioned-capacity-mode.html)
 // in the Amazon DynamoDB Developer Guide.
 type ConsumedCapacity struct {
 	TableName *string `json:"tableName,omitempty"`

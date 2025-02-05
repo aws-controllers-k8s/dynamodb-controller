@@ -24,8 +24,9 @@ import (
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
@@ -34,19 +35,19 @@ import (
 var (
 	ErrTableDeleting = fmt.Errorf(
 		"Table in '%v' state, cannot be modified or deleted",
-		svcsdk.TableStatusDeleting,
+		svcsdktypes.TableStatusDeleting,
 	)
 	ErrTableCreating = fmt.Errorf(
 		"Table in '%v' state, cannot be modified or deleted",
-		svcsdk.TableStatusCreating,
+		svcsdktypes.TableStatusCreating,
 	)
 	ErrTableUpdating = fmt.Errorf(
 		"Table in '%v' state, cannot be modified or deleted",
-		svcsdk.TableStatusUpdating,
+		svcsdktypes.TableStatusUpdating,
 	)
 	ErrTableGSIsUpdating = fmt.Errorf(
 		"Table GSIs in '%v' state, cannot be modified or deleted",
-		svcsdk.IndexStatusCreating,
+		svcsdktypes.IndexStatusCreating,
 	)
 )
 
@@ -183,8 +184,8 @@ func (rm *resourceManager) customUpdateTable(
 	if delta.DifferentAt("Spec.TimeToLive") {
 		if err := rm.syncTTL(ctx, desired, latest); err != nil {
 			// Ignore "already disabled errors"
-			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.Code() == "ValidationException" &&
-				strings.HasPrefix(awsErr.Message(), "TimeToLive is already disabled")) {
+			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.ErrorCode() == "ValidationException" &&
+				strings.HasPrefix(awsErr.ErrorMessage(), "TimeToLive is already disabled")) {
 				return nil, err
 			}
 		}
@@ -226,7 +227,7 @@ func (rm *resourceManager) customUpdateTable(
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes"):
 			if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
 				if awsErr, ok := ackerr.AWSError(err); ok &&
-					awsErr.Code() == "LimitExceededException" {
+					awsErr.ErrorCode() == "LimitExceededException" {
 					return nil, requeueWaitGSIReady
 				}
 				return nil, err
@@ -252,7 +253,7 @@ func (rm *resourceManager) syncTable(
 	if err != nil {
 		return err
 	}
-	_, err = rm.sdkapi.UpdateTable(input)
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
 		return err
@@ -272,13 +273,13 @@ func (rm *resourceManager) newUpdateTablePayload(
 
 	if delta.DifferentAt("Spec.BillingMode") {
 		if r.ko.Spec.BillingMode != nil {
-			input.BillingMode = aws.String(*r.ko.Spec.BillingMode)
+			input.BillingMode = svcsdktypes.BillingMode(*r.ko.Spec.BillingMode)
 		} else {
 			// set biling mode to the default value `PROVISIONED`
-			input.BillingMode = aws.String(svcsdk.BillingModeProvisioned)
+			input.BillingMode = svcsdktypes.BillingModeProvisioned
 		}
-		if *input.BillingMode == svcsdk.BillingModeProvisioned {
-			input.ProvisionedThroughput = &svcsdk.ProvisionedThroughput{}
+		if input.BillingMode == svcsdktypes.BillingModeProvisioned {
+			input.ProvisionedThroughput = &svcsdktypes.ProvisionedThroughput{}
 			if r.ko.Spec.ProvisionedThroughput != nil {
 				if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
 					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(
@@ -301,18 +302,18 @@ func (rm *resourceManager) newUpdateTablePayload(
 	if delta.DifferentAt("Spec.StreamSpecification") {
 		if r.ko.Spec.StreamSpecification != nil {
 			if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
-				input.StreamSpecification = &svcsdk.StreamSpecification{
+				input.StreamSpecification = &svcsdktypes.StreamSpecification{
 					StreamEnabled: aws.Bool(*r.ko.Spec.StreamSpecification.StreamEnabled),
 				}
 				// Only set streamViewType when streamSpefication is enabled and streamViewType is non-nil.
 				if *r.ko.Spec.StreamSpecification.StreamEnabled &&
 					r.ko.Spec.StreamSpecification.StreamViewType != nil {
-					input.StreamSpecification.StreamViewType = aws.String(
+					input.StreamSpecification.StreamViewType = svcsdktypes.StreamViewType(
 						*r.ko.Spec.StreamSpecification.StreamViewType,
 					)
 				}
 			} else {
-				input.StreamSpecification = &svcsdk.StreamSpecification{
+				input.StreamSpecification = &svcsdktypes.StreamSpecification{
 					StreamEnabled: aws.Bool(false),
 				}
 			}
@@ -320,7 +321,7 @@ func (rm *resourceManager) newUpdateTablePayload(
 	}
 	if delta.DifferentAt("Spec.TableClass") {
 		if r.ko.Spec.TableClass != nil {
-			input.TableClass = aws.String(*r.ko.Spec.TableClass)
+			input.TableClass = svcsdktypes.TableClass(*r.ko.Spec.TableClass)
 		}
 	}
 
@@ -344,12 +345,12 @@ func (rm *resourceManager) syncTableSSESpecification(
 		TableName: aws.String(*r.ko.Spec.TableName),
 	}
 	if r.ko.Spec.SSESpecification != nil {
-		input.SSESpecification = &svcsdk.SSESpecification{}
+		input.SSESpecification = &svcsdktypes.SSESpecification{}
 		if r.ko.Spec.SSESpecification.Enabled != nil {
 			input.SSESpecification.Enabled = aws.Bool(*r.ko.Spec.SSESpecification.Enabled)
 			if *input.SSESpecification.Enabled {
 				if r.ko.Spec.SSESpecification.SSEType != nil {
-					input.SSESpecification.SSEType = aws.String(*r.ko.Spec.SSESpecification.SSEType)
+					input.SSESpecification.SSEType = svcsdktypes.SSEType(*r.ko.Spec.SSESpecification.SSEType)
 				}
 				if r.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
 					input.SSESpecification.KMSMasterKeyId = aws.String(
@@ -358,13 +359,13 @@ func (rm *resourceManager) syncTableSSESpecification(
 				}
 			}
 		} else {
-			input.SSESpecification = &svcsdk.SSESpecification{
+			input.SSESpecification = &svcsdktypes.SSESpecification{
 				Enabled: aws.Bool(false),
 			}
 		}
 	}
 
-	_, err = rm.sdkapi.UpdateTable(input)
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
 		return err
@@ -383,7 +384,7 @@ func (rm *resourceManager) syncTableProvisionedThroughput(
 
 	input := &svcsdk.UpdateTableInput{
 		TableName:             aws.String(*r.ko.Spec.TableName),
-		ProvisionedThroughput: &svcsdk.ProvisionedThroughput{},
+		ProvisionedThroughput: &svcsdktypes.ProvisionedThroughput{},
 	}
 	if r.ko.Spec.ProvisionedThroughput != nil {
 		if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
@@ -406,7 +407,7 @@ func (rm *resourceManager) syncTableProvisionedThroughput(
 		input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 	}
 
-	_, err = rm.sdkapi.UpdateTable(input)
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
 		return err
@@ -539,10 +540,10 @@ func customPreCompare(
 		a.ko.Spec.TableClass = aws.String(string(v1alpha1.TableClass_STANDARD))
 	}
 	// See https://github.com/aws-controllers-k8s/community/issues/1595
-	if aws.StringValue(a.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
+	if aws.ToString(a.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		a.ko.Spec.ProvisionedThroughput = nil
 	}
-	if aws.StringValue(b.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
+	if aws.ToString(b.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		b.ko.Spec.ProvisionedThroughput = nil
 	}
 
@@ -612,10 +613,10 @@ func equalKeySchemaArrays(
 }
 
 // newSDKAttributesDefinition builds a new []*svcsdk.AttributeDefinition
-func newSDKAttributesDefinition(ads []*v1alpha1.AttributeDefinition) []*svcsdk.AttributeDefinition {
-	attributeDefintions := []*svcsdk.AttributeDefinition{}
+func newSDKAttributesDefinition(ads []*v1alpha1.AttributeDefinition) []svcsdktypes.AttributeDefinition {
+	attributeDefintions := []svcsdktypes.AttributeDefinition{}
 	for _, ad := range ads {
-		attributeDefintion := &svcsdk.AttributeDefinition{}
+		attributeDefintion := svcsdktypes.AttributeDefinition{}
 		if ad != nil {
 			if ad.AttributeName != nil {
 				attributeDefintion.AttributeName = aws.String(*ad.AttributeName)
@@ -623,12 +624,12 @@ func newSDKAttributesDefinition(ads []*v1alpha1.AttributeDefinition) []*svcsdk.A
 				attributeDefintion.AttributeName = aws.String("")
 			}
 			if ad.AttributeType != nil {
-				attributeDefintion.AttributeType = aws.String(*ad.AttributeType)
+				attributeDefintion.AttributeType = svcsdktypes.ScalarAttributeType(*ad.AttributeType)
 			} else {
-				attributeDefintion.AttributeType = aws.String("")
+				attributeDefintion.AttributeType = svcsdktypes.ScalarAttributeType("")
 			}
 		} else {
-			attributeDefintion.AttributeType = aws.String("")
+			attributeDefintion.AttributeType = svcsdktypes.ScalarAttributeType("")
 			attributeDefintion.AttributeName = aws.String("")
 		}
 		attributeDefintions = append(attributeDefintions, attributeDefintion)

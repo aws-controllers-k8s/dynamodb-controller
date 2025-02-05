@@ -13,12 +13,15 @@
 
 package global_table
 
-import svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+import (
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
 
 func customSetDeleteInput(r *resource, input *svcsdk.UpdateGlobalTableInput) {
 	for _, replica := range r.ko.Spec.ReplicationGroup {
-		replicaUpdate := &svcsdk.ReplicaUpdate{
-			Delete: &svcsdk.DeleteReplicaAction{
+		replicaUpdate := svcsdktypes.ReplicaUpdate{
+			Delete: &svcsdktypes.DeleteReplicaAction{
 				RegionName: replica.RegionName,
 			},
 		}

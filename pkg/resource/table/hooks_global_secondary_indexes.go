@@ -19,8 +19,9 @@ import (
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -29,7 +30,7 @@ import (
 // we can only perform one GSI create/update/delete at once.
 func canUpdateTableGSIs(r *resource) bool {
 	for _, gsiDescription := range r.ko.Status.GlobalSecondaryIndexesDescriptions {
-		if *gsiDescription.IndexStatus != svcsdk.IndexStatusActive {
+		if *gsiDescription.IndexStatus != string(svcsdktypes.IndexStatusActive) {
 			return false
 		}
 	}
@@ -124,16 +125,16 @@ func equalGlobalSecondaryIndexes(
 func isPayPerRequestMode(desired *v1alpha1.GlobalSecondaryIndex, latest *v1alpha1.GlobalSecondaryIndex) bool {
 	if desired.ProvisionedThroughput == nil &&
 		latest.ProvisionedThroughput != nil &&
-		aws.Int64Value(latest.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
-		aws.Int64Value(latest.ProvisionedThroughput.ReadCapacityUnits) == 0 {
+		aws.ToInt64(latest.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
+		aws.ToInt64(latest.ProvisionedThroughput.ReadCapacityUnits) == 0 {
 		return true
 	}
 
 	// this case should not happen with dynamodb request validation, but just in case
 	if desired.ProvisionedThroughput != nil &&
 		latest.ProvisionedThroughput == nil &&
-		aws.Int64Value(desired.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
-		aws.Int64Value(desired.ProvisionedThroughput.ReadCapacityUnits) == 0 {
+		aws.ToInt64(desired.ProvisionedThroughput.WriteCapacityUnits) == 0 &&
+		aws.ToInt64(desired.ProvisionedThroughput.ReadCapacityUnits) == 0 {
 		return true
 	}
 
@@ -158,7 +159,7 @@ func (rm *resourceManager) syncTableGlobalSecondaryIndexes(
 		return err
 	}
 
-	_, err = rm.sdkapi.UpdateTable(input)
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
 		return err
@@ -190,8 +191,8 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 	// and directly return if we find an element. Range works well with nil arrays...
 
 	for _, addedGSI := range addedGSIs {
-		update := &svcsdk.GlobalSecondaryIndexUpdate{
-			Create: &svcsdk.CreateGlobalSecondaryIndexAction{
+		update := svcsdktypes.GlobalSecondaryIndexUpdate{
+			Create: &svcsdktypes.CreateGlobalSecondaryIndexAction{
 				IndexName:             aws.String(*addedGSI.IndexName),
 				Projection:            newSDKProjection(addedGSI.Projection),
 				KeySchema:             newSDKKeySchemaArray(addedGSI.KeySchema),
@@ -205,8 +206,8 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 	}
 
 	for _, updatedGSI := range updatedGSIs {
-		update := &svcsdk.GlobalSecondaryIndexUpdate{
-			Update: &svcsdk.UpdateGlobalSecondaryIndexAction{
+		update := svcsdktypes.GlobalSecondaryIndexUpdate{
+			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
 				IndexName:             aws.String(*updatedGSI.IndexName),
 				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
 			},
@@ -218,8 +219,8 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 	}
 
 	for _, removedGSI := range removedGSIs {
-		update := &svcsdk.GlobalSecondaryIndexUpdate{
-			Delete: &svcsdk.DeleteGlobalSecondaryIndexAction{
+		update := svcsdktypes.GlobalSecondaryIndexUpdate{
+			Delete: &svcsdktypes.DeleteGlobalSecondaryIndexAction{
 				IndexName: &removedGSI,
 			},
 		}
@@ -232,11 +233,11 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 }
 
 // newSDKProvisionedThroughput builds a new *svcsdk.ProvisionedThroughput
-func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.ProvisionedThroughput {
+func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdktypes.ProvisionedThroughput {
 	if pt == nil {
 		return nil
 	}
-	provisionedThroughput := &svcsdk.ProvisionedThroughput{
+	provisionedThroughput := &svcsdktypes.ProvisionedThroughput{
 		// ref: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ProvisionedThroughput.html
 		// Minimum capacity units is 1 when using provisioned capacity mode
 		ReadCapacityUnits:  aws.Int64(1),
@@ -253,29 +254,29 @@ func newSDKProvisionedThroughput(pt *v1alpha1.ProvisionedThroughput) *svcsdk.Pro
 }
 
 // newSDKProjection builds a new *svcsdk.Projection
-func newSDKProjection(p *v1alpha1.Projection) *svcsdk.Projection {
-	projection := &svcsdk.Projection{}
+func newSDKProjection(p *v1alpha1.Projection) *svcsdktypes.Projection {
+	projection := &svcsdktypes.Projection{}
 	if p != nil {
 		if p.ProjectionType != nil {
-			projection.ProjectionType = aws.String(*p.ProjectionType)
+			projection.ProjectionType = svcsdktypes.ProjectionType(*p.ProjectionType)
 		} else {
-			projection.ProjectionType = aws.String("")
+			projection.ProjectionType = svcsdktypes.ProjectionType("")
 		}
 		if p.NonKeyAttributes != nil {
-			projection.NonKeyAttributes = p.NonKeyAttributes
+			projection.NonKeyAttributes = aws.ToStringSlice(p.NonKeyAttributes)
 		}
 	} else {
-		projection.ProjectionType = aws.String("")
+		projection.ProjectionType = svcsdktypes.ProjectionType("")
 		projection.NonKeyAttributes = nil
 	}
 	return projection
 }
 
 // newSDKKeySchemaArray builds a new []*svcsdk.KeySchemaElement
-func newSDKKeySchemaArray(kss []*v1alpha1.KeySchemaElement) []*svcsdk.KeySchemaElement {
-	keySchemas := []*svcsdk.KeySchemaElement{}
+func newSDKKeySchemaArray(kss []*v1alpha1.KeySchemaElement) []svcsdktypes.KeySchemaElement {
+	keySchemas := []svcsdktypes.KeySchemaElement{}
 	for _, ks := range kss {
-		keySchema := &svcsdk.KeySchemaElement{}
+		keySchema := svcsdktypes.KeySchemaElement{}
 		if ks != nil {
 			if ks.AttributeName != nil {
 				keySchema.AttributeName = aws.String(*ks.AttributeName)
@@ -283,12 +284,12 @@ func newSDKKeySchemaArray(kss []*v1alpha1.KeySchemaElement) []*svcsdk.KeySchemaE
 				keySchema.AttributeName = aws.String("")
 			}
 			if ks.KeyType != nil {
-				keySchema.KeyType = aws.String(*ks.KeyType)
+				keySchema.KeyType = svcsdktypes.KeyType(*ks.KeyType)
 			} else {
-				keySchema.KeyType = aws.String("")
+				keySchema.KeyType = svcsdktypes.KeyType("")
 			}
 		} else {
-			keySchema.KeyType = aws.String("")
+			keySchema.KeyType = svcsdktypes.KeyType("")
 			keySchema.AttributeName = aws.String("")
 		}
 		keySchemas = append(keySchemas, keySchema)

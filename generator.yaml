@@ -1,10 +1,18 @@
 ignore:
+  shape_names:
+  - OnDemandThroughput
+  - WarmThroughput
+  - GlobalSecondaryIndexWarmThroughputDescription
+  - OnDemandThroughputOverride
+  - TableWarmThroughputDescription
   field_paths:
   # Replica of Spec.BillingMode
   - TableDescription.BillingModeSummary
   # Replica of Spec.SSESpecification
   - TableDescription.SSEDescription
   - TableDescription.TableClassSummary
+  - CreateTableInput.ResourcePolicy
+  - CreateTableInput.WarmThroughput
 operations:
   UpdateGlobalTable:
     operation_type:

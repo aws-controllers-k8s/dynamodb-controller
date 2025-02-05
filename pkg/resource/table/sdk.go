@@ -28,8 +28,10 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +42,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.DynamoDB{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.Table{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +50,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -74,13 +76,11 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	var resp *svcsdk.DescribeTableOutput
-	resp, err = rm.sdkapi.DescribeTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.DescribeTable(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "DescribeTable", err)
 	if err != nil {
-		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-			return nil, ackerr.NotFound
-		}
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "ResourceNotFoundException" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "ResourceNotFoundException" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -112,8 +112,8 @@ func (rm *resourceManager) sdkFind(
 			if f1iter.AttributeName != nil {
 				f1elem.AttributeName = f1iter.AttributeName
 			}
-			if f1iter.AttributeType != nil {
-				f1elem.AttributeType = f1iter.AttributeType
+			if f1iter.AttributeType != "" {
+				f1elem.AttributeType = aws.String(string(f1iter.AttributeType))
 			}
 			f1 = append(f1, f1elem)
 		}
@@ -145,8 +145,8 @@ func (rm *resourceManager) sdkFind(
 					if f4elemf6iter.AttributeName != nil {
 						f4elemf6elem.AttributeName = f4elemf6iter.AttributeName
 					}
-					if f4elemf6iter.KeyType != nil {
-						f4elemf6elem.KeyType = f4elemf6iter.KeyType
+					if f4elemf6iter.KeyType != "" {
+						f4elemf6elem.KeyType = aws.String(string(f4elemf6iter.KeyType))
 					}
 					f4elemf6 = append(f4elemf6, f4elemf6elem)
 				}
@@ -155,16 +155,10 @@ func (rm *resourceManager) sdkFind(
 			if f4iter.Projection != nil {
 				f4elemf7 := &svcapitypes.Projection{}
 				if f4iter.Projection.NonKeyAttributes != nil {
-					f4elemf7f0 := []*string{}
-					for _, f4elemf7f0iter := range f4iter.Projection.NonKeyAttributes {
-						var f4elemf7f0elem string
-						f4elemf7f0elem = *f4elemf7f0iter
-						f4elemf7f0 = append(f4elemf7f0, &f4elemf7f0elem)
-					}
-					f4elemf7.NonKeyAttributes = f4elemf7f0
+					f4elemf7.NonKeyAttributes = aws.StringSlice(f4iter.Projection.NonKeyAttributes)
 				}
-				if f4iter.Projection.ProjectionType != nil {
-					f4elemf7.ProjectionType = f4iter.Projection.ProjectionType
+				if f4iter.Projection.ProjectionType != "" {
+					f4elemf7.ProjectionType = aws.String(string(f4iter.Projection.ProjectionType))
 				}
 				f4elem.Projection = f4elemf7
 			}
@@ -201,8 +195,8 @@ func (rm *resourceManager) sdkFind(
 			if f7iter.AttributeName != nil {
 				f7elem.AttributeName = f7iter.AttributeName
 			}
-			if f7iter.KeyType != nil {
-				f7elem.KeyType = f7iter.KeyType
+			if f7iter.KeyType != "" {
+				f7elem.KeyType = aws.String(string(f7iter.KeyType))
 			}
 			f7 = append(f7, f7elem)
 		}
@@ -234,8 +228,8 @@ func (rm *resourceManager) sdkFind(
 					if f10elemf4iter.AttributeName != nil {
 						f10elemf4elem.AttributeName = f10elemf4iter.AttributeName
 					}
-					if f10elemf4iter.KeyType != nil {
-						f10elemf4elem.KeyType = f10elemf4iter.KeyType
+					if f10elemf4iter.KeyType != "" {
+						f10elemf4elem.KeyType = aws.String(string(f10elemf4iter.KeyType))
 					}
 					f10elemf4 = append(f10elemf4, f10elemf4elem)
 				}
@@ -244,16 +238,10 @@ func (rm *resourceManager) sdkFind(
 			if f10iter.Projection != nil {
 				f10elemf5 := &svcapitypes.Projection{}
 				if f10iter.Projection.NonKeyAttributes != nil {
-					f10elemf5f0 := []*string{}
-					for _, f10elemf5f0iter := range f10iter.Projection.NonKeyAttributes {
-						var f10elemf5f0elem string
-						f10elemf5f0elem = *f10elemf5f0iter
-						f10elemf5f0 = append(f10elemf5f0, &f10elemf5f0elem)
-					}
-					f10elemf5.NonKeyAttributes = f10elemf5f0
+					f10elemf5.NonKeyAttributes = aws.StringSlice(f10iter.Projection.NonKeyAttributes)
 				}
-				if f10iter.Projection.ProjectionType != nil {
-					f10elemf5.ProjectionType = f10iter.Projection.ProjectionType
+				if f10iter.Projection.ProjectionType != "" {
+					f10elemf5.ProjectionType = aws.String(string(f10iter.Projection.ProjectionType))
 				}
 				f10elem.Projection = f10elemf5
 			}
@@ -313,8 +301,8 @@ func (rm *resourceManager) sdkFind(
 			if f12iter.ReplicaInaccessibleDateTime != nil {
 				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{*f12iter.ReplicaInaccessibleDateTime}
 			}
-			if f12iter.ReplicaStatus != nil {
-				f12elem.ReplicaStatus = f12iter.ReplicaStatus
+			if f12iter.ReplicaStatus != "" {
+				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
 			}
 			if f12iter.ReplicaStatusDescription != nil {
 				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
@@ -327,8 +315,8 @@ func (rm *resourceManager) sdkFind(
 				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
 					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
 				}
-				if f12iter.ReplicaTableClassSummary.TableClass != nil {
-					f12elemf8.TableClass = f12iter.ReplicaTableClassSummary.TableClass
+				if f12iter.ReplicaTableClassSummary.TableClass != "" {
+					f12elemf8.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
 				}
 				f12elem.ReplicaTableClassSummary = f12elemf8
 			}
@@ -361,8 +349,8 @@ func (rm *resourceManager) sdkFind(
 		if resp.Table.StreamSpecification.StreamEnabled != nil {
 			f14.StreamEnabled = resp.Table.StreamSpecification.StreamEnabled
 		}
-		if resp.Table.StreamSpecification.StreamViewType != nil {
-			f14.StreamViewType = resp.Table.StreamSpecification.StreamViewType
+		if resp.Table.StreamSpecification.StreamViewType != "" {
+			f14.StreamViewType = aws.String(string(resp.Table.StreamSpecification.StreamViewType))
 		}
 		ko.Spec.StreamSpecification = f14
 	} else {
@@ -390,8 +378,8 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.TableSizeBytes = nil
 	}
-	if resp.Table.TableStatus != nil {
-		ko.Status.TableStatus = resp.Table.TableStatus
+	if resp.Table.TableStatus != "" {
+		ko.Status.TableStatus = aws.String(string(resp.Table.TableStatus))
 	} else {
 		ko.Status.TableStatus = nil
 	}
@@ -410,8 +398,8 @@ func (rm *resourceManager) sdkFind(
 			if fIter.ItemCount != nil {
 				fElem.ItemCount = fIter.ItemCount
 			}
-			if fIter.IndexStatus != nil {
-				fElem.IndexStatus = fIter.IndexStatus
+			if fIter.IndexStatus != "" {
+				fElem.IndexStatus = aws.String(string(fIter.IndexStatus))
 			}
 			if fIter.IndexSizeBytes != nil {
 				fElem.IndexSizeBytes = fIter.IndexSizeBytes
@@ -427,13 +415,13 @@ func (rm *resourceManager) sdkFind(
 	}
 	if resp.Table.SSEDescription != nil {
 		f := &svcapitypes.SSESpecification{}
-		if resp.Table.SSEDescription.Status != nil {
-			f.Enabled = aws.Bool(*resp.Table.SSEDescription.Status == "ENABLED")
+		if resp.Table.SSEDescription.Status != "" {
+			f.Enabled = aws.Bool(resp.Table.SSEDescription.Status == svcsdktypes.SSEStatusEnabled)
 		} else {
 			f.Enabled = aws.Bool(false)
 		}
-		if resp.Table.SSEDescription.SSEType != nil {
-			f.SSEType = resp.Table.SSEDescription.SSEType
+		if resp.Table.SSEDescription.SSEType != "" {
+			f.SSEType = aws.String(string(resp.Table.SSEDescription.SSEType))
 		}
 		if resp.Table.SSEDescription.KMSMasterKeyArn != nil {
 			f.KMSMasterKeyID = resp.Table.SSEDescription.KMSMasterKeyArn
@@ -443,12 +431,12 @@ func (rm *resourceManager) sdkFind(
 		ko.Spec.SSESpecification = nil
 	}
 	if resp.Table.TableClassSummary != nil {
-		ko.Spec.TableClass = resp.Table.TableClassSummary.TableClass
+		ko.Spec.TableClass = aws.String(string(resp.Table.TableClassSummary.TableClass))
 	} else {
 		ko.Spec.TableClass = aws.String("STANDARD")
 	}
-	if resp.Table.BillingModeSummary != nil && resp.Table.BillingModeSummary.BillingMode != nil {
-		ko.Spec.BillingMode = resp.Table.BillingModeSummary.BillingMode
+	if resp.Table.BillingModeSummary != nil && resp.Table.BillingModeSummary.BillingMode != "" {
+		ko.Spec.BillingMode = aws.String(string(resp.Table.BillingModeSummary.BillingMode))
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
@@ -485,7 +473,7 @@ func (rm *resourceManager) newDescribeRequestPayload(
 	res := &svcsdk.DescribeTableInput{}
 
 	if r.ko.Spec.TableName != nil {
-		res.SetTableName(*r.ko.Spec.TableName)
+		res.TableName = r.ko.Spec.TableName
 	}
 
 	return res, nil
@@ -510,7 +498,7 @@ func (rm *resourceManager) sdkCreate(
 
 	var resp *svcsdk.CreateTableOutput
 	_ = resp
-	resp, err = rm.sdkapi.CreateTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.CreateTable(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateTable", err)
 	if err != nil {
 		return nil, err
@@ -541,8 +529,8 @@ func (rm *resourceManager) sdkCreate(
 			if f1iter.AttributeName != nil {
 				f1elem.AttributeName = f1iter.AttributeName
 			}
-			if f1iter.AttributeType != nil {
-				f1elem.AttributeType = f1iter.AttributeType
+			if f1iter.AttributeType != "" {
+				f1elem.AttributeType = aws.String(string(f1iter.AttributeType))
 			}
 			f1 = append(f1, f1elem)
 		}
@@ -574,8 +562,8 @@ func (rm *resourceManager) sdkCreate(
 					if f4elemf6iter.AttributeName != nil {
 						f4elemf6elem.AttributeName = f4elemf6iter.AttributeName
 					}
-					if f4elemf6iter.KeyType != nil {
-						f4elemf6elem.KeyType = f4elemf6iter.KeyType
+					if f4elemf6iter.KeyType != "" {
+						f4elemf6elem.KeyType = aws.String(string(f4elemf6iter.KeyType))
 					}
 					f4elemf6 = append(f4elemf6, f4elemf6elem)
 				}
@@ -584,16 +572,10 @@ func (rm *resourceManager) sdkCreate(
 			if f4iter.Projection != nil {
 				f4elemf7 := &svcapitypes.Projection{}
 				if f4iter.Projection.NonKeyAttributes != nil {
-					f4elemf7f0 := []*string{}
-					for _, f4elemf7f0iter := range f4iter.Projection.NonKeyAttributes {
-						var f4elemf7f0elem string
-						f4elemf7f0elem = *f4elemf7f0iter
-						f4elemf7f0 = append(f4elemf7f0, &f4elemf7f0elem)
-					}
-					f4elemf7.NonKeyAttributes = f4elemf7f0
+					f4elemf7.NonKeyAttributes = aws.StringSlice(f4iter.Projection.NonKeyAttributes)
 				}
-				if f4iter.Projection.ProjectionType != nil {
-					f4elemf7.ProjectionType = f4iter.Projection.ProjectionType
+				if f4iter.Projection.ProjectionType != "" {
+					f4elemf7.ProjectionType = aws.String(string(f4iter.Projection.ProjectionType))
 				}
 				f4elem.Projection = f4elemf7
 			}
@@ -630,8 +612,8 @@ func (rm *resourceManager) sdkCreate(
 			if f7iter.AttributeName != nil {
 				f7elem.AttributeName = f7iter.AttributeName
 			}
-			if f7iter.KeyType != nil {
-				f7elem.KeyType = f7iter.KeyType
+			if f7iter.KeyType != "" {
+				f7elem.KeyType = aws.String(string(f7iter.KeyType))
 			}
 			f7 = append(f7, f7elem)
 		}
@@ -663,8 +645,8 @@ func (rm *resourceManager) sdkCreate(
 					if f10elemf4iter.AttributeName != nil {
 						f10elemf4elem.AttributeName = f10elemf4iter.AttributeName
 					}
-					if f10elemf4iter.KeyType != nil {
-						f10elemf4elem.KeyType = f10elemf4iter.KeyType
+					if f10elemf4iter.KeyType != "" {
+						f10elemf4elem.KeyType = aws.String(string(f10elemf4iter.KeyType))
 					}
 					f10elemf4 = append(f10elemf4, f10elemf4elem)
 				}
@@ -673,16 +655,10 @@ func (rm *resourceManager) sdkCreate(
 			if f10iter.Projection != nil {
 				f10elemf5 := &svcapitypes.Projection{}
 				if f10iter.Projection.NonKeyAttributes != nil {
-					f10elemf5f0 := []*string{}
-					for _, f10elemf5f0iter := range f10iter.Projection.NonKeyAttributes {
-						var f10elemf5f0elem string
-						f10elemf5f0elem = *f10elemf5f0iter
-						f10elemf5f0 = append(f10elemf5f0, &f10elemf5f0elem)
-					}
-					f10elemf5.NonKeyAttributes = f10elemf5f0
+					f10elemf5.NonKeyAttributes = aws.StringSlice(f10iter.Projection.NonKeyAttributes)
 				}
-				if f10iter.Projection.ProjectionType != nil {
-					f10elemf5.ProjectionType = f10iter.Projection.ProjectionType
+				if f10iter.Projection.ProjectionType != "" {
+					f10elemf5.ProjectionType = aws.String(string(f10iter.Projection.ProjectionType))
 				}
 				f10elem.Projection = f10elemf5
 			}
@@ -742,8 +718,8 @@ func (rm *resourceManager) sdkCreate(
 			if f12iter.ReplicaInaccessibleDateTime != nil {
 				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{*f12iter.ReplicaInaccessibleDateTime}
 			}
-			if f12iter.ReplicaStatus != nil {
-				f12elem.ReplicaStatus = f12iter.ReplicaStatus
+			if f12iter.ReplicaStatus != "" {
+				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
 			}
 			if f12iter.ReplicaStatusDescription != nil {
 				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
@@ -756,8 +732,8 @@ func (rm *resourceManager) sdkCreate(
 				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
 					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
 				}
-				if f12iter.ReplicaTableClassSummary.TableClass != nil {
-					f12elemf8.TableClass = f12iter.ReplicaTableClassSummary.TableClass
+				if f12iter.ReplicaTableClassSummary.TableClass != "" {
+					f12elemf8.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
 				}
 				f12elem.ReplicaTableClassSummary = f12elemf8
 			}
@@ -790,8 +766,8 @@ func (rm *resourceManager) sdkCreate(
 		if resp.TableDescription.StreamSpecification.StreamEnabled != nil {
 			f14.StreamEnabled = resp.TableDescription.StreamSpecification.StreamEnabled
 		}
-		if resp.TableDescription.StreamSpecification.StreamViewType != nil {
-			f14.StreamViewType = resp.TableDescription.StreamSpecification.StreamViewType
+		if resp.TableDescription.StreamSpecification.StreamViewType != "" {
+			f14.StreamViewType = aws.String(string(resp.TableDescription.StreamSpecification.StreamViewType))
 		}
 		ko.Spec.StreamSpecification = f14
 	} else {
@@ -819,8 +795,8 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.TableSizeBytes = nil
 	}
-	if resp.TableDescription.TableStatus != nil {
-		ko.Status.TableStatus = resp.TableDescription.TableStatus
+	if resp.TableDescription.TableStatus != "" {
+		ko.Status.TableStatus = aws.String(string(resp.TableDescription.TableStatus))
 	} else {
 		ko.Status.TableStatus = nil
 	}
@@ -843,183 +819,171 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.CreateTableInput{}
 
 	if r.ko.Spec.AttributeDefinitions != nil {
-		f0 := []*svcsdk.AttributeDefinition{}
+		f0 := []svcsdktypes.AttributeDefinition{}
 		for _, f0iter := range r.ko.Spec.AttributeDefinitions {
-			f0elem := &svcsdk.AttributeDefinition{}
+			f0elem := &svcsdktypes.AttributeDefinition{}
 			if f0iter.AttributeName != nil {
-				f0elem.SetAttributeName(*f0iter.AttributeName)
+				f0elem.AttributeName = f0iter.AttributeName
 			}
 			if f0iter.AttributeType != nil {
-				f0elem.SetAttributeType(*f0iter.AttributeType)
+				f0elem.AttributeType = svcsdktypes.ScalarAttributeType(*f0iter.AttributeType)
 			}
-			f0 = append(f0, f0elem)
+			f0 = append(f0, *f0elem)
 		}
-		res.SetAttributeDefinitions(f0)
+		res.AttributeDefinitions = f0
 	}
 	if r.ko.Spec.BillingMode != nil {
-		res.SetBillingMode(*r.ko.Spec.BillingMode)
+		res.BillingMode = svcsdktypes.BillingMode(*r.ko.Spec.BillingMode)
 	}
 	if r.ko.Spec.DeletionProtectionEnabled != nil {
-		res.SetDeletionProtectionEnabled(*r.ko.Spec.DeletionProtectionEnabled)
+		res.DeletionProtectionEnabled = r.ko.Spec.DeletionProtectionEnabled
 	}
 	if r.ko.Spec.GlobalSecondaryIndexes != nil {
-		f3 := []*svcsdk.GlobalSecondaryIndex{}
+		f3 := []svcsdktypes.GlobalSecondaryIndex{}
 		for _, f3iter := range r.ko.Spec.GlobalSecondaryIndexes {
-			f3elem := &svcsdk.GlobalSecondaryIndex{}
+			f3elem := &svcsdktypes.GlobalSecondaryIndex{}
 			if f3iter.IndexName != nil {
-				f3elem.SetIndexName(*f3iter.IndexName)
+				f3elem.IndexName = f3iter.IndexName
 			}
 			if f3iter.KeySchema != nil {
-				f3elemf1 := []*svcsdk.KeySchemaElement{}
+				f3elemf1 := []svcsdktypes.KeySchemaElement{}
 				for _, f3elemf1iter := range f3iter.KeySchema {
-					f3elemf1elem := &svcsdk.KeySchemaElement{}
+					f3elemf1elem := &svcsdktypes.KeySchemaElement{}
 					if f3elemf1iter.AttributeName != nil {
-						f3elemf1elem.SetAttributeName(*f3elemf1iter.AttributeName)
+						f3elemf1elem.AttributeName = f3elemf1iter.AttributeName
 					}
 					if f3elemf1iter.KeyType != nil {
-						f3elemf1elem.SetKeyType(*f3elemf1iter.KeyType)
+						f3elemf1elem.KeyType = svcsdktypes.KeyType(*f3elemf1iter.KeyType)
 					}
-					f3elemf1 = append(f3elemf1, f3elemf1elem)
+					f3elemf1 = append(f3elemf1, *f3elemf1elem)
 				}
-				f3elem.SetKeySchema(f3elemf1)
+				f3elem.KeySchema = f3elemf1
 			}
 			if f3iter.Projection != nil {
-				f3elemf2 := &svcsdk.Projection{}
+				f3elemf2 := &svcsdktypes.Projection{}
 				if f3iter.Projection.NonKeyAttributes != nil {
-					f3elemf2f0 := []*string{}
-					for _, f3elemf2f0iter := range f3iter.Projection.NonKeyAttributes {
-						var f3elemf2f0elem string
-						f3elemf2f0elem = *f3elemf2f0iter
-						f3elemf2f0 = append(f3elemf2f0, &f3elemf2f0elem)
-					}
-					f3elemf2.SetNonKeyAttributes(f3elemf2f0)
+					f3elemf2.NonKeyAttributes = aws.ToStringSlice(f3iter.Projection.NonKeyAttributes)
 				}
 				if f3iter.Projection.ProjectionType != nil {
-					f3elemf2.SetProjectionType(*f3iter.Projection.ProjectionType)
+					f3elemf2.ProjectionType = svcsdktypes.ProjectionType(*f3iter.Projection.ProjectionType)
 				}
-				f3elem.SetProjection(f3elemf2)
+				f3elem.Projection = f3elemf2
 			}
 			if f3iter.ProvisionedThroughput != nil {
-				f3elemf3 := &svcsdk.ProvisionedThroughput{}
+				f3elemf3 := &svcsdktypes.ProvisionedThroughput{}
 				if f3iter.ProvisionedThroughput.ReadCapacityUnits != nil {
-					f3elemf3.SetReadCapacityUnits(*f3iter.ProvisionedThroughput.ReadCapacityUnits)
+					f3elemf3.ReadCapacityUnits = f3iter.ProvisionedThroughput.ReadCapacityUnits
 				}
 				if f3iter.ProvisionedThroughput.WriteCapacityUnits != nil {
-					f3elemf3.SetWriteCapacityUnits(*f3iter.ProvisionedThroughput.WriteCapacityUnits)
+					f3elemf3.WriteCapacityUnits = f3iter.ProvisionedThroughput.WriteCapacityUnits
 				}
-				f3elem.SetProvisionedThroughput(f3elemf3)
+				f3elem.ProvisionedThroughput = f3elemf3
 			}
-			f3 = append(f3, f3elem)
+			f3 = append(f3, *f3elem)
 		}
-		res.SetGlobalSecondaryIndexes(f3)
+		res.GlobalSecondaryIndexes = f3
 	}
 	if r.ko.Spec.KeySchema != nil {
-		f4 := []*svcsdk.KeySchemaElement{}
+		f4 := []svcsdktypes.KeySchemaElement{}
 		for _, f4iter := range r.ko.Spec.KeySchema {
-			f4elem := &svcsdk.KeySchemaElement{}
+			f4elem := &svcsdktypes.KeySchemaElement{}
 			if f4iter.AttributeName != nil {
-				f4elem.SetAttributeName(*f4iter.AttributeName)
+				f4elem.AttributeName = f4iter.AttributeName
 			}
 			if f4iter.KeyType != nil {
-				f4elem.SetKeyType(*f4iter.KeyType)
+				f4elem.KeyType = svcsdktypes.KeyType(*f4iter.KeyType)
 			}
-			f4 = append(f4, f4elem)
+			f4 = append(f4, *f4elem)
 		}
-		res.SetKeySchema(f4)
+		res.KeySchema = f4
 	}
 	if r.ko.Spec.LocalSecondaryIndexes != nil {
-		f5 := []*svcsdk.LocalSecondaryIndex{}
+		f5 := []svcsdktypes.LocalSecondaryIndex{}
 		for _, f5iter := range r.ko.Spec.LocalSecondaryIndexes {
-			f5elem := &svcsdk.LocalSecondaryIndex{}
+			f5elem := &svcsdktypes.LocalSecondaryIndex{}
 			if f5iter.IndexName != nil {
-				f5elem.SetIndexName(*f5iter.IndexName)
+				f5elem.IndexName = f5iter.IndexName
 			}
 			if f5iter.KeySchema != nil {
-				f5elemf1 := []*svcsdk.KeySchemaElement{}
+				f5elemf1 := []svcsdktypes.KeySchemaElement{}
 				for _, f5elemf1iter := range f5iter.KeySchema {
-					f5elemf1elem := &svcsdk.KeySchemaElement{}
+					f5elemf1elem := &svcsdktypes.KeySchemaElement{}
 					if f5elemf1iter.AttributeName != nil {
-						f5elemf1elem.SetAttributeName(*f5elemf1iter.AttributeName)
+						f5elemf1elem.AttributeName = f5elemf1iter.AttributeName
 					}
 					if f5elemf1iter.KeyType != nil {
-						f5elemf1elem.SetKeyType(*f5elemf1iter.KeyType)
+						f5elemf1elem.KeyType = svcsdktypes.KeyType(*f5elemf1iter.KeyType)
 					}
-					f5elemf1 = append(f5elemf1, f5elemf1elem)
+					f5elemf1 = append(f5elemf1, *f5elemf1elem)
 				}
-				f5elem.SetKeySchema(f5elemf1)
+				f5elem.KeySchema = f5elemf1
 			}
 			if f5iter.Projection != nil {
-				f5elemf2 := &svcsdk.Projection{}
+				f5elemf2 := &svcsdktypes.Projection{}
 				if f5iter.Projection.NonKeyAttributes != nil {
-					f5elemf2f0 := []*string{}
-					for _, f5elemf2f0iter := range f5iter.Projection.NonKeyAttributes {
-						var f5elemf2f0elem string
-						f5elemf2f0elem = *f5elemf2f0iter
-						f5elemf2f0 = append(f5elemf2f0, &f5elemf2f0elem)
-					}
-					f5elemf2.SetNonKeyAttributes(f5elemf2f0)
+					f5elemf2.NonKeyAttributes = aws.ToStringSlice(f5iter.Projection.NonKeyAttributes)
 				}
 				if f5iter.Projection.ProjectionType != nil {
-					f5elemf2.SetProjectionType(*f5iter.Projection.ProjectionType)
+					f5elemf2.ProjectionType = svcsdktypes.ProjectionType(*f5iter.Projection.ProjectionType)
 				}
-				f5elem.SetProjection(f5elemf2)
+				f5elem.Projection = f5elemf2
 			}
-			f5 = append(f5, f5elem)
+			f5 = append(f5, *f5elem)
 		}
-		res.SetLocalSecondaryIndexes(f5)
+		res.LocalSecondaryIndexes = f5
 	}
 	if r.ko.Spec.ProvisionedThroughput != nil {
-		f6 := &svcsdk.ProvisionedThroughput{}
+		f6 := &svcsdktypes.ProvisionedThroughput{}
 		if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
-			f6.SetReadCapacityUnits(*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits)
+			f6.ReadCapacityUnits = r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits
 		}
 		if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
-			f6.SetWriteCapacityUnits(*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits)
+			f6.WriteCapacityUnits = r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits
 		}
-		res.SetProvisionedThroughput(f6)
+		res.ProvisionedThroughput = f6
 	}
 	if r.ko.Spec.SSESpecification != nil {
-		f7 := &svcsdk.SSESpecification{}
+		f7 := &svcsdktypes.SSESpecification{}
 		if r.ko.Spec.SSESpecification.Enabled != nil {
-			f7.SetEnabled(*r.ko.Spec.SSESpecification.Enabled)
+			f7.Enabled = r.ko.Spec.SSESpecification.Enabled
 		}
 		if r.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
-			f7.SetKMSMasterKeyId(*r.ko.Spec.SSESpecification.KMSMasterKeyID)
+			f7.KMSMasterKeyId = r.ko.Spec.SSESpecification.KMSMasterKeyID
 		}
 		if r.ko.Spec.SSESpecification.SSEType != nil {
-			f7.SetSSEType(*r.ko.Spec.SSESpecification.SSEType)
+			f7.SSEType = svcsdktypes.SSEType(*r.ko.Spec.SSESpecification.SSEType)
 		}
-		res.SetSSESpecification(f7)
+		res.SSESpecification = f7
 	}
 	if r.ko.Spec.StreamSpecification != nil {
-		f8 := &svcsdk.StreamSpecification{}
+		f8 := &svcsdktypes.StreamSpecification{}
 		if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
-			f8.SetStreamEnabled(*r.ko.Spec.StreamSpecification.StreamEnabled)
+			f8.StreamEnabled = r.ko.Spec.StreamSpecification.StreamEnabled
 		}
 		if r.ko.Spec.StreamSpecification.StreamViewType != nil {
-			f8.SetStreamViewType(*r.ko.Spec.StreamSpecification.StreamViewType)
+			f8.StreamViewType = svcsdktypes.StreamViewType(*r.ko.Spec.StreamSpecification.StreamViewType)
 		}
-		res.SetStreamSpecification(f8)
+		res.StreamSpecification = f8
 	}
 	if r.ko.Spec.TableClass != nil {
-		res.SetTableClass(*r.ko.Spec.TableClass)
+		res.TableClass = svcsdktypes.TableClass(*r.ko.Spec.TableClass)
 	}
 	if r.ko.Spec.TableName != nil {
-		res.SetTableName(*r.ko.Spec.TableName)
+		res.TableName = r.ko.Spec.TableName
 	}
 	if r.ko.Spec.Tags != nil {
-		f11 := []*svcsdk.Tag{}
+		f11 := []svcsdktypes.Tag{}
 		for _, f11iter := range r.ko.Spec.Tags {
-			f11elem := &svcsdk.Tag{}
+			f11elem := &svcsdktypes.Tag{}
 			if f11iter.Key != nil {
-				f11elem.SetKey(*f11iter.Key)
+				f11elem.Key = f11iter.Key
 			}
 			if f11iter.Value != nil {
-				f11elem.SetValue(*f11iter.Value)
+				f11elem.Value = f11iter.Value
 			}
-			f11 = append(f11, f11elem)
+			f11 = append(f11, *f11elem)
 		}
-		res.SetTags(f11)
+		res.Tags = f11
 	}
 
 	return res, nil
@@ -1058,7 +1022,7 @@ func (rm *resourceManager) sdkDelete(
 	}
 	var resp *svcsdk.DeleteTableOutput
 	_ = resp
-	resp, err = rm.sdkapi.DeleteTableWithContext(ctx, input)
+	resp, err = rm.sdkapi.DeleteTable(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "DeleteTable", err)
 	return nil, err
 }
@@ -1071,7 +1035,7 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.DeleteTableInput{}
 
 	if r.ko.Spec.TableName != nil {
-		res.SetTableName(*r.ko.Spec.TableName)
+		res.TableName = r.ko.Spec.TableName
 	}
 
 	return res, nil
@@ -1179,11 +1143,12 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	if err == nil {
 		return false
 	}
-	awsErr, ok := ackerr.AWSError(err)
-	if !ok {
+
+	var terminalErr smithy.APIError
+	if !errors.As(err, &terminalErr) {
 		return false
 	}
-	switch awsErr.Code() {
+	switch terminalErr.ErrorCode() {
 	case "InvalidParameter":
 		return true
 	default:
