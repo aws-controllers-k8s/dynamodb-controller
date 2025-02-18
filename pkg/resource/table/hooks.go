@@ -137,14 +137,6 @@ func (rm *resourceManager) customUpdateTable(
 	exit := rlog.Trace("rm.customUpdateTable")
 	defer func(err error) { exit(err) }(err)
 
-	if immutableFieldChanges := rm.getImmutableFieldChanges(delta); len(immutableFieldChanges) > 0 {
-		msg := fmt.Sprintf(
-			"Immutable Spec fields have been modified: %s",
-			strings.Join(immutableFieldChanges, ","),
-		)
-		return nil, ackerr.NewTerminalError(fmt.Errorf(msg))
-	}
-
 	if isTableDeleting(latest) {
 		msg := "table is currently being deleted"
 		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
