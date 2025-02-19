@@ -24,11 +24,15 @@ import (
 type BackupSpec struct {
 
 	// Specified name for the backup.
+
 	// +kubebuilder:validation:Required
+
 	BackupName *string `json:"backupName"`
 	// The name of the table. You can also provide the Amazon Resource Name (ARN)
 	// of the table in this parameter.
+
 	// +kubebuilder:validation:Required
+
 	TableName *string `json:"tableName"`
 }
 
@@ -39,7 +43,7 @@ type BackupStatus struct {
 	// constructed ARN for the resource
 	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
-	// All CRS managed by ACK have a common `Status.Conditions` member that
+	// All CRs managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
