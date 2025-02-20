@@ -612,7 +612,9 @@ type SSEDescription struct {
 type SSESpecification struct {
 	Enabled        *bool   `json:"enabled,omitempty"`
 	KMSMasterKeyID *string `json:"kmsMasterKeyID,omitempty"`
-	SSEType        *string `json:"sseType,omitempty"`
+	// Reference field for KMSMasterKeyID
+	KMSMasterKeyRef *ackv1alpha1.AWSResourceReferenceWrapper `json:"kmsMasterKeyRef,omitempty"`
+	SSEType         *string                                  `json:"sseType,omitempty"`
 }
 
 // Contains the details of the table when the backup was created.

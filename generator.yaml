@@ -60,6 +60,11 @@ resources:
       SSESpecification:
         compare:
           is_ignored: true
+      SSESpecification.KMSMasterKeyID:
+        references:
+          service_name: kms
+          resource: Key
+          path: Status.ACKResourceMetadata.ARN
     exceptions:
       errors:
         404:
