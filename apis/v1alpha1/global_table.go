@@ -26,14 +26,10 @@ import (
 type GlobalTableSpec struct {
 
 	// The global table name.
-
 	// +kubebuilder:validation:Required
-
 	GlobalTableName *string `json:"globalTableName"`
 	// The Regions where the global table needs to be created.
-
 	// +kubebuilder:validation:Required
-
 	ReplicationGroup []*Replica `json:"replicationGroup"`
 }
 
