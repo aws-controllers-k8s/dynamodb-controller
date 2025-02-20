@@ -24,15 +24,11 @@ import (
 type BackupSpec struct {
 
 	// Specified name for the backup.
-
 	// +kubebuilder:validation:Required
-
 	BackupName *string `json:"backupName"`
 	// The name of the table. You can also provide the Amazon Resource Name (ARN)
 	// of the table in this parameter.
-
 	// +kubebuilder:validation:Required
-
 	TableName *string `json:"tableName"`
 }
 

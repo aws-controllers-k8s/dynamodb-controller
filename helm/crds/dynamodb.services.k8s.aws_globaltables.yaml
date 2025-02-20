@@ -43,8 +43,10 @@ spec:
               Represents the properties of a global table.
             properties:
               globalTableName:
+                description: The global table name.
                 type: string
               replicationGroup:
+                description: The Regions where the global table needs to be created.
                 items:
                   description: Represents the properties of a replica.
                   properties:
