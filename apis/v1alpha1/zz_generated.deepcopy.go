@@ -2188,6 +2188,11 @@ func (in *SSESpecification) DeepCopyInto(out *SSESpecification) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.KMSMasterKeyRef != nil {
+		in, out := &in.KMSMasterKeyRef, &out.KMSMasterKeyRef
+		*out = new(corev1alpha1.AWSResourceReferenceWrapper)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.SSEType != nil {
 		in, out := &in.SSEType, &out.SSEType
 		*out = new(string)
