@@ -141,7 +141,8 @@ type TableSpec struct {
 	// For current minimum and maximum provisioned throughput values, see Service,
 	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
 	// in the Amazon DynamoDB Developer Guide.
-	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	ProvisionedThroughput *ProvisionedThroughput                `json:"provisionedThroughput,omitempty"`
+	Replicas              []*CreateReplicationGroupMemberAction `json:"replicas,omitempty"`
 	// Represents the settings used to enable server-side encryption.
 	SSESpecification *SSESpecification `json:"sseSpecification,omitempty"`
 	// The settings for DynamoDB Streams on the table. These settings consist of:
@@ -220,9 +221,8 @@ type TableStatus struct {
 	//    * StreamLabel
 	// +kubebuilder:validation:Optional
 	LatestStreamLabel *string `json:"latestStreamLabel,omitempty"`
-	// Represents replicas of the table.
 	// +kubebuilder:validation:Optional
-	Replicas []*ReplicaDescription `json:"replicas,omitempty"`
+	ReplicasDescriptions []*ReplicaDescription `json:"replicasDescriptions,omitempty"`
 	// Contains details for the restore.
 	// +kubebuilder:validation:Optional
 	RestoreSummary *RestoreSummary `json:"restoreSummary,omitempty"`

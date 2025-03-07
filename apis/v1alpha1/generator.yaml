@@ -25,6 +25,15 @@ operations:
 resources:
   Table:
     fields:
+      Replicas:
+        custom_field:
+          list_of: CreateReplicationGroupMemberAction
+        compare:
+          is_ignored: true 
+      ReplicasDescriptions:
+        custom_field:
+          list_of: ReplicaDescription
+        is_read_only: true
       GlobalSecondaryIndexesDescriptions:
         custom_field:
           list_of: GlobalSecondaryIndexDescription
@@ -64,7 +73,7 @@ resources:
         references:
           service_name: kms
           resource: Key
-          path: Status.ACKResourceMetadata.ARN
+          path: Status.ACKResourceMetadata.ARN  
     exceptions:
       errors:
         404:

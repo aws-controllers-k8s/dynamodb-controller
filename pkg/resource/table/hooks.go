@@ -34,20 +34,24 @@ import (
 
 var (
 	ErrTableDeleting = fmt.Errorf(
-		"Table in '%v' state, cannot be modified or deleted",
+		"table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusDeleting,
 	)
 	ErrTableCreating = fmt.Errorf(
-		"Table in '%v' state, cannot be modified or deleted",
+		"table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusCreating,
 	)
 	ErrTableUpdating = fmt.Errorf(
-		"Table in '%v' state, cannot be modified or deleted",
+		"table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusUpdating,
 	)
 	ErrTableGSIsUpdating = fmt.Errorf(
-		"Table GSIs in '%v' state, cannot be modified or deleted",
+		"table GSIs in '%v' state, cannot be modified or deleted",
 		svcsdktypes.IndexStatusCreating,
+	)
+	ErrReplicaNotActive = fmt.Errorf(
+		"table replica in NOT '%v' state, cannot be modified or deleted",
+		svcsdktypes.ReplicaStatusActive,
 	)
 )
 
@@ -78,6 +82,10 @@ var (
 	)
 	requeueWaitGSIReady = ackrequeue.NeededAfter(
 		ErrTableGSIsUpdating,
+		10*time.Second,
+	)
+	requeueWaitForReplicasActive = ackrequeue.NeededAfter(
+		ErrReplicaNotActive,
 		10*time.Second,
 	)
 )
@@ -224,6 +232,10 @@ func (rm *resourceManager) customUpdateTable(
 				}
 				return nil, err
 			}
+		case delta.DifferentAt("Spec.Replicas"):
+			if err := rm.syncReplicaUpdates(ctx, latest, desired); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -261,6 +273,10 @@ func (rm *resourceManager) newUpdateTablePayload(
 ) (*svcsdk.UpdateTableInput, error) {
 	input := &svcsdk.UpdateTableInput{
 		TableName: aws.String(*r.ko.Spec.TableName),
+	}
+	// If delta is nil, we're just creating a basic payload for other operations to modify
+	if delta == nil {
+		return input, nil
 	}
 
 	if delta.DifferentAt("Spec.BillingMode") {
@@ -555,6 +571,15 @@ func customPreCompare(
 		b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
 		a.ko.Spec.ContinuousBackups = &v1alpha1.PointInTimeRecoverySpecification{
 			PointInTimeRecoveryEnabled: &DefaultPITREnabledValue,
+		}
+	}
+
+	// Handle ReplicaUpdates comparison
+	if len(a.ko.Spec.Replicas) != len(b.ko.Spec.Replicas) {
+		delta.Add("Spec.Replicas", a.ko.Spec.Replicas, b.ko.Spec.Replicas)
+	} else if a.ko.Spec.Replicas != nil && b.ko.Spec.Replicas != nil {
+		if !equalReplicaArrays(a.ko.Spec.Replicas, b.ko.Spec.Replicas) {
+			delta.Add("Spec.Replicas", a.ko.Spec.Replicas, b.ko.Spec.Replicas)
 		}
 	}
 

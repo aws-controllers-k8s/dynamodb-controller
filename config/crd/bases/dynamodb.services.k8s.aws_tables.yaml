@@ -322,6 +322,45 @@ spec:
                     format: int64
                     type: integer
                 type: object
+              replicas:
+                items:
+                  description: Represents a replica to be created.
+                  properties:
+                    globalSecondaryIndexes:
+                      items:
+                        description: Represents the properties of a replica global
+                          secondary index.
+                        properties:
+                          indexName:
+                            type: string
+                          provisionedThroughputOverride:
+                            description: |-
+                              Replica-specific provisioned throughput settings. If not specified, uses
+                              the source table's provisioned throughput settings.
+                            properties:
+                              readCapacityUnits:
+                                format: int64
+                                type: integer
+                            type: object
+                        type: object
+                      type: array
+                    kmsMasterKeyID:
+                      type: string
+                    provisionedThroughputOverride:
+                      description: |-
+                        Replica-specific provisioned throughput settings. If not specified, uses
+                        the source table's provisioned throughput settings.
+                      properties:
+                        readCapacityUnits:
+                          format: int64
+                          type: integer
+                      type: object
+                    regionName:
+                      type: string
+                    tableClassOverride:
+                      type: string
+                  type: object
+                type: array
               sseSpecification:
                 description: Represents the settings used to enable server-side encryption.
                 properties:
@@ -605,8 +644,7 @@ spec:
 
                      * StreamLabel
                 type: string
-              replicas:
-                description: Represents replicas of the table.
+              replicasDescriptions:
                 items:
                   description: Contains the details of the replica.
                   properties:

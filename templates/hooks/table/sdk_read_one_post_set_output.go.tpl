@@ -53,6 +53,45 @@
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
+	if resp.Table.Replicas != nil {
+		f12 := []*svcapitypes.ReplicaDescription{}
+		for _, f12iter := range resp.Table.Replicas {
+			f12elem := &svcapitypes.ReplicaDescription{}
+			if f12iter.RegionName != nil {
+				f12elem.RegionName = f12iter.RegionName
+			}
+			if f12iter.ReplicaStatus != "" {
+				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
+			} else {
+				f12elem.ReplicaStatus = aws.String("Unknown")
+			}
+			if f12iter.ReplicaStatusDescription != nil {
+				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
+			} else {
+				f12elem.ReplicaStatusDescription = aws.String("")
+			}
+			if f12iter.ReplicaStatusPercentProgress != nil {
+				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
+			} else {
+				f12elem.ReplicaStatusPercentProgress = aws.String("0")
+			}
+			if f12iter.ReplicaInaccessibleDateTime != nil {
+				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{Time: *f12iter.ReplicaInaccessibleDateTime}
+			} else {
+				f12elem.ReplicaInaccessibleDateTime = nil
+			}
+			if f12iter.ReplicaTableClassSummary != nil && f12iter.ReplicaTableClassSummary.TableClass != "" {
+				f12elem.ReplicaTableClassSummary.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
+				f12elem.ReplicaTableClassSummary.LastUpdateDateTime = &metav1.Time{Time: *f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
+			} else {
+				f12elem.ReplicaTableClassSummary.TableClass = aws.String("STANDARD")
+			}
+			f12 = append(f12, f12elem)
+		}
+		ko.Status.ReplicasDescriptions = f12
+	} else {
+		ko.Status.ReplicasDescriptions = nil
+	}
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}
