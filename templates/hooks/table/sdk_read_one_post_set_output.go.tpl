@@ -54,43 +54,43 @@
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
 	if resp.Table.Replicas != nil {
-		f12 := []*svcapitypes.ReplicaDescription{}
-		for _, f12iter := range resp.Table.Replicas {
-			f12elem := &svcapitypes.ReplicaDescription{}
-			if f12iter.RegionName != nil {
-				f12elem.RegionName = f12iter.RegionName
+		replicationGroup := []*svcapitypes.CreateReplicationGroupMemberAction{}
+		for _, replica := range resp.Table.Replicas {
+			replicaElem := &svcapitypes.CreateReplicationGroupMemberAction{}
+			if replica.RegionName != nil {
+				replicaElem.RegionName = replica.RegionName
 			}
-			if f12iter.ReplicaStatus != "" {
-				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
-			} else {
-				f12elem.ReplicaStatus = aws.String("Unknown")
+			if replica.KMSMasterKeyId != nil {
+				replicaElem.KMSMasterKeyID = replica.KMSMasterKeyId
 			}
-			if f12iter.ReplicaStatusDescription != nil {
-				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
-			} else {
-				f12elem.ReplicaStatusDescription = aws.String("")
+			if replica.ProvisionedThroughputOverride != nil {
+				replicaElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
+					ReadCapacityUnits: replica.ProvisionedThroughputOverride.ReadCapacityUnits,
+				}
 			}
-			if f12iter.ReplicaStatusPercentProgress != nil {
-				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
-			} else {
-				f12elem.ReplicaStatusPercentProgress = aws.String("0")
+			if replica.GlobalSecondaryIndexes != nil {
+				gsiList := []*svcapitypes.ReplicaGlobalSecondaryIndex{}
+				for _, gsi := range replica.GlobalSecondaryIndexes {
+					gsiElem := &svcapitypes.ReplicaGlobalSecondaryIndex{
+						IndexName: gsi.IndexName,
+					}
+					if gsi.ProvisionedThroughputOverride != nil {
+						gsiElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
+							ReadCapacityUnits: gsi.ProvisionedThroughputOverride.ReadCapacityUnits,
+						}
+					}
+					gsiList = append(gsiList, gsiElem)
+				}
+				replicaElem.GlobalSecondaryIndexes = gsiList
 			}
-			if f12iter.ReplicaInaccessibleDateTime != nil {
-				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{Time: *f12iter.ReplicaInaccessibleDateTime}
-			} else {
-				f12elem.ReplicaInaccessibleDateTime = nil
+			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
+				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
 			}
-			if f12iter.ReplicaTableClassSummary != nil && f12iter.ReplicaTableClassSummary.TableClass != "" {
-				f12elem.ReplicaTableClassSummary.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
-				f12elem.ReplicaTableClassSummary.LastUpdateDateTime = &metav1.Time{Time: *f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
-			} else {
-				f12elem.ReplicaTableClassSummary.TableClass = aws.String("STANDARD")
-			}
-			f12 = append(f12, f12elem)
+			replicationGroup = append(replicationGroup, replicaElem)
 		}
-		ko.Status.ReplicasDescriptions = f12
+		ko.Spec.ReplicationGroup = replicationGroup
 	} else {
-		ko.Status.ReplicasDescriptions = nil
+		ko.Spec.ReplicationGroup = nil
 	}
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating

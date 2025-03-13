@@ -15,6 +15,7 @@ package table
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -49,9 +50,9 @@ var (
 		"table GSIs in '%v' state, cannot be modified or deleted",
 		svcsdktypes.IndexStatusCreating,
 	)
-	ErrReplicaNotActive = fmt.Errorf(
-		"table replica in NOT '%v' state, cannot be modified or deleted",
-		svcsdktypes.ReplicaStatusActive,
+	ErrTableReplicasUpdating = fmt.Errorf(
+		"table replica in '%v' state, cannot be modified or deleted",
+		svcsdktypes.ReplicaStatusUpdating,
 	)
 )
 
@@ -78,14 +79,14 @@ var (
 	)
 	requeueWaitWhileUpdating = ackrequeue.NeededAfter(
 		ErrTableUpdating,
-		5*time.Second,
+		10*time.Second,
 	)
 	requeueWaitGSIReady = ackrequeue.NeededAfter(
 		ErrTableGSIsUpdating,
 		10*time.Second,
 	)
-	requeueWaitForReplicasActive = ackrequeue.NeededAfter(
-		ErrReplicaNotActive,
+	requeueWaitReplicasActive = ackrequeue.NeededAfter(
+		ErrTableReplicasUpdating,
 		10*time.Second,
 	)
 )
@@ -232,7 +233,16 @@ func (rm *resourceManager) customUpdateTable(
 				}
 				return nil, err
 			}
-		case delta.DifferentAt("Spec.Replicas"):
+		case delta.DifferentAt("Spec.ReplicationGroup"):
+			if !hasStreamSpecificationWithNewAndOldImages(desired) {
+				msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
+				rlog.Debug(msg)
+				return nil, ackerr.NewTerminalError(errors.New(msg))
+			}
+
+			if !canUpdateTableReplicas(latest) {
+				return nil, requeueWaitReplicasActive
+			}
 			if err := rm.syncReplicaUpdates(ctx, latest, desired); err != nil {
 				return nil, err
 			}
@@ -273,10 +283,6 @@ func (rm *resourceManager) newUpdateTablePayload(
 ) (*svcsdk.UpdateTableInput, error) {
 	input := &svcsdk.UpdateTableInput{
 		TableName: aws.String(*r.ko.Spec.TableName),
-	}
-	// If delta is nil, we're just creating a basic payload for other operations to modify
-	if delta == nil {
-		return input, nil
 	}
 
 	if delta.DifferentAt("Spec.BillingMode") {
@@ -574,12 +580,12 @@ func customPreCompare(
 		}
 	}
 
-	// Handle ReplicaUpdates comparison
-	if len(a.ko.Spec.Replicas) != len(b.ko.Spec.Replicas) {
-		delta.Add("Spec.Replicas", a.ko.Spec.Replicas, b.ko.Spec.Replicas)
-	} else if a.ko.Spec.Replicas != nil && b.ko.Spec.Replicas != nil {
-		if !equalReplicaArrays(a.ko.Spec.Replicas, b.ko.Spec.Replicas) {
-			delta.Add("Spec.Replicas", a.ko.Spec.Replicas, b.ko.Spec.Replicas)
+	// Handle ReplicaUpdates API comparison
+	if len(a.ko.Spec.ReplicationGroup) != len(b.ko.Spec.ReplicationGroup) {
+		delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
+	} else if a.ko.Spec.ReplicationGroup != nil && b.ko.Spec.ReplicationGroup != nil {
+		if !equalReplicaArrays(a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup) {
+			delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
 		}
 	}
 

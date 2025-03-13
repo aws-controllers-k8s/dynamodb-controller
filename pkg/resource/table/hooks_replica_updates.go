@@ -1,16 +1,27 @@
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"). You may
+// not use this file except in compliance with the License. A copy of the
+// License is located at
+//
+//     http://aws.amazon.com/apache2.0/
+//
+// or in the "license" file accompanying this file. This file is distributed
+// on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+// express or implied. See the License for the specific language governing
+// permissions and limitations under the License.
+
 package table
 
 import (
 	"context"
-	"errors"
 
-	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 // equalCreateReplicationGroupMemberActions compares two CreateReplicationGroupMemberAction objects
@@ -238,17 +249,11 @@ func deleteReplicaUpdate(regionName string) svcsdktypes.ReplicationGroupUpdate {
 // canUpdateTableReplicas returns true if it's possible to update table replicas.
 // We can only modify replicas when they are in ACTIVE state.
 func canUpdateTableReplicas(r *resource) bool {
-	if isTableCreating(r) || isTableDeleting(r) || isTableUpdating(r) {
-		return false
-	}
-
 	// Check if any replica is not in ACTIVE state
-	if r.ko.Status.ReplicasDescriptions != nil {
-		for _, replicaDesc := range r.ko.Status.ReplicasDescriptions {
-			if replicaDesc.RegionName != nil && replicaDesc.ReplicaStatus != nil {
-				if *replicaDesc.ReplicaStatus != string(svcsdktypes.ReplicaStatusActive) {
-					return false
-				}
+	for _, replicaDesc := range r.ko.Status.Replicas {
+		if replicaDesc.RegionName != nil && replicaDesc.ReplicaStatus != nil {
+			if *replicaDesc.ReplicaStatus != string(svcsdktypes.ReplicaStatusActive) {
+				return false
 			}
 		}
 	}
@@ -275,30 +280,13 @@ func (rm *resourceManager) syncReplicaUpdates(
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncReplicaUpdates")
-	defer exit(err)
-
-	if !hasStreamSpecificationWithNewAndOldImages(desired) {
-		msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
-		rlog.Debug(msg)
-		return ackerr.NewTerminalError(errors.New(msg))
-	}
-
-	if !canUpdateTableReplicas(latest) {
-		return requeueWaitForReplicasActive
-	}
-
-	if isTableUpdating(latest) {
-		return requeueWaitWhileUpdating
-	}
+	defer func() {
+		exit(err)
+	}()
 
 	input, replicasInQueue, err := rm.newUpdateTableReplicaUpdatesOneAtATimePayload(ctx, latest, desired)
 	if err != nil {
 		return err
-	}
-
-	// If there are no updates to make, we don't need to requeue
-	if len(input.ReplicaUpdates) == 0 {
-		return nil
 	}
 
 	// Call the UpdateTable API
@@ -328,7 +316,9 @@ func (rm *resourceManager) newUpdateTableReplicaUpdatesOneAtATimePayload(
 ) (input *svcsdk.UpdateTableInput, replicasInQueue int, err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.newUpdateTableReplicaUpdatesOneAtATimePayload")
-	defer exit(err)
+	defer func() {
+		exit(err)
+	}()
 
 	createReplicas, updateReplicas, deleteRegions := calculateReplicaUpdates(latest, desired)
 
@@ -378,8 +368,8 @@ func calculateReplicaUpdates(
 	deleteRegions []string,
 ) {
 	existingRegions := make(map[string]*v1alpha1.CreateReplicationGroupMemberAction)
-	if latest != nil && latest.ko.Spec.Replicas != nil {
-		for _, replica := range latest.ko.Spec.Replicas {
+	if latest != nil && latest.ko.Spec.ReplicationGroup != nil {
+		for _, replica := range latest.ko.Spec.ReplicationGroup {
 			if replica.RegionName != nil {
 				existingRegions[*replica.RegionName] = replica
 			}
@@ -387,8 +377,8 @@ func calculateReplicaUpdates(
 	}
 
 	desiredRegions := make(map[string]*v1alpha1.CreateReplicationGroupMemberAction)
-	if desired != nil && desired.ko.Spec.Replicas != nil {
-		for _, replica := range desired.ko.Spec.Replicas {
+	if desired != nil && desired.ko.Spec.ReplicationGroup != nil {
+		for _, replica := range desired.ko.Spec.ReplicationGroup {
 			if replica.RegionName != nil {
 				desiredRegions[*replica.RegionName] = replica
 			}

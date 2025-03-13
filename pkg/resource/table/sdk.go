@@ -264,13 +264,13 @@ func (rm *resourceManager) sdkFind(
 		ko.Spec.ProvisionedThroughput = nil
 	}
 	if resp.Table.Replicas != nil {
-		f12 := []*svcapitypes.CreateReplicationGroupMemberAction{}
+		f12 := []*svcapitypes.ReplicaDescription{}
 		for _, f12iter := range resp.Table.Replicas {
-			f12elem := &svcapitypes.CreateReplicationGroupMemberAction{}
+			f12elem := &svcapitypes.ReplicaDescription{}
 			if f12iter.GlobalSecondaryIndexes != nil {
-				f12elemf0 := []*svcapitypes.ReplicaGlobalSecondaryIndex{}
+				f12elemf0 := []*svcapitypes.ReplicaGlobalSecondaryIndexDescription{}
 				for _, f12elemf0iter := range f12iter.GlobalSecondaryIndexes {
-					f12elemf0elem := &svcapitypes.ReplicaGlobalSecondaryIndex{}
+					f12elemf0elem := &svcapitypes.ReplicaGlobalSecondaryIndexDescription{}
 					if f12elemf0iter.IndexName != nil {
 						f12elemf0elem.IndexName = f12elemf0iter.IndexName
 					}
@@ -298,11 +298,33 @@ func (rm *resourceManager) sdkFind(
 			if f12iter.RegionName != nil {
 				f12elem.RegionName = f12iter.RegionName
 			}
+			if f12iter.ReplicaInaccessibleDateTime != nil {
+				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{*f12iter.ReplicaInaccessibleDateTime}
+			}
+			if f12iter.ReplicaStatus != "" {
+				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
+			}
+			if f12iter.ReplicaStatusDescription != nil {
+				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
+			}
+			if f12iter.ReplicaStatusPercentProgress != nil {
+				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
+			}
+			if f12iter.ReplicaTableClassSummary != nil {
+				f12elemf8 := &svcapitypes.TableClassSummary{}
+				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
+					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
+				}
+				if f12iter.ReplicaTableClassSummary.TableClass != "" {
+					f12elemf8.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
+				}
+				f12elem.ReplicaTableClassSummary = f12elemf8
+			}
 			f12 = append(f12, f12elem)
 		}
-		ko.Spec.Replicas = f12
+		ko.Status.Replicas = f12
 	} else {
-		ko.Spec.Replicas = nil
+		ko.Status.Replicas = nil
 	}
 	if resp.Table.RestoreSummary != nil {
 		f13 := &svcapitypes.RestoreSummary{}
@@ -419,37 +441,43 @@ func (rm *resourceManager) sdkFind(
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
 	if resp.Table.Replicas != nil {
-		f12 := []*svcapitypes.ReplicaDescription{}
-		for _, f12iter := range resp.Table.Replicas {
-			f12elem := &svcapitypes.ReplicaDescription{}
-			if f12iter.RegionName != nil {
-				f12elem.RegionName = f12iter.RegionName
+		replicationGroup := []*svcapitypes.CreateReplicationGroupMemberAction{}
+		for _, replica := range resp.Table.Replicas {
+			replicaElem := &svcapitypes.CreateReplicationGroupMemberAction{}
+			if replica.RegionName != nil {
+				replicaElem.RegionName = replica.RegionName
 			}
-			if f12iter.ReplicaStatus != "" {
-				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
-			} else {
-				f12elem.ReplicaStatus = aws.String("Unknown")
+			if replica.KMSMasterKeyId != nil {
+				replicaElem.KMSMasterKeyID = replica.KMSMasterKeyId
 			}
-			if f12iter.ReplicaStatusDescription != nil {
-				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
-			} else {
-				f12elem.ReplicaStatusDescription = aws.String("")
+			if replica.ProvisionedThroughputOverride != nil {
+				replicaElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
+					ReadCapacityUnits: replica.ProvisionedThroughputOverride.ReadCapacityUnits,
+				}
 			}
-			if f12iter.ReplicaStatusPercentProgress != nil {
-				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
-			} else {
-				f12elem.ReplicaStatusPercentProgress = aws.String("0")
+			if replica.GlobalSecondaryIndexes != nil {
+				gsiList := []*svcapitypes.ReplicaGlobalSecondaryIndex{}
+				for _, gsi := range replica.GlobalSecondaryIndexes {
+					gsiElem := &svcapitypes.ReplicaGlobalSecondaryIndex{
+						IndexName: gsi.IndexName,
+					}
+					if gsi.ProvisionedThroughputOverride != nil {
+						gsiElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
+							ReadCapacityUnits: gsi.ProvisionedThroughputOverride.ReadCapacityUnits,
+						}
+					}
+					gsiList = append(gsiList, gsiElem)
+				}
+				replicaElem.GlobalSecondaryIndexes = gsiList
 			}
-			if f12iter.ReplicaInaccessibleDateTime != nil {
-				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{Time: *f12iter.ReplicaInaccessibleDateTime}
-			} else {
-				f12elem.ReplicaInaccessibleDateTime = nil
+			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
+				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
 			}
-			f12 = append(f12, f12elem)
+			replicationGroup = append(replicationGroup, replicaElem)
 		}
-		ko.Status.ReplicasDescriptions = f12
+		ko.Spec.ReplicationGroup = replicationGroup
 	} else {
-		ko.Status.ReplicasDescriptions = nil
+		ko.Spec.ReplicationGroup = nil
 	}
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
@@ -692,13 +720,13 @@ func (rm *resourceManager) sdkCreate(
 		ko.Spec.ProvisionedThroughput = nil
 	}
 	if resp.TableDescription.Replicas != nil {
-		f12 := []*svcapitypes.CreateReplicationGroupMemberAction{}
+		f12 := []*svcapitypes.ReplicaDescription{}
 		for _, f12iter := range resp.TableDescription.Replicas {
-			f12elem := &svcapitypes.CreateReplicationGroupMemberAction{}
+			f12elem := &svcapitypes.ReplicaDescription{}
 			if f12iter.GlobalSecondaryIndexes != nil {
-				f12elemf0 := []*svcapitypes.ReplicaGlobalSecondaryIndex{}
+				f12elemf0 := []*svcapitypes.ReplicaGlobalSecondaryIndexDescription{}
 				for _, f12elemf0iter := range f12iter.GlobalSecondaryIndexes {
-					f12elemf0elem := &svcapitypes.ReplicaGlobalSecondaryIndex{}
+					f12elemf0elem := &svcapitypes.ReplicaGlobalSecondaryIndexDescription{}
 					if f12elemf0iter.IndexName != nil {
 						f12elemf0elem.IndexName = f12elemf0iter.IndexName
 					}
@@ -726,11 +754,33 @@ func (rm *resourceManager) sdkCreate(
 			if f12iter.RegionName != nil {
 				f12elem.RegionName = f12iter.RegionName
 			}
+			if f12iter.ReplicaInaccessibleDateTime != nil {
+				f12elem.ReplicaInaccessibleDateTime = &metav1.Time{*f12iter.ReplicaInaccessibleDateTime}
+			}
+			if f12iter.ReplicaStatus != "" {
+				f12elem.ReplicaStatus = aws.String(string(f12iter.ReplicaStatus))
+			}
+			if f12iter.ReplicaStatusDescription != nil {
+				f12elem.ReplicaStatusDescription = f12iter.ReplicaStatusDescription
+			}
+			if f12iter.ReplicaStatusPercentProgress != nil {
+				f12elem.ReplicaStatusPercentProgress = f12iter.ReplicaStatusPercentProgress
+			}
+			if f12iter.ReplicaTableClassSummary != nil {
+				f12elemf8 := &svcapitypes.TableClassSummary{}
+				if f12iter.ReplicaTableClassSummary.LastUpdateDateTime != nil {
+					f12elemf8.LastUpdateDateTime = &metav1.Time{*f12iter.ReplicaTableClassSummary.LastUpdateDateTime}
+				}
+				if f12iter.ReplicaTableClassSummary.TableClass != "" {
+					f12elemf8.TableClass = aws.String(string(f12iter.ReplicaTableClassSummary.TableClass))
+				}
+				f12elem.ReplicaTableClassSummary = f12elemf8
+			}
 			f12 = append(f12, f12elem)
 		}
-		ko.Spec.Replicas = f12
+		ko.Status.Replicas = f12
 	} else {
-		ko.Spec.Replicas = nil
+		ko.Status.Replicas = nil
 	}
 	if resp.TableDescription.RestoreSummary != nil {
 		f13 := &svcapitypes.RestoreSummary{}
@@ -797,9 +847,8 @@ func (rm *resourceManager) sdkCreate(
 		}
 	}
 	// Check if replicas were specified during creation
-	if desired.ko.Spec.Replicas != nil && len(desired.ko.Spec.Replicas) > 0 {
-		// Copy the replica configuration to the new resource
-		ko.Spec.Replicas = desired.ko.Spec.Replicas
+	if len(desired.ko.Spec.ReplicationGroup) > 0 {
+		ko.Spec.ReplicationGroup = desired.ko.Spec.ReplicationGroup
 
 		// Return with a requeue to process replica updates
 		// This will trigger the reconciliation loop again, which will call syncReplicaUpdates
@@ -1016,25 +1065,17 @@ func (rm *resourceManager) sdkDelete(
 	}
 
 	// If there are replicas, we need to remove them before deleting the table
-	if r.ko.Spec.Replicas != nil && len(r.ko.Spec.Replicas) > 0 {
-		// Create a desired state with no replicas
+	if len(r.ko.Spec.ReplicationGroup) > 0 {
 		desired := &resource{
 			ko: r.ko.DeepCopy(),
 		}
-		desired.ko.Spec.Replicas = nil
+		desired.ko.Spec.ReplicationGroup = nil
 
-		// Call syncReplicaUpdates to remove all replicas
 		err := rm.syncReplicaUpdates(ctx, r, desired)
 		if err != nil {
-			if err == requeueWaitWhileUpdating {
-				// This is expected - we need to wait for the replica removal to complete
-				return nil, err
-			}
 			return nil, err
 		}
 	}
-
-	r.ko.Spec.Replicas = nil
 
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
@@ -1169,7 +1210,8 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 		return false
 	}
 	switch terminalErr.ErrorCode() {
-	case "InvalidParameter":
+	case "InvalidParameter",
+		"ValidationException":
 		return true
 	default:
 		return false

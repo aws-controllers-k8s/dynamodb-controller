@@ -322,7 +322,7 @@ spec:
                     format: int64
                     type: integer
                 type: object
-              replicas:
+              replicationGroup:
                 items:
                   description: Represents a replica to be created.
                   properties:
@@ -644,7 +644,8 @@ spec:
 
                      * StreamLabel
                 type: string
-              replicasDescriptions:
+              replicas:
+                description: Represents replicas of the table.
                 items:
                   description: Contains the details of the replica.
                   properties:

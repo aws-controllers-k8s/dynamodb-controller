@@ -260,3 +260,61 @@ def get_point_in_time_recovery_enabled(table_name):
         return resp['ContinuousBackupsDescription']['PointInTimeRecoveryDescription']['PointInTimeRecoveryStatus'] == 'ENABLED'
     except c.exceptions.ResourceNotFoundException:
         return None
+
+
+class ReplicaMatcher:
+    def __init__(self, expected_regions):
+        self.expected_regions = expected_regions
+
+    def __call__(self, record: dict) -> bool:
+        if 'Replicas' not in record:
+            return False
+
+        actual_regions = set()
+        for replica in record['Replicas']:
+            if 'RegionName' in replica:
+                actual_regions.add(replica['RegionName'])
+
+        return set(self.expected_regions) == actual_regions
+
+
+def replicas_match(expected_regions) -> TableMatchFunc:
+    return ReplicaMatcher(expected_regions)
+
+
+class ReplicaStatusMatcher:
+    def __init__(self, region, status):
+        self.region = region
+        self.status = status
+
+    def __call__(self, record: dict) -> bool:
+        if 'Replicas' not in record:
+            return False
+
+        for replica in record['Replicas']:
+            if 'RegionName' in replica and replica['RegionName'] == self.region:
+                return 'ReplicaStatus' in replica and replica['ReplicaStatus'] == self.status
+
+        return False
+
+
+def replica_status_matches(region, status) -> TableMatchFunc:
+    return ReplicaStatusMatcher(region, status)
+
+
+def get_replicas(table_name):
+    """Returns the replicas for a DynamoDB table
+
+    Args:
+        table_name: the name of the DynamoDB table to get replicas for
+    Returns:
+        A list of replicas or None if the table doesn't exist
+    """
+    dynamodb = boto3.client('dynamodb')
+    try:
+        response = dynamodb.describe_table(TableName=table_name)
+        if 'Table' in response and 'Replicas' in response['Table']:
+            return response['Table']['Replicas']
+        return []
+    except dynamodb.exceptions.ResourceNotFoundException:
+        return None
