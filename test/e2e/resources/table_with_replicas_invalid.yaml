@@ -16,5 +16,5 @@ spec:
     - attributeName: SK
       keyType: RANGE
   billingMode: PAY_PER_REQUEST
-  replicationGroup:
+  tableReplicas:
     - regionName: $REPLICA_REGION_1

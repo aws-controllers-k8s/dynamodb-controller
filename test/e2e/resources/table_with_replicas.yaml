@@ -19,6 +19,6 @@ spec:
   streamSpecification:
     streamEnabled: true
     streamViewType: "NEW_AND_OLD_IMAGES"
-  replicationGroup:
+  tableReplicas:
     - regionName: $REPLICA_REGION_1
     - regionName: $REPLICA_REGION_2

@@ -25,7 +25,7 @@ operations:
 resources:
   Table:
     fields:
-      ReplicationGroup:
+      TableReplicas:
         custom_field:
           list_of: CreateReplicationGroupMemberAction
         compare:

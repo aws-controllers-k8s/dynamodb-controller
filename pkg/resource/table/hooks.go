@@ -233,7 +233,7 @@ func (rm *resourceManager) customUpdateTable(
 				}
 				return nil, err
 			}
-		case delta.DifferentAt("Spec.ReplicationGroup"):
+		case delta.DifferentAt("Spec.TableReplicas"):
 			if !hasStreamSpecificationWithNewAndOldImages(desired) {
 				msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
 				rlog.Debug(msg)
@@ -243,7 +243,7 @@ func (rm *resourceManager) customUpdateTable(
 			if !canUpdateTableReplicas(latest) {
 				return nil, requeueWaitReplicasActive
 			}
-			if err := rm.syncReplicaUpdates(ctx, latest, desired); err != nil {
+			if err := rm.syncReplicas(ctx, latest, desired); err != nil {
 				return nil, err
 			}
 		}
@@ -581,11 +581,11 @@ func customPreCompare(
 	}
 
 	// Handle ReplicaUpdates API comparison
-	if len(a.ko.Spec.ReplicationGroup) != len(b.ko.Spec.ReplicationGroup) {
-		delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
-	} else if a.ko.Spec.ReplicationGroup != nil && b.ko.Spec.ReplicationGroup != nil {
-		if !equalReplicaArrays(a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup) {
-			delta.Add("Spec.ReplicationGroup", a.ko.Spec.ReplicationGroup, b.ko.Spec.ReplicationGroup)
+	if len(a.ko.Spec.TableReplicas) != len(b.ko.Spec.TableReplicas) {
+		delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
+	} else if a.ko.Spec.TableReplicas != nil && b.ko.Spec.TableReplicas != nil {
+		if !equalReplicaArrays(a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas) {
+			delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
 		}
 	}
 

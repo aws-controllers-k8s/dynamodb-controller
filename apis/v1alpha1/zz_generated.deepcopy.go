@@ -2739,17 +2739,6 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		*out = new(ProvisionedThroughput)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.ReplicationGroup != nil {
-		in, out := &in.ReplicationGroup, &out.ReplicationGroup
-		*out = make([]*CreateReplicationGroupMemberAction, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(CreateReplicationGroupMemberAction)
-				(*in).DeepCopyInto(*out)
-			}
-		}
-	}
 	if in.SSESpecification != nil {
 		in, out := &in.SSESpecification, &out.SSESpecification
 		*out = new(SSESpecification)
@@ -2769,6 +2758,17 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		in, out := &in.TableName, &out.TableName
 		*out = new(string)
 		**out = **in
+	}
+	if in.TableReplicas != nil {
+		in, out := &in.TableReplicas, &out.TableReplicas
+		*out = make([]*CreateReplicationGroupMemberAction, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(CreateReplicationGroupMemberAction)
+				(*in).DeepCopyInto(*out)
+			}
+		}
 	}
 	if in.Tags != nil {
 		in, out := &in.Tags, &out.Tags

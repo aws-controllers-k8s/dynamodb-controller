@@ -440,8 +440,8 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
-	if resp.Table.Replicas != nil {
-		replicationGroup := []*svcapitypes.CreateReplicationGroupMemberAction{}
+	if len(resp.Table.Replicas) > 0 {
+		tableReplicas := []*svcapitypes.CreateReplicationGroupMemberAction{}
 		for _, replica := range resp.Table.Replicas {
 			replicaElem := &svcapitypes.CreateReplicationGroupMemberAction{}
 			if replica.RegionName != nil {
@@ -473,11 +473,11 @@ func (rm *resourceManager) sdkFind(
 			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
 				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
 			}
-			replicationGroup = append(replicationGroup, replicaElem)
+			tableReplicas = append(tableReplicas, replicaElem)
 		}
-		ko.Spec.ReplicationGroup = replicationGroup
+		ko.Spec.TableReplicas = tableReplicas
 	} else {
-		ko.Spec.ReplicationGroup = nil
+		ko.Spec.TableReplicas = nil
 	}
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
@@ -846,14 +846,6 @@ func (rm *resourceManager) sdkCreate(
 			return nil, err
 		}
 	}
-	// Check if replicas were specified during creation
-	if len(desired.ko.Spec.ReplicationGroup) > 0 {
-		ko.Spec.ReplicationGroup = desired.ko.Spec.ReplicationGroup
-
-		// Return with a requeue to process replica updates
-		// This will trigger the reconciliation loop again, which will call syncReplicaUpdates
-		return &resource{ko}, requeueWaitWhileUpdating
-	}
 	return &resource{ko}, nil
 }
 
@@ -1065,16 +1057,22 @@ func (rm *resourceManager) sdkDelete(
 	}
 
 	// If there are replicas, we need to remove them before deleting the table
-	if len(r.ko.Spec.ReplicationGroup) > 0 {
+	if !canUpdateTableReplicas(latest) {
+		return nil, requeueWaitReplicasActive
+	}
+	if len(r.ko.Spec.TableReplicas) > 0 {
 		desired := &resource{
 			ko: r.ko.DeepCopy(),
 		}
-		desired.ko.Spec.ReplicationGroup = nil
+		desired.ko.Spec.TableReplicas = nil
 
-		err := rm.syncReplicaUpdates(ctx, r, desired)
+		err := rm.syncReplicas(ctx, r, desired)
 		if err != nil {
 			return nil, err
 		}
+		// Requeue to wait for replica removal to complete before attempting table deletion
+		// When syncReplicas returns an error other than requeue
+		return r, requeueWaitWhileDeleting
 	}
 
 	input, err := rm.newDeleteRequestPayload(r)

@@ -53,8 +53,8 @@
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
-	if resp.Table.Replicas != nil {
-		replicationGroup := []*svcapitypes.CreateReplicationGroupMemberAction{}
+	if len(resp.Table.Replicas) > 0 {
+		tableReplicas := []*svcapitypes.CreateReplicationGroupMemberAction{}
 		for _, replica := range resp.Table.Replicas {
 			replicaElem := &svcapitypes.CreateReplicationGroupMemberAction{}
 			if replica.RegionName != nil {
@@ -86,11 +86,11 @@
 			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
 				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
 			}
-			replicationGroup = append(replicationGroup, replicaElem)
+			tableReplicas = append(tableReplicas, replicaElem)
 		}
-		ko.Spec.ReplicationGroup = replicationGroup
+		ko.Spec.TableReplicas = tableReplicas
 	} else {
-		ko.Spec.ReplicationGroup = nil
+		ko.Spec.TableReplicas = nil
 	}
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
