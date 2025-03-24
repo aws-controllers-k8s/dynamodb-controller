@@ -15,17 +15,14 @@ package table
 
 import (
 	"context"
-	"strings"
-	"time"
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
-	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	svcapitypes "github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 // equalCreateReplicationGroupMemberActions compares two CreateReplicationGroupMemberAction objects
@@ -178,7 +175,7 @@ func createReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 		for _, gsi := range replica.GlobalSecondaryIndexes {
 			replicaGSI := svcsdktypes.ReplicaGlobalSecondaryIndex{}
 			if gsi.IndexName != nil {
-				replicaGSI.IndexName = aws.String(*gsi.IndexName)
+				replicaGSI.IndexName = gsi.IndexName
 			}
 			if gsi.ProvisionedThroughputOverride != nil {
 				replicaGSI.ProvisionedThroughputOverride = &svcsdktypes.ProvisionedThroughputOverride{}
@@ -250,7 +247,9 @@ func updateReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 	}
 
 	// If no valid updates, return an empty ReplicationGroupUpdate
-	return svcsdktypes.ReplicationGroupUpdate{}
+	return svcsdktypes.ReplicationGroupUpdate{
+		Update: nil,
+	}
 }
 
 // deleteReplicaUpdate creates a ReplicationGroupUpdate for deleting an existing replica
@@ -260,25 +259,6 @@ func deleteReplicaUpdate(regionName string) svcsdktypes.ReplicationGroupUpdate {
 			RegionName: aws.String(regionName),
 		},
 	}
-}
-
-// canUpdateTableReplicas returns true if it's possible to update table replicas.
-// We can only modify replicas when they are in ACTIVE state.
-func canUpdateTableReplicas(r *resource) bool {
-    // Check if Status or Replicas is nil
-	// needed when called by sdkdelete
-    if r == nil || r.ko == nil || r.ko.Status.Replicas == nil {
-        return true // If no replicas exist, we can proceed with updates
-    }
-	// Check if any replica is not in ACTIVE state
-	for _, replicaDesc := range r.ko.Status.Replicas {
-		if replicaDesc.RegionName != nil && replicaDesc.ReplicaStatus != nil {
-			if *replicaDesc.ReplicaStatus != string(svcsdktypes.ReplicaStatusActive) {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // hasStreamSpecificationWithNewAndOldImages checks if the table has DynamoDB Streams enabled
@@ -314,33 +294,7 @@ func (rm *resourceManager) syncReplicas(
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
-		// Handle specific errors
-		if awsErr, ok := ackerr.AWSError(err); ok {
-			// Handle ValidationException - when replicas are not part of the global table
-			if awsErr.ErrorCode() == "ValidationException" && 
-			   strings.Contains(awsErr.ErrorMessage(), "not part of the global table") {
-				// A replica was already deleted
-				rlog.Debug("replica already deleted from global table",
-					"table", *latest.ko.Spec.TableName,
-					"error", awsErr.ErrorMessage())
-				return ackrequeue.NeededAfter(
-					ErrTableUpdating,
-					30*time.Second,
-				)
-			}
-			
-			// Handle ResourceInUseException - when the table is being updated
-			if awsErr.ErrorCode() == "ResourceInUseException" {
-				rlog.Debug("table is currently in use, will retry",
-					"table", *latest.ko.Spec.TableName,
-					"error", awsErr.ErrorMessage())
-				return ackrequeue.NeededAfter(
-					ErrTableUpdating,
-					30*time.Second,
-				)
-			}
-			return err
-		}
+		return err
 	}
 
 	// If there are more replicas to process, requeue
@@ -367,7 +321,7 @@ func (rm *resourceManager) newUpdateTableReplicaUpdatesOneAtATimePayload(
 		exit(err)
 	}()
 
-	createReplicas, updateReplicas, deleteRegions := calculateReplicaUpdates(latest, desired)
+	createReplicas, updateReplicas, deleteRegions := computeReplicaupdatesDelta(latest, desired)
 
 	input = &svcsdk.UpdateTableInput{
 		TableName:      aws.String(*desired.ko.Spec.TableName),
@@ -382,6 +336,9 @@ func (rm *resourceManager) newUpdateTableReplicaUpdatesOneAtATimePayload(
 
 	if len(createReplicas) > 0 {
 		replica := *createReplicas[0]
+		if checkIfReplicasInProgress(latest.ko.Status.Replicas, *replica.RegionName) {
+			return nil, 0, requeueWaitReplicasActive
+		}
 		rlog.Debug("creating replica in region", "table", *desired.ko.Spec.TableName, "region", *replica.RegionName)
 		input.ReplicaUpdates = append(input.ReplicaUpdates, createReplicaUpdate(createReplicas[0]))
 		return input, replicasInQueue, nil
@@ -389,13 +346,23 @@ func (rm *resourceManager) newUpdateTableReplicaUpdatesOneAtATimePayload(
 
 	if len(updateReplicas) > 0 {
 		replica := *updateReplicas[0]
+		if checkIfReplicasInProgress(latest.ko.Status.Replicas, *replica.RegionName) {
+			return nil, 0, requeueWaitReplicasActive
+		}
 		rlog.Debug("updating replica in region", "table", *desired.ko.Spec.TableName, "region", *replica.RegionName)
-		input.ReplicaUpdates = append(input.ReplicaUpdates, updateReplicaUpdate(updateReplicas[0]))
+		updateReplica := updateReplicaUpdate(updateReplicas[0])
+		if updateReplica.Update == nil {
+			return nil, 0, requeueWaitReplicasActive
+		}
+		input.ReplicaUpdates = append(input.ReplicaUpdates, updateReplica)
 		return input, replicasInQueue, nil
 	}
 
 	if len(deleteRegions) > 0 {
 		replica := deleteRegions[0]
+		if checkIfReplicasInProgress(latest.ko.Status.Replicas, replica) {
+			return nil, 0, requeueWaitReplicasActive
+		}
 		rlog.Debug("deleting replica in region", "table", *desired.ko.Spec.TableName, "region", replica)
 		input.ReplicaUpdates = append(input.ReplicaUpdates, deleteReplicaUpdate(deleteRegions[0]))
 		return input, replicasInQueue, nil
@@ -404,9 +371,9 @@ func (rm *resourceManager) newUpdateTableReplicaUpdatesOneAtATimePayload(
 	return input, replicasInQueue, nil
 }
 
-// calculateReplicaUpdates calculates the replica updates needed to reconcile the latest state with the desired state
+// computeReplicaupdatesDelta calculates the replica updates needed to reconcile the latest state with the desired state
 // Returns three slices: replicas to create, replicas to update, and region names to delete
-func calculateReplicaUpdates(
+func computeReplicaupdatesDelta(
 	latest *resource,
 	desired *resource,
 ) (
@@ -450,4 +417,59 @@ func calculateReplicaUpdates(
 	}
 
 	return createReplicas, updateReplicas, deleteRegions
+}
+
+func setTableReplicas(ko *svcapitypes.Table, replicas []svcsdktypes.ReplicaDescription) {
+	if len(replicas) > 0 {
+		tableReplicas := []*v1alpha1.CreateReplicationGroupMemberAction{}
+		for _, replica := range replicas {
+			replicaElem := &v1alpha1.CreateReplicationGroupMemberAction{}
+			if replica.RegionName != nil {
+				replicaElem.RegionName = replica.RegionName
+			}
+			if replica.KMSMasterKeyId != nil {
+				replicaElem.KMSMasterKeyID = replica.KMSMasterKeyId
+			}
+			if replica.ProvisionedThroughputOverride != nil {
+				replicaElem.ProvisionedThroughputOverride = &v1alpha1.ProvisionedThroughputOverride{
+					ReadCapacityUnits: replica.ProvisionedThroughputOverride.ReadCapacityUnits,
+				}
+			}
+			if replica.GlobalSecondaryIndexes != nil {
+				gsiList := []*v1alpha1.ReplicaGlobalSecondaryIndex{}
+				for _, gsi := range replica.GlobalSecondaryIndexes {
+					gsiElem := &v1alpha1.ReplicaGlobalSecondaryIndex{
+						IndexName: gsi.IndexName,
+					}
+					if gsi.ProvisionedThroughputOverride != nil {
+						gsiElem.ProvisionedThroughputOverride = &v1alpha1.ProvisionedThroughputOverride{
+							ReadCapacityUnits: gsi.ProvisionedThroughputOverride.ReadCapacityUnits,
+						}
+					}
+					gsiList = append(gsiList, gsiElem)
+				}
+				replicaElem.GlobalSecondaryIndexes = gsiList
+			}
+			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
+				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
+			}
+			tableReplicas = append(tableReplicas, replicaElem)
+		}
+		ko.Spec.TableReplicas = tableReplicas
+	} else {
+		ko.Spec.TableReplicas = nil
+	}
+}
+
+func checkIfReplicasInProgress(ReplicaDescription []*svcapitypes.ReplicaDescription, regionName string) bool {
+	for _, replica := range ReplicaDescription {
+		if *replica.RegionName == regionName {
+			replicaStatus := replica.ReplicaStatus
+			if *replicaStatus == string(svcsdktypes.ReplicaStatusCreating) || *replicaStatus == string(svcsdktypes.ReplicaStatusDeleting) || *replicaStatus == string(svcsdktypes.ReplicaStatusUpdating) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

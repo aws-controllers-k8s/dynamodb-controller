@@ -14,8 +14,6 @@ spec:
       attributeType: S
     - attributeName: GSI1SK
       attributeType: S
-    - attributeName: GSI2PK
-      attributeType: S
   keySchema:
     - attributeName: PK
       keyType: HASH
@@ -25,9 +23,13 @@ spec:
   streamSpecification:
     streamEnabled: true
     streamViewType: "NEW_AND_OLD_IMAGES"
-  replicationGroup:
+  tableReplicas:
     - regionName: $REPLICA_REGION_1
+      globalSecondaryIndexes:
+        - indexName: GSI1
     - regionName: $REPLICA_REGION_2
+      globalSecondaryIndexes:
+        - indexName: GSI1
   globalSecondaryIndexes:
     - indexName: GSI1
       keySchema:
@@ -37,9 +39,3 @@ spec:
           keyType: RANGE
       projection:
         projectionType: ALL
-    - indexName: GSI2
-      keySchema:
-        - attributeName: GSI2PK
-          keyType: HASH
-      projection:
-        projectionType: KEYS_ONLY 

@@ -53,45 +53,7 @@
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
-	if len(resp.Table.Replicas) > 0 {
-		tableReplicas := []*svcapitypes.CreateReplicationGroupMemberAction{}
-		for _, replica := range resp.Table.Replicas {
-			replicaElem := &svcapitypes.CreateReplicationGroupMemberAction{}
-			if replica.RegionName != nil {
-				replicaElem.RegionName = replica.RegionName
-			}
-			if replica.KMSMasterKeyId != nil {
-				replicaElem.KMSMasterKeyID = replica.KMSMasterKeyId
-			}
-			if replica.ProvisionedThroughputOverride != nil {
-				replicaElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
-					ReadCapacityUnits: replica.ProvisionedThroughputOverride.ReadCapacityUnits,
-				}
-			}
-			if replica.GlobalSecondaryIndexes != nil {
-				gsiList := []*svcapitypes.ReplicaGlobalSecondaryIndex{}
-				for _, gsi := range replica.GlobalSecondaryIndexes {
-					gsiElem := &svcapitypes.ReplicaGlobalSecondaryIndex{
-						IndexName: gsi.IndexName,
-					}
-					if gsi.ProvisionedThroughputOverride != nil {
-						gsiElem.ProvisionedThroughputOverride = &svcapitypes.ProvisionedThroughputOverride{
-							ReadCapacityUnits: gsi.ProvisionedThroughputOverride.ReadCapacityUnits,
-						}
-					}
-					gsiList = append(gsiList, gsiElem)
-				}
-				replicaElem.GlobalSecondaryIndexes = gsiList
-			}
-			if replica.ReplicaTableClassSummary != nil && replica.ReplicaTableClassSummary.TableClass != "" {
-				replicaElem.TableClassOverride = aws.String(string(replica.ReplicaTableClassSummary.TableClass))
-			}
-			tableReplicas = append(tableReplicas, replicaElem)
-		}
-		ko.Spec.TableReplicas = tableReplicas
-	} else {
-		ko.Spec.TableReplicas = nil
-	}
+	setTableReplicas(r, resp.Table.Replicas)
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}

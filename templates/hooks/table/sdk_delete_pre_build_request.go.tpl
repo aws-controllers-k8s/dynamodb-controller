@@ -6,9 +6,6 @@
 	}
 
 	// If there are replicas, we need to remove them before deleting the table
-	if !canUpdateTableReplicas(latest) {
-		return nil, requeueWaitReplicasActive
-	}
 	if len(r.ko.Spec.TableReplicas) > 0 {
 		desired := &resource{
 			ko: r.ko.DeepCopy(),
