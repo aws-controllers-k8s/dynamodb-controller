@@ -196,7 +196,6 @@ func createReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 func updateReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) svcsdktypes.ReplicationGroupUpdate {
 	replicaUpdate := svcsdktypes.ReplicationGroupUpdate{}
 	updateAction := &svcsdktypes.UpdateReplicationGroupMemberAction{}
-	isValidUpdate := false // updates to gsi without ProvisionedThroughputOverride are invalid
 
 	if replica.RegionName != nil {
 		updateAction.RegionName = aws.String(*replica.RegionName)
@@ -205,12 +204,10 @@ func updateReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 
 	if replica.KMSMasterKeyID != nil {
 		updateAction.KMSMasterKeyId = aws.String(*replica.KMSMasterKeyID)
-		isValidUpdate = true
 	}
 
 	if replica.TableClassOverride != nil {
 		updateAction.TableClassOverride = svcsdktypes.TableClass(*replica.TableClassOverride)
-		isValidUpdate = true
 	}
 
 	if replica.ProvisionedThroughputOverride != nil &&
@@ -218,7 +215,6 @@ func updateReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 		updateAction.ProvisionedThroughputOverride = &svcsdktypes.ProvisionedThroughputOverride{
 			ReadCapacityUnits: replica.ProvisionedThroughputOverride.ReadCapacityUnits,
 		}
-		isValidUpdate = true
 	}
 
 	// Only include GSIs that have provisioned throughput overrides
@@ -232,16 +228,21 @@ func updateReplicaUpdate(replica *v1alpha1.CreateReplicationGroupMemberAction) s
 					ReadCapacityUnits: gsi.ProvisionedThroughputOverride.ReadCapacityUnits,
 				},
 			})
-			isValidUpdate = true
 		}
 	}
 
-	// Only set GlobalSecondaryIndexes if we have GSIs with throughput overrides
 	if len(gsisWithOverrides) > 0 {
 		updateAction.GlobalSecondaryIndexes = gsisWithOverrides
 	}
 
-	if isValidUpdate {
+	// Check if there are any actual updates to perform
+	// replica GSI updates are invalid updates since the GSI already exists on the source table
+	hasUpdates := updateAction.KMSMasterKeyId != nil ||
+		updateAction.TableClassOverride != "" ||
+		updateAction.ProvisionedThroughputOverride != nil ||
+		len(updateAction.GlobalSecondaryIndexes) > 0
+
+	if hasUpdates {
 		replicaUpdate.Update = updateAction
 		return replicaUpdate
 	}
