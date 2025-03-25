@@ -25,6 +25,11 @@ operations:
 resources:
   Table:
     fields:
+      TableReplicas:
+        custom_field:
+          list_of: CreateReplicationGroupMemberAction
+        compare:
+          is_ignored: true 
       GlobalSecondaryIndexesDescriptions:
         custom_field:
           list_of: GlobalSecondaryIndexDescription
@@ -71,6 +76,7 @@ resources:
           code: ResourceNotFoundException
       terminal_codes:
         - InvalidParameter
+        - ValidationException
     update_operation:
       custom_method_name: customUpdateTable
     hooks:

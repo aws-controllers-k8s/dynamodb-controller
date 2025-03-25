@@ -163,7 +163,8 @@ type TableSpec struct {
 	// The name of the table to create. You can also provide the Amazon Resource
 	// Name (ARN) of the table in this parameter.
 	// +kubebuilder:validation:Required
-	TableName *string `json:"tableName"`
+	TableName     *string                               `json:"tableName"`
+	TableReplicas []*CreateReplicationGroupMemberAction `json:"tableReplicas,omitempty"`
 	// A list of key-value pairs to label the table. For more information, see Tagging
 	// for DynamoDB (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Tagging.html).
 	Tags []*Tag `json:"tags,omitempty"`

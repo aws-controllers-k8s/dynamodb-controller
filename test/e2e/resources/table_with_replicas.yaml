@@ -1,0 +1,24 @@
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  tableClass: STANDARD
+  attributeDefinitions:
+    - attributeName: PK
+      attributeType: S
+    - attributeName: SK
+      attributeType: S
+  keySchema:
+    - attributeName: PK
+      keyType: HASH
+    - attributeName: SK
+      keyType: RANGE
+  billingMode: PAY_PER_REQUEST
+  streamSpecification:
+    streamEnabled: true
+    streamViewType: "NEW_AND_OLD_IMAGES"
+  tableReplicas:
+    - regionName: $REPLICA_REGION_1
+    - regionName: $REPLICA_REGION_2

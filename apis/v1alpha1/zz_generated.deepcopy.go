@@ -2759,6 +2759,17 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.TableReplicas != nil {
+		in, out := &in.TableReplicas, &out.TableReplicas
+		*out = make([]*CreateReplicationGroupMemberAction, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(CreateReplicationGroupMemberAction)
+				(*in).DeepCopyInto(*out)
+			}
+		}
+	}
 	if in.Tags != nil {
 		in, out := &in.Tags, &out.Tags
 		*out = make([]*Tag, len(*in))
