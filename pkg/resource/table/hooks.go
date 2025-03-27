@@ -15,7 +15,6 @@ package table
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -35,24 +34,20 @@ import (
 
 var (
 	ErrTableDeleting = fmt.Errorf(
-		"table in '%v' state, cannot be modified or deleted",
+		"Table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusDeleting,
 	)
 	ErrTableCreating = fmt.Errorf(
-		"table in '%v' state, cannot be modified or deleted",
+		"Table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusCreating,
 	)
 	ErrTableUpdating = fmt.Errorf(
-		"table in '%v' state, cannot be modified or deleted",
+		"Table in '%v' state, cannot be modified or deleted",
 		svcsdktypes.TableStatusUpdating,
 	)
 	ErrTableGSIsUpdating = fmt.Errorf(
-		"table GSIs in '%v' state, cannot be modified or deleted",
+		"Table GSIs in '%v' state, cannot be modified or deleted",
 		svcsdktypes.IndexStatusCreating,
-	)
-	ErrTableReplicasUpdating = fmt.Errorf(
-		"table replica in '%v' state, cannot be modified or deleted",
-		svcsdktypes.ReplicaStatusUpdating,
 	)
 )
 
@@ -79,14 +74,10 @@ var (
 	)
 	requeueWaitWhileUpdating = ackrequeue.NeededAfter(
 		ErrTableUpdating,
-		10*time.Second,
+		5*time.Second,
 	)
 	requeueWaitGSIReady = ackrequeue.NeededAfter(
 		ErrTableGSIsUpdating,
-		10*time.Second,
-	)
-	requeueWaitReplicasActive = ackrequeue.NeededAfter(
-		ErrTableReplicasUpdating,
 		10*time.Second,
 	)
 )
@@ -231,17 +222,6 @@ func (rm *resourceManager) customUpdateTable(
 					awsErr.ErrorCode() == "LimitExceededException" {
 					return nil, requeueWaitGSIReady
 				}
-				return nil, err
-			}
-		case delta.DifferentAt("Spec.TableReplicas"):
-			// Enabling replicas required streams enabled and StreamViewType to be NEW_AND_OLD_IMAGES
-			// Version 2019.11.21  TableUpdate API requirement
- 			if !hasStreamSpecificationWithNewAndOldImages(desired) {
-				msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
-				rlog.Debug(msg)
-				return nil, ackerr.NewTerminalError(errors.New(msg))
-			}
-			if err := rm.syncReplicas(ctx, latest, desired); err != nil {
 				return nil, err
 			}
 		}
@@ -575,15 +555,6 @@ func customPreCompare(
 		b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
 		a.ko.Spec.ContinuousBackups = &v1alpha1.PointInTimeRecoverySpecification{
 			PointInTimeRecoveryEnabled: &DefaultPITREnabledValue,
-		}
-	}
-
-	// Handle ReplicaUpdates API comparison
-	if len(a.ko.Spec.TableReplicas) != len(b.ko.Spec.TableReplicas) {
-		delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
-	} else if a.ko.Spec.TableReplicas != nil && b.ko.Spec.TableReplicas != nil {
-		if !equalReplicaArrays(a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas) {
-			delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
 		}
 	}
 

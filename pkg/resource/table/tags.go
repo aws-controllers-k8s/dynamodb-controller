@@ -30,51 +30,39 @@ var (
 	ACKSystemTags = []string{"services.k8s.aws/namespace", "services.k8s.aws/controller-version"}
 )
 
-// convertToOrderedACKTags converts the tags parameter into 'acktags.Tags' shape.
+// ToACKTags converts the tags parameter into 'acktags.Tags' shape.
 // This method helps in creating the hub(acktags.Tags) for merging
-// default controller tags with existing resource tags. It also returns a slice
-// of keys maintaining the original key Order when the tags are a list
-func convertToOrderedACKTags(tags []*svcapitypes.Tag) (acktags.Tags, []string) {
+// default controller tags with existing resource tags.
+func ToACKTags(tags []*svcapitypes.Tag) acktags.Tags {
 	result := acktags.NewTags()
-	keyOrder := []string{}
-
-	if len(tags) == 0 {
-		return result, keyOrder
+	if tags == nil || len(tags) == 0 {
+		return result
 	}
+
 	for _, t := range tags {
 		if t.Key != nil {
-			keyOrder = append(keyOrder, *t.Key)
-			if t.Value != nil {
-				result[*t.Key] = *t.Value
-			} else {
+			if t.Value == nil {
 				result[*t.Key] = ""
+			} else {
+				result[*t.Key] = *t.Value
 			}
 		}
 	}
 
-	return result, keyOrder
+	return result
 }
 
-// fromACKTags converts the tags parameter into []*svcapitypes.Tag shape.
+// FromACKTags converts the tags parameter into []*svcapitypes.Tag shape.
 // This method helps in setting the tags back inside AWSResource after merging
-// default controller tags with existing resource tags. When a list,
-// it maintains the order from original
-func fromACKTags(tags acktags.Tags, keyOrder []string) []*svcapitypes.Tag {
+// default controller tags with existing resource tags.
+func FromACKTags(tags acktags.Tags) []*svcapitypes.Tag {
 	result := []*svcapitypes.Tag{}
-
-	for _, k := range keyOrder {
-		v, ok := tags[k]
-		if ok {
-			tag := svcapitypes.Tag{Key: &k, Value: &v}
-			result = append(result, &tag)
-			delete(tags, k)
-		}
-	}
 	for k, v := range tags {
-		tag := svcapitypes.Tag{Key: &k, Value: &v}
+		kCopy := k
+		vCopy := v
+		tag := svcapitypes.Tag{Key: &kCopy, Value: &vCopy}
 		result = append(result, &tag)
 	}
-
 	return result
 }
 
