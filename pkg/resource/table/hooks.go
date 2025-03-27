@@ -236,7 +236,7 @@ func (rm *resourceManager) customUpdateTable(
 		case delta.DifferentAt("Spec.TableReplicas"):
 			// Enabling replicas required streams enabled and StreamViewType to be NEW_AND_OLD_IMAGES
 			// Version 2019.11.21  TableUpdate API requirement
- 			if !hasStreamSpecificationWithNewAndOldImages(desired) {
+			if !hasStreamSpecificationWithNewAndOldImages(desired) {
 				msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
 				rlog.Debug(msg)
 				return nil, ackerr.NewTerminalError(errors.New(msg))

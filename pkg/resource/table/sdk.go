@@ -440,7 +440,7 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
-	setTableReplicas(ko, resp.Table.Replicas)
+	setTableReplicas(r, resp.Table.Replicas)
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}
