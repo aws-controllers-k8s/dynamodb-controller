@@ -15,7 +15,6 @@ package table
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -233,17 +232,17 @@ func (rm *resourceManager) customUpdateTable(
 				}
 				return nil, err
 			}
-		case delta.DifferentAt("Spec.TableReplicas"):
-			// Enabling replicas required streams enabled and StreamViewType to be NEW_AND_OLD_IMAGES
-			// Version 2019.11.21  TableUpdate API requirement
-			if !hasStreamSpecificationWithNewAndOldImages(desired) {
-				msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
-				rlog.Debug(msg)
-				return nil, ackerr.NewTerminalError(errors.New(msg))
-			}
-			if err := rm.syncReplicas(ctx, latest, desired); err != nil {
-				return nil, err
-			}
+			// case delta.DifferentAt("Spec.TableReplicas"):
+			// 	// Enabling replicas required streams enabled and StreamViewType to be NEW_AND_OLD_IMAGES
+			// 	// Version 2019.11.21  TableUpdate API requirement
+			// 	if !hasStreamSpecificationWithNewAndOldImages(desired) {
+			// 		msg := "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES for replica updates"
+			// 		rlog.Debug(msg)
+			// 		return nil, ackerr.NewTerminalError(errors.New(msg))
+			// 	}
+			// 	if err := rm.syncReplicas(ctx, latest, desired); err != nil {
+			// 		return nil, err
+			// 	}
 		}
 	}
 
@@ -578,14 +577,14 @@ func customPreCompare(
 		}
 	}
 
-	// Handle ReplicaUpdates API comparison
-	if len(a.ko.Spec.TableReplicas) != len(b.ko.Spec.TableReplicas) {
-		delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
-	} else if a.ko.Spec.TableReplicas != nil && b.ko.Spec.TableReplicas != nil {
-		if !equalReplicaArrays(a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas) {
-			delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
-		}
-	}
+	// // Handle ReplicaUpdates API comparison
+	// if len(a.ko.Spec.TableReplicas) != len(b.ko.Spec.TableReplicas) {
+	// 	delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
+	// } else if a.ko.Spec.TableReplicas != nil && b.ko.Spec.TableReplicas != nil {
+	// 	if !equalReplicaArrays(a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas) {
+	// 		delta.Add("Spec.TableReplicas", a.ko.Spec.TableReplicas, b.ko.Spec.TableReplicas)
+	// 	}
+	// }
 
 	if a.ko.Spec.DeletionProtectionEnabled == nil {
 		a.ko.Spec.DeletionProtectionEnabled = aws.Bool(false)
