@@ -53,7 +53,6 @@
 	} else {
 		ko.Spec.BillingMode = aws.String("PROVISIONED")
 	}
-	setTableReplicas(r, resp.Table.Replicas)
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}
