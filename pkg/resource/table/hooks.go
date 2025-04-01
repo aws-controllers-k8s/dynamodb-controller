@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	svcapitypes "github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 var (
@@ -136,6 +137,15 @@ func isTableUpdating(r *resource) bool {
 	return dbis == string(v1alpha1.TableStatus_SDK_UPDATING)
 }
 
+func isTableContributorInsightsUpdating(r *resource) bool {
+	if r.ko.Spec.ContributorInsights == nil {
+		return false
+	}
+	insightStatus := *r.ko.Spec.ContributorInsights
+	return insightStatus == string(svcsdktypes.ContributorInsightsStatusEnabling) ||
+		insightStatus == string(svcsdktypes.ContributorInsightsStatusDisabling)
+}
+
 func (rm *resourceManager) customUpdateTable(
 	ctx context.Context,
 	desired *resource,
@@ -209,6 +219,13 @@ func (rm *resourceManager) customUpdateTable(
 		err = rm.syncContinuousBackup(ctx, desired)
 		if err != nil {
 			return nil, fmt.Errorf("cannot update table %v", err)
+		}
+	}
+
+	if delta.DifferentAt("Spec.ContributorInsights") {
+		err = rm.updateContributorInsights(ctx, desired)
+		if err != nil {
+			return &resource{ko}, err
 		}
 	}
 
@@ -455,6 +472,9 @@ func (rm *resourceManager) setResourceAdditionalFields(
 		ko.Spec.ContinuousBackups = pitrSpec
 	}
 
+	if err = rm.setContributorInsights(ctx, ko); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -590,6 +610,11 @@ func customPreCompare(
 	if a.ko.Spec.DeletionProtectionEnabled == nil {
 		a.ko.Spec.DeletionProtectionEnabled = aws.Bool(false)
 	}
+
+	if a.ko.Spec.ContributorInsights == nil && b.ko.Spec.ContributorInsights != nil &&
+		*b.ko.Spec.ContributorInsights == string(svcsdktypes.ContributorInsightsActionDisable) {
+		a.ko.Spec.ContributorInsights = b.ko.Spec.ContributorInsights
+	}
 }
 
 // equalAttributeDefinitions return whether two AttributeDefinition arrays are equal or not.
@@ -723,4 +748,69 @@ func equalLocalSecondaryIndexes(
 		}
 	}
 	return true
+}
+
+// setContributorInsights retrieves the table's cloudformationInsights
+// configuration
+func (rm *resourceManager) setContributorInsights(
+	ctx context.Context,
+	ko *svcapitypes.Table,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.setCloudformationInsights")
+	defer func() {
+		exit(err)
+	}()
+
+	resp, err := rm.sdkapi.DescribeContributorInsights(
+		ctx,
+		&svcsdk.DescribeContributorInsightsInput{
+			TableName: ko.Spec.TableName,
+		},
+	)
+	rm.metrics.RecordAPICall("READ_ONE", "DescribeContributorInsights", err)
+	if err != nil {
+		return err
+	}
+
+	switch resp.ContributorInsightsStatus {
+	case svcsdktypes.ContributorInsightsStatusEnabled:
+		ko.Spec.ContributorInsights = aws.String(string(svcsdktypes.ContributorInsightsActionEnable))
+	case svcsdktypes.ContributorInsightsStatusDisabled:
+		ko.Spec.ContributorInsights = aws.String(string(svcsdktypes.ContributorInsightsActionDisable))
+	default:
+		ko.Spec.ContributorInsights = aws.String(string(resp.ContributorInsightsStatus))
+
+	}
+
+	return nil
+}
+
+func (rm *resourceManager) updateContributorInsights(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.updateCloudformationInsights")
+	defer func() {
+		exit(err)
+	}()
+	insight := svcsdktypes.ContributorInsightsActionDisable
+	if r.ko.Spec.ContributorInsights != nil {
+		insight = svcsdktypes.ContributorInsightsAction(*r.ko.Spec.ContributorInsights)
+	}
+
+	_, err = rm.sdkapi.UpdateContributorInsights(
+		ctx,
+		&svcsdk.UpdateContributorInsightsInput{
+			TableName:                 r.ko.Spec.TableName,
+			ContributorInsightsAction: insight,
+		},
+	)
+	rm.metrics.RecordAPICall("READ_ONE", "UpdateContributorInsights", err)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

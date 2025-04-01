@@ -38,6 +38,8 @@ type TableSpec struct {
 	BillingMode *string `json:"billingMode,omitempty"`
 	// Represents the settings used to enable point in time recovery.
 	ContinuousBackups *PointInTimeRecoverySpecification `json:"continuousBackups,omitempty"`
+	// Represents the contributor insights action.
+	ContributorInsights *string `json:"contributorInsights,omitempty"`
 	// Indicates whether deletion protection is to be enabled (true) or disabled
 	// (false) on the table.
 	DeletionProtectionEnabled *bool `json:"deletionProtectionEnabled,omitempty"`

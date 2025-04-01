@@ -88,6 +88,9 @@ spec:
                   pointInTimeRecoveryEnabled:
                     type: boolean
                 type: object
+              contributorInsights:
+                description: Represents the contributor insights action.
+                type: string
               deletionProtectionEnabled:
                 description: |-
                   Indicates whether deletion protection is to be enabled (true) or disabled

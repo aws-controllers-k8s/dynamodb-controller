@@ -136,6 +136,18 @@ def table_basic():
     except:
         pass
 
+@pytest.fixture(scope="function")
+def table_insights():
+    resource_name = random_suffix_name("table-insights", 32)
+    (ref, cr) = create_table(resource_name, "table_insights")
+
+    yield ref, cr
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
 @pytest.fixture(scope="module")
 def table_basic_pay_per_request():
     resource_name = random_suffix_name("table-basic-pay-per-request", 32)
@@ -152,6 +164,9 @@ def table_basic_pay_per_request():
 @pytest.mark.canary
 class TestTable:
     def table_exists(self, table_name: str) -> bool:
+        return table.get(table_name) is not None
+    
+    def table_insight_status(self, table_name: str, status: str) -> bool:
         return table.get(table_name) is not None
 
     def test_create_delete(self, table_lsi):
@@ -452,6 +467,33 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
+    
+    def test_update_insights(self, table_insights):
+        (ref, res) = table_insights
+
+        table_name = res["spec"]["tableName"]
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        cr = k8s.get_resource(ref)
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+        assert cr['spec']['contributorInsights'] == "ENABLE"
+        assert self.table_insight_status(table_name, "ENABLED")
+
+        # Set provisionedThroughput
+        updates = {
+            "spec": {
+                "contributorInsights": "DISABLE"
+            }
+        }
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, updates)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        cr = k8s.get_resource(ref)
+        assert cr['spec']['contributorInsights'] == "DISABLE"
+        assert self.table_insight_status(table_name, "DISABLED")
+       
 
     def test_enable_sse_specification(self, table_lsi):
         (ref, res) = table_lsi

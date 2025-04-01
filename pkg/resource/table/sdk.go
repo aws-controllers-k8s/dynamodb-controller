@@ -444,15 +444,16 @@ func (rm *resourceManager) sdkFind(
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}
-	if isTableUpdating(&resource{ko}) {
-		return &resource{ko}, requeueWaitWhileUpdating
-	}
 	if !canUpdateTableGSIs(&resource{ko}) {
 		return &resource{ko}, requeueWaitGSIReady
 	}
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err
 	}
+	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
+
 	return &resource{ko}, nil
 }
 
@@ -808,6 +809,13 @@ func (rm *resourceManager) sdkCreate(
 			return nil, err
 		}
 	}
+
+	if desired.ko.Spec.ContributorInsights != nil {
+		if err := rm.updateContributorInsights(ctx, desired); err != nil {
+			return nil, err
+		}
+	}
+
 	return &resource{ko}, nil
 }
 

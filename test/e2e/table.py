@@ -236,6 +236,18 @@ def get(table_name):
     except c.exceptions.ResourceNotFoundException:
         return None
 
+def get_insights(table_name):
+    """Returns a dict containing the Role record from the IAM API.
+
+    If no such Table exists, returns None.
+    """
+    c = boto3.client('dynamodb', region_name=get_region())
+    try:
+        resp = c.describe_contributor_insights(TableName=table_name)
+        return resp['ContributorInsightsStatus']
+    except c.exceptions.ResourceNotFoundException:
+        return None
+
 
 def get_time_to_live(table_name):
     """Returns the TTL specification for the table with a supplied name.

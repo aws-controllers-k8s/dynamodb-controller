@@ -3,3 +3,9 @@
 			return nil, err
 		}
 	}
+
+	if desired.ko.Spec.ContributorInsights != nil {
+		if err := rm.updateContributorInsights(ctx, desired); err != nil {
+			return nil, err
+		}
+	}
