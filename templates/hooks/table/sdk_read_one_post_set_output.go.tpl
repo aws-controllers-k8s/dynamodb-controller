@@ -57,12 +57,12 @@
 	if isTableCreating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileCreating
 	}
-	if isTableUpdating(&resource{ko}) {
-		return &resource{ko}, requeueWaitWhileUpdating
-	}
 	if !canUpdateTableGSIs(&resource{ko}) {
 		return &resource{ko}, requeueWaitGSIReady
 	}
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err
+	}
+	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileUpdating
 	}

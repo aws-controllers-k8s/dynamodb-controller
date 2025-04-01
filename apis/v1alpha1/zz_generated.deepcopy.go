@@ -2696,6 +2696,11 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		*out = new(PointInTimeRecoverySpecification)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ContributorInsights != nil {
+		in, out := &in.ContributorInsights, &out.ContributorInsights
+		*out = new(string)
+		**out = **in
+	}
 	if in.DeletionProtectionEnabled != nil {
 		in, out := &in.DeletionProtectionEnabled, &out.DeletionProtectionEnabled
 		*out = new(bool)
