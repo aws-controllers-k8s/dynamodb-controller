@@ -29,7 +29,7 @@ from e2e.replacement_values import REPLACEMENT_VALUES
 from acktest.k8s import condition
 
 RESOURCE_PLURAL = "tables"
-
+CREATE_WAIT_AFTER_SECONDS = 30
 DELETE_WAIT_AFTER_SECONDS = 30
 MODIFY_WAIT_AFTER_SECONDS = 600
 REPLICA_WAIT_AFTER_SECONDS = 600
@@ -113,6 +113,7 @@ def create_table_with_invalid_replicas(name: str):
     )
     logging.debug(resource_data)
 
+    time.sleep(CREATE_WAIT_AFTER_SECONDS)
     # Create the k8s resource
     ref = k8s.CustomResourceReference(
         CRD_GROUP, CRD_VERSION, RESOURCE_PLURAL,

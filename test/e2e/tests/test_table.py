@@ -29,7 +29,7 @@ from e2e import (CRD_GROUP, CRD_VERSION, condition, get_resource_tags,
 from e2e.replacement_values import REPLACEMENT_VALUES
 
 RESOURCE_PLURAL = "tables"
-
+CREATE_WAIT_AFTER_SECONDS = 30
 DELETE_WAIT_AFTER_SECONDS = 15
 MODIFY_WAIT_AFTER_SECONDS = 90
 
@@ -70,6 +70,8 @@ def create_table(name: str, resource_template):
         CRD_GROUP, CRD_VERSION, "tables",
         name, namespace="default",
     )
+
+    time.sleep(CREATE_WAIT_AFTER_SECONDS)
 
     # Create table
     k8s.create_custom_resource(table_reference, resource_data)
