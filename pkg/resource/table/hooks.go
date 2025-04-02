@@ -611,8 +611,10 @@ func customPreCompare(
 		a.ko.Spec.DeletionProtectionEnabled = aws.Bool(false)
 	}
 
-	if a.ko.Spec.ContributorInsights == nil && b.ko.Spec.ContributorInsights != nil &&
-		*b.ko.Spec.ContributorInsights == string(svcsdktypes.ContributorInsightsActionDisable) {
+	// Making this field a no-op if user does not set it.
+	// This will ensure controller does not act on this field
+	// if user is unaware of it.
+	if a.ko.Spec.ContributorInsights == nil {
 		a.ko.Spec.ContributorInsights = b.ko.Spec.ContributorInsights
 	}
 }
