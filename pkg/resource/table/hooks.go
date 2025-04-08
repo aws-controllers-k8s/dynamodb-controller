@@ -615,8 +615,16 @@ func customPreCompare(
 	// This will ensure controller does not act on this field
 	// if user is unaware of it.
 	if a.ko.Spec.ContributorInsights == nil {
-		a.ko.Spec.ContributorInsights = b.ko.Spec.ContributorInsights
+		return
 	}
+	// latestInsight will always be either ENABLED or DISABLED, since we requeue at readOne if its not 
+	// either
+	desiredInsight, _ := ensureContibutorInsight(a)
+	latestInsight, _ := ensureContibutorInsight(b)
+	if desiredInsight != latestInsight {
+		delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
+	}
+
 }
 
 // equalAttributeDefinitions return whether two AttributeDefinition arrays are equal or not.
@@ -774,29 +782,32 @@ func (rm *resourceManager) setContributorInsights(
 	if err != nil {
 		return err
 	}
-	
-	// This portion is needed if we want to have a smooth delta comparison
-	// If the name ends in ED (ENABLED, DISABLED) just assign the value
-	endsWithED := false
-	if ko.Spec.ContributorInsights != nil {
-		endsWithED = strings.HasSuffix(*ko.Spec.TableName, "ED")
-	}
-	if endsWithED {
-		ko.Spec.ContributorInsights = aws.String(string(resp.ContributorInsightsStatus))
-		return nil
-	}
-	// if not do the conversion
-	switch resp.ContributorInsightsStatus {
-	case svcsdktypes.ContributorInsightsStatusEnabled:
-		ko.Spec.ContributorInsights = aws.String(string(svcsdktypes.ContributorInsightsActionEnable))
-	case svcsdktypes.ContributorInsightsStatusDisabled:
-		ko.Spec.ContributorInsights = aws.String(string(svcsdktypes.ContributorInsightsActionDisable))
-	default:
-		ko.Spec.ContributorInsights = aws.String(string(resp.ContributorInsightsStatus))
 
+	// Only manage ContributorInsights if it is defined
+	if ko.Spec.ContributorInsights != nil {
+		ko.Spec.ContributorInsights = aws.String(string(resp.ContributorInsightsStatus))
 	}
 
 	return nil
+}
+
+// ensureContibutorInsight ensures the controller understands ENABLE and ENABLED are the same.
+// We choose to return ContributorInsightsAction because that is the enum used to update.
+func ensureContibutorInsight(r *resource) (svcsdktypes.ContributorInsightsAction, error) {
+	insight := svcsdktypes.ContributorInsightsActionDisable
+	if r.ko.Spec.ContributorInsights != nil {
+		// We will allow users to provide values ENABLE, ENABLED, DISABLE, DISABLED
+		switch *r.ko.Spec.ContributorInsights {
+		case string(svcsdktypes.ContributorInsightsActionEnable), string(svcsdktypes.ContributorInsightsStatusEnabled):
+			insight = svcsdktypes.ContributorInsightsActionEnable
+		case string(svcsdktypes.ContributorInsightsActionDisable), string(svcsdktypes.ContributorInsightsStatusDisabled):
+			insight = svcsdktypes.ContributorInsightsActionDisable
+		default:
+			return "", fmt.Errorf("invalid ContributorInsights value: %s", *r.ko.Spec.ContributorInsights)
+		}
+	}
+
+	return insight, nil
 }
 
 func (rm *resourceManager) updateContributorInsights(
@@ -809,17 +820,9 @@ func (rm *resourceManager) updateContributorInsights(
 		exit(err)
 	}()
 
-	insight := svcsdktypes.ContributorInsightsActionDisable
-	if r.ko.Spec.ContributorInsights != nil {
-		// We will allow users to provide values ENABLE, ENABLED, DISABLE, DISABLED
-		switch *r.ko.Spec.ContributorInsights {
-		case string(svcsdktypes.ContributorInsightsActionEnable), string(svcsdktypes.ContributorInsightsStatusEnabled):
-			insight = svcsdktypes.ContributorInsightsActionEnable
-		case string(svcsdktypes.ContributorInsightsActionDisable), string(svcsdktypes.ContributorInsightsStatusDisabled):
-			insight = svcsdktypes.ContributorInsightsActionDisable
-		default:
-			return fmt.Errorf("invalid ContributorInsights value: %s", *r.ko.Spec.ContributorInsights)
-		}
+	insight, err := ensureContibutorInsight(r)
+	if err != nil {
+		return fmt.Errorf("failed preparing contributorInsight: %v", err)
 	}
 
 	_, err = rm.sdkapi.UpdateContributorInsights(
