@@ -774,7 +774,18 @@ func (rm *resourceManager) setContributorInsights(
 	if err != nil {
 		return err
 	}
-
+	
+	// This portion is needed if we want to have a smooth delta comparison
+	// If the name ends in ED (ENABLED, DISABLED) just assign the value
+	endsWithED := false
+	if ko.Spec.ContributorInsights != nil {
+		endsWithED = strings.HasSuffix(*ko.Spec.TableName, "ED")
+	}
+	if endsWithED {
+		ko.Spec.ContributorInsights = aws.String(string(resp.ContributorInsightsStatus))
+		return nil
+	}
+	// if not do the conversion
 	switch resp.ContributorInsightsStatus {
 	case svcsdktypes.ContributorInsightsStatusEnabled:
 		ko.Spec.ContributorInsights = aws.String(string(svcsdktypes.ContributorInsightsActionEnable))
@@ -797,9 +808,18 @@ func (rm *resourceManager) updateContributorInsights(
 	defer func() {
 		exit(err)
 	}()
+
 	insight := svcsdktypes.ContributorInsightsActionDisable
 	if r.ko.Spec.ContributorInsights != nil {
-		insight = svcsdktypes.ContributorInsightsAction(*r.ko.Spec.ContributorInsights)
+		// We will allow users to provide values ENABLE, ENABLED, DISABLE, DISABLED
+		switch *r.ko.Spec.ContributorInsights {
+		case string(svcsdktypes.ContributorInsightsActionEnable), string(svcsdktypes.ContributorInsightsStatusEnabled):
+			insight = svcsdktypes.ContributorInsightsActionEnable
+		case string(svcsdktypes.ContributorInsightsActionDisable), string(svcsdktypes.ContributorInsightsStatusDisabled):
+			insight = svcsdktypes.ContributorInsightsActionDisable
+		default:
+			return fmt.Errorf("invalid ContributorInsights value: %s", *r.ko.Spec.ContributorInsights)
+		}
 	}
 
 	_, err = rm.sdkapi.UpdateContributorInsights(
