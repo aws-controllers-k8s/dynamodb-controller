@@ -614,15 +614,14 @@ func customPreCompare(
 	// Making this field a no-op if user does not set it.
 	// This will ensure controller does not act on this field
 	// if user is unaware of it.
-	if a.ko.Spec.ContributorInsights == nil {
-		return
-	}
-	// latestInsight will always be either ENABLED or DISABLED, since we requeue at readOne if its not 
-	// either
-	desiredInsight, _ := ensureContibutorInsight(a)
-	latestInsight, _ := ensureContibutorInsight(b)
-	if desiredInsight != latestInsight {
-		delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
+	if a.ko.Spec.ContributorInsights != nil {
+		// latestInsight will always be either ENABLED or DISABLED, since we requeue at readOne if its not 
+		// either
+		desiredInsight, _ := ensureContibutorInsight(a)
+		latestInsight, _ := ensureContibutorInsight(b)
+		if desiredInsight != latestInsight {
+			delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
+		}
 	}
 
 }
