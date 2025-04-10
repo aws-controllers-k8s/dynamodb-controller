@@ -62,13 +62,6 @@ func newResourceDelta(
 			}
 		}
 	}
-	if ackcompare.HasNilDifference(a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights) {
-		delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
-	} else if a.ko.Spec.ContributorInsights != nil && b.ko.Spec.ContributorInsights != nil {
-		if *a.ko.Spec.ContributorInsights != *b.ko.Spec.ContributorInsights {
-			delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
-		}
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.DeletionProtectionEnabled, b.ko.Spec.DeletionProtectionEnabled) {
 		delta.Add("Spec.DeletionProtectionEnabled", a.ko.Spec.DeletionProtectionEnabled, b.ko.Spec.DeletionProtectionEnabled)
 	} else if a.ko.Spec.DeletionProtectionEnabled != nil && b.ko.Spec.DeletionProtectionEnabled != nil {

@@ -279,6 +279,8 @@ class TestTable:
         # Patch k8s resource
         k8s.patch_custom_resource(ref, updates)
 
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
         table.wait_until(
             table_name,
             table.ttl_on_attribute_matches("ForumName"),
@@ -480,7 +482,7 @@ class TestTable:
 
         # Check DynamoDB Table exists
         assert self.table_exists(table_name)
-        assert cr['spec']['contributorInsights'] == "ENABLE"
+        assert cr['spec']['contributorInsights'] == "ENABLED"
         assert self.table_insight_status(table_name, "ENABLED")
 
         # Set provisionedThroughput

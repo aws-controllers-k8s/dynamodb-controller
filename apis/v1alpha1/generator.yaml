@@ -74,6 +74,8 @@ resources:
         from:
           operation: UpdateContributorInsights
           path: ContributorInsightsAction
+        compare: 
+          is_ignored: true
     exceptions:
       errors:
         404:
