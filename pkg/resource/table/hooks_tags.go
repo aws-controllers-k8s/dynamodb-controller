@@ -30,14 +30,14 @@ import (
 // to tag GlobalTable resources.
 func (rm *resourceManager) syncTableTags(
 	ctx context.Context,
-	latest *resource,
 	desired *resource,
+	latest *resource,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTableTags")
 	defer exit(err)
 
-	added, removed := computeTagsDelta(latest.ko.Spec.Tags, desired.ko.Spec.Tags)
+	added, removed := computeTagsDelta(desired.ko.Spec.Tags, latest.ko.Spec.Tags)
 
 	// There are no API calls to update an existing tag. To update a tag we will have to first
 	// delete it and then recreate it with the new value.
