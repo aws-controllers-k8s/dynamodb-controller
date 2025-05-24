@@ -43,7 +43,10 @@ spec:
               Represents the properties of a global table.
             properties:
               globalTableName:
-                description: The global table name.
+                description: |-
+                  The global table name.
+
+                  Regex Pattern: `^[a-zA-Z0-9_.-]+$`
                 type: string
               replicationGroup:
                 description: The Regions where the global table needs to be created.

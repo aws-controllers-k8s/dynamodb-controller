@@ -721,8 +721,10 @@ spec:
                     type: string
                 type: object
               tableID:
-                description: Unique identifier for the table for which the backup
-                  was created.
+                description: |-
+                  Unique identifier for the table for which the backup was created.
+
+                  Regex Pattern: `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
                 type: string
               tableSizeBytes:
                 description: |-

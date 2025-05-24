@@ -230,6 +230,8 @@ type TableStatus struct {
 	// +kubebuilder:validation:Optional
 	RestoreSummary *RestoreSummary `json:"restoreSummary,omitempty"`
 	// Unique identifier for the table for which the backup was created.
+	//
+	// Regex Pattern: `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 	// +kubebuilder:validation:Optional
 	TableID *string `json:"tableID,omitempty"`
 	// The total size of the specified table, in bytes. DynamoDB updates this value
