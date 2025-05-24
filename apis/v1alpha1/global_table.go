@@ -26,6 +26,8 @@ import (
 type GlobalTableSpec struct {
 
 	// The global table name.
+	//
+	// Regex Pattern: `^[a-zA-Z0-9_.-]+$`
 	// +kubebuilder:validation:Required
 	GlobalTableName *string `json:"globalTableName"`
 	// The Regions where the global table needs to be created.
