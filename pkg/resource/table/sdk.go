@@ -447,11 +447,15 @@ func (rm *resourceManager) sdkFind(
 	if !canUpdateTableGSIs(&resource{ko}) {
 		return &resource{ko}, requeueWaitGSIReady
 	}
-	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
-		return nil, err
+	if err = rm.setContributorInsights(ctx, ko); err != nil {
+		return &resource{ko}, err
 	}
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
+	}
+
+	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
+		return nil, err
 	}
 
 	return &resource{ko}, nil
@@ -804,16 +808,9 @@ func (rm *resourceManager) sdkCreate(
 	}
 
 	rm.setStatusDefaults(ko)
-	if desired.ko.Spec.TimeToLive != nil {
-		if err := rm.syncTTL(ctx, desired, &resource{ko}); err != nil {
-			return nil, err
-		}
-	}
-
-	if desired.ko.Spec.ContributorInsights != nil {
-		if err := rm.updateContributorInsights(ctx, desired); err != nil {
-			return nil, err
-		}
+	// handle in sdkUpdate, to give resource time until it creates
+	if desired.ko.Spec.TimeToLive != nil || desired.ko.Spec.ContributorInsights != nil {
+		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
 	}
 
 	return &resource{ko}, nil
