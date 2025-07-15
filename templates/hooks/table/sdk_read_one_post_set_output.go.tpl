@@ -60,9 +60,13 @@
 	if !canUpdateTableGSIs(&resource{ko}) {
 		return &resource{ko}, requeueWaitGSIReady
 	}
-	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
-		return nil, err
+	if err = rm.setContributorInsights(ctx, ko); err != nil {
+		return &resource{ko}, err
 	}
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
+	}
+
+	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
+		return nil, err
 	}

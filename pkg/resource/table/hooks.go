@@ -471,10 +471,6 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	} else {
 		ko.Spec.ContinuousBackups = pitrSpec
 	}
-
-	if err = rm.setContributorInsights(ctx, ko); err != nil {
-		return err
-	}
 	return nil
 }
 
