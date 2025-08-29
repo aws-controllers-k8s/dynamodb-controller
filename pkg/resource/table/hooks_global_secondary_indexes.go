@@ -17,6 +17,7 @@ import (
 	"context"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -141,54 +142,138 @@ func isPayPerRequestMode(desired *v1alpha1.GlobalSecondaryIndex, latest *v1alpha
 	return false
 }
 
-// syncTableGlobalSecondaryIndexes updates a global table secondary indexes.
-func (rm *resourceManager) syncTableGlobalSecondaryIndexes(
-	ctx context.Context,
-	latest *resource,
-	desired *resource,
-) (err error) {
+// Delete GSIs removed in the desired spec.
+func (rm *resourceManager) deleteGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.syncTableGlobalSecondaryIndexes")
+	exit := rlog.Trace("rm.deleteGSIs")
 	defer exit(err)
+
+	_, _, removedGSIs := computeGlobalSecondaryIndexDelta(
+		latest.ko.Spec.GlobalSecondaryIndexes,
+		desired.ko.Spec.GlobalSecondaryIndexes,
+	)
+	if len(removedGSIs) == 0 {
+		return nil
+	}
 
 	if !canUpdateTableGSIs(latest) {
 		return requeueWaitGSIReady
 	}
-	input, gsiInQueue, err := rm.newUpdateTableGlobalSecondaryIndexUpdatesPayload(ctx, latest, desired)
-	if err != nil {
-		return err
+	gsiDeletesInQueue := len(removedGSIs) - 1
+
+	input := &svcsdk.UpdateTableInput{
+		TableName:            aws.String(*latest.ko.Spec.TableName),
+		AttributeDefinitions: newSDKAttributesDefinition(desired.ko.Spec.AttributeDefinitions),
+	}
+
+	for _, removedGSI := range removedGSIs {
+		update := svcsdktypes.GlobalSecondaryIndexUpdate{
+			Delete: &svcsdktypes.DeleteGlobalSecondaryIndexAction{
+				IndexName: &removedGSI,
+			},
+		}
+		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
+		// We can only remove, update or add one GSI at once. Hence we return the update call input
+		// after we find the first removed GSI.
+		break
 	}
 
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
+		if awsErr, ok := ackerr.AWSError(err); ok &&
+			awsErr.ErrorCode() == "LimitExceededException" {
+			return requeueWaitGSIReady
+		}
 		return err
 	}
-	if gsiInQueue > 0 {
+
+	if gsiDeletesInQueue > 0 {
 		return requeueWaitGSIReady
 	}
+
 	return nil
 }
 
-func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
-	ctx context.Context,
-	latest *resource,
-	desired *resource,
-) (input *svcsdk.UpdateTableInput, gsisInQueue int, err error) {
-	addedGSIs, updatedGSIs, removedGSIs := computeGlobalSecondaryIndexDelta(
+// Update GSIs changed in the desired spec.
+func (rm *resourceManager) updateGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.deleteGSIs")
+	defer exit(err)
+
+	_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
 		latest.ko.Spec.GlobalSecondaryIndexes,
 		desired.ko.Spec.GlobalSecondaryIndexes,
 	)
-	input = &svcsdk.UpdateTableInput{
+	if len(updatedGSIs) == 0 {
+		return nil
+	}
+
+	if !canUpdateTableGSIs(latest) {
+		return requeueWaitGSIReady
+	}
+
+	gsiUpdatesInQueue := len(updatedGSIs) - 1
+
+	input := &svcsdk.UpdateTableInput{
 		TableName:            aws.String(*latest.ko.Spec.TableName),
 		AttributeDefinitions: newSDKAttributesDefinition(desired.ko.Spec.AttributeDefinitions),
 	}
 
-	// If we know that we're still gonna need to update another GSI we return a value gt 0.
-	gsisInQueue = len(addedGSIs) + len(updatedGSIs) + len(removedGSIs) - 1
+	for _, updatedGSI := range updatedGSIs {
+		update := svcsdktypes.GlobalSecondaryIndexUpdate{
+			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+				IndexName:             aws.String(*updatedGSI.IndexName),
+				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+			},
+		}
+		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
+		// We can only remove, update or add one GSI at once. Hence we return the update call input
+		// after we find the first updated GSI.
+		break
+	}
 
-	// Althought this sounds a little bit weird but it makes sense iterate on an array
-	// and directly return if we find an element. Range works well with nil arrays...
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		if awsErr, ok := ackerr.AWSError(err); ok &&
+			awsErr.ErrorCode() == "LimitExceededException" {
+			return requeueWaitGSIReady
+		}
+		return err
+	}
+
+	if gsiUpdatesInQueue > 0 {
+		return requeueWaitGSIReady
+	}
+
+	return nil
+}
+
+// Add GSIs added in the desired spec.
+func (rm *resourceManager) addGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.deleteGSIs")
+	defer exit(err)
+
+	addedGSIs, _, _ := computeGlobalSecondaryIndexDelta(
+		latest.ko.Spec.GlobalSecondaryIndexes,
+		desired.ko.Spec.GlobalSecondaryIndexes,
+	)
+	if len(addedGSIs) == 0 {
+		return nil
+	}
+
+	if !canUpdateTableGSIs(latest) {
+		return requeueWaitGSIReady
+	}
+
+	gsiCreatesInQueue := len(addedGSIs) - 1
+
+	input := &svcsdk.UpdateTableInput{
+		TableName:            aws.String(*latest.ko.Spec.TableName),
+		AttributeDefinitions: newSDKAttributesDefinition(desired.ko.Spec.AttributeDefinitions),
+	}
 
 	for _, addedGSI := range addedGSIs {
 		update := svcsdktypes.GlobalSecondaryIndexUpdate{
@@ -202,34 +287,24 @@ func (rm *resourceManager) newUpdateTableGlobalSecondaryIndexUpdatesPayload(
 		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
 		// We can only remove, update or add one GSI at once. Hence we return the update call input
 		// after we find the first added GSI.
-		return input, gsisInQueue, nil
+		break
 	}
 
-	for _, updatedGSI := range updatedGSIs {
-		update := svcsdktypes.GlobalSecondaryIndexUpdate{
-			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
-				IndexName:             aws.String(*updatedGSI.IndexName),
-				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
-			},
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		if awsErr, ok := ackerr.AWSError(err); ok &&
+			awsErr.ErrorCode() == "LimitExceededException" {
+			return requeueWaitGSIReady
 		}
-		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
-		// We can only remove, update or add one GSI at once. Hence we return the update call input
-		// after we find the first updated GSI.
-		return input, gsisInQueue, nil
+		return err
 	}
 
-	for _, removedGSI := range removedGSIs {
-		update := svcsdktypes.GlobalSecondaryIndexUpdate{
-			Delete: &svcsdktypes.DeleteGlobalSecondaryIndexAction{
-				IndexName: &removedGSI,
-			},
-		}
-		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
-		// We can only remove, update or add one GSI at once. Hence we return the update call input
-		// after we find the first removed GSI.
-		return input, gsisInQueue, nil
+	if gsiCreatesInQueue > 0 {
+		return requeueWaitGSIReady
 	}
-	return input, gsisInQueue, nil
+
+	return nil
 }
 
 // newSDKProvisionedThroughput builds a new *svcsdk.ProvisionedThroughput
