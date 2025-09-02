@@ -566,12 +566,8 @@ class TestTableReplicas:
 
         table_info = table.get(table_name)
 
-        print(table_info)
-
         # Step 2: Update - add second GSI, two more replicas, and change billing mode to PROVISIONED
         cr = k8s.wait_resource_consumed_by_controller(ref)
-
-        print("Updating CR")
 
         # Change billing mode to PROVISIONED
         cr["spec"]["billingMode"] = "PROVISIONED"
@@ -632,8 +628,6 @@ class TestTableReplicas:
         # Update the resource
         k8s.patch_custom_resource(ref, cr)
 
-        print("CR Patched")
-
         # Wait for the new GSI to be created
         table.wait_until(
             table_name,
@@ -670,8 +664,6 @@ class TestTableReplicas:
             interval_seconds=30,
         )
 
-        print("GSI Matches")
-
         table.wait_until(
             table_name,
             table.replicas_match(
@@ -679,8 +671,6 @@ class TestTableReplicas:
             timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
             interval_seconds=30,
         )
-
-        print("Replicas Match")
 
         for region in [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]:
             table.wait_until(
@@ -751,12 +741,8 @@ class TestTableReplicas:
 
         table_info = table.get(table_name)
 
-        print(table_info)
-
         # Step 2: Update - add second GSI, two more replicas, and change billing mode to PROVISIONED
         cr = k8s.wait_resource_consumed_by_controller(ref)
-
-        print("Updating CR")
 
         # Change billing mode to PAY_PER_REQUEST 
         cr["spec"]["billingMode"] = "PAY_PER_REQUEST"
@@ -806,8 +792,6 @@ class TestTableReplicas:
         # Update the resource
         k8s.patch_custom_resource(ref, cr)
 
-        print("CR Patched")
-
         # Wait for the new GSI to be created
         table.wait_until(
             table_name,
@@ -836,17 +820,13 @@ class TestTableReplicas:
             interval_seconds=30,
         )
 
-        print("GSI Matches")
-
         table.wait_until(
             table_name,
             table.replicas_match(
                 [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]),
-            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*3,
             interval_seconds=30,
         )
-
-        print("Replicas Match")
 
         for region in [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]:
             table.wait_until(

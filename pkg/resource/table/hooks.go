@@ -219,8 +219,10 @@ func (rm *resourceManager) customUpdateTable(
 	// need to perform GSI updates one at a time afterwards.
 	if delta.DifferentAt("Spec.BillingMode") ||
 		delta.DifferentAt("Spec.TableClass") || delta.DifferentAt("Spec.DeletionProtectionEnabled") {
-		if err := rm.syncTable(ctx, desired, latest, delta); err != nil {
+		if err := rm.syncTable(ctx, desired, latest, delta); err != nil && err != requeueWaitGSIReady {
 			return nil, fmt.Errorf("cannot update table %v", err)
+		} else if err == requeueWaitGSIReady {
+			return nil, err
 		}
 	}
 
@@ -240,7 +242,7 @@ func (rm *resourceManager) customUpdateTable(
 
 	// Update any GSIs that have been modified.
 	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") {
-		if err := rm.updateGSIs(ctx, desired, latest); err != nil {
+		if err := rm.updateGSIs(ctx, latest, desired); err != nil {
 			return nil, err
 		}
 	}
@@ -301,6 +303,11 @@ func (rm *resourceManager) syncTable(
 	if err != nil {
 		return err
 	}
+	// If GSI update were included in the table update we need to requeue.
+	if len(input.GlobalSecondaryIndexUpdates) > 0 {
+		return requeueWaitGSIReady
+	}
+
 	return nil
 }
 
@@ -346,20 +353,24 @@ func (rm *resourceManager) newUpdateTablePayload(
 
 		// If billing mode is changing from PAY_PER_REQUEST to PROVISIONED we need to include all GSI updates
 		if latestBillingMode == svcsdktypes.BillingModePayPerRequest && input.BillingMode == svcsdktypes.BillingModeProvisioned {
-			input.GlobalSecondaryIndexUpdates = []svcsdktypes.GlobalSecondaryIndexUpdate{}
 			_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
 				latest.ko.Spec.GlobalSecondaryIndexes,
 				desired.ko.Spec.GlobalSecondaryIndexes,
 			)
 
-			for _, updatedGSI := range updatedGSIs {
-				update := svcsdktypes.GlobalSecondaryIndexUpdate{
-					Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
-						IndexName:             aws.String(*updatedGSI.IndexName),
-						ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
-					},
+			// DynamoDB API fails if GSI updates are empty. Only set GlobalSecondaryIndexUpdates
+			// if there are GSIs to update.
+			if len(updatedGSIs) > 0 {
+				input.GlobalSecondaryIndexUpdates = []svcsdktypes.GlobalSecondaryIndexUpdate{}
+				for _, updatedGSI := range updatedGSIs {
+					update := svcsdktypes.GlobalSecondaryIndexUpdate{
+						Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+							IndexName:             aws.String(*updatedGSI.IndexName),
+							ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+						},
+					}
+					input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
 				}
-				input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
 			}
 		}
 	}
