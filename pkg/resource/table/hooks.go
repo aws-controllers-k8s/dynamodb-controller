@@ -219,9 +219,7 @@ func (rm *resourceManager) customUpdateTable(
 	// need to perform GSI updates one at a time afterwards.
 	if delta.DifferentAt("Spec.BillingMode") ||
 		delta.DifferentAt("Spec.TableClass") || delta.DifferentAt("Spec.DeletionProtectionEnabled") {
-		if err := rm.syncTable(ctx, desired, latest, delta); err != nil && err != requeueWaitGSIReady {
-			return nil, fmt.Errorf("cannot update table %v", err)
-		} else if err == requeueWaitGSIReady {
+		if err := rm.syncTable(ctx, desired, latest, delta); err != nil {
 			return nil, err
 		}
 	}
@@ -301,7 +299,7 @@ func (rm *resourceManager) syncTable(
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot update table %v", err)
 	}
 	// If GSI update were included in the table update we need to requeue.
 	if len(input.GlobalSecondaryIndexUpdates) > 0 {
