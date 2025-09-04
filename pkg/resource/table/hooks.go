@@ -210,7 +210,7 @@ func (rm *resourceManager) customUpdateTable(
 
 	// Delete GSIs that have been removed first to avoid errors when updating table properties
 	// where required values have not been set for removed GSIs.
-	err = rm.deleteGSIs(ctx, latest, desired)
+	err = rm.deleteGSIs(ctx, desired, latest)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (rm *resourceManager) customUpdateTable(
 
 	// Update any GSIs that have been modified.
 	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") {
-		if err := rm.updateGSIs(ctx, latest, desired); err != nil {
+		if err := rm.updateGSIs(ctx, desired, latest); err != nil {
 			return nil, err
 		}
 	}
@@ -262,7 +262,7 @@ func (rm *resourceManager) customUpdateTable(
 			}
 		// Create any new GSIs once all existing GSI have been updated.
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes"):
-			if err := rm.addGSIs(ctx, latest, desired); err != nil {
+			if err := rm.addGSIs(ctx, desired, latest); err != nil {
 				return nil, err
 			}
 		case delta.DifferentAt("Spec.TableReplicas"):

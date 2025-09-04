@@ -143,7 +143,7 @@ func isPayPerRequestMode(desired *v1alpha1.GlobalSecondaryIndex, latest *v1alpha
 }
 
 // Delete GSIs removed in the desired spec.
-func (rm *resourceManager) deleteGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
+func (rm *resourceManager) deleteGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.deleteGSIs")
 	defer exit(err)
@@ -196,7 +196,7 @@ func (rm *resourceManager) deleteGSIs(ctx context.Context, latest *resource, des
 }
 
 // Update GSIs changed in the desired spec.
-func (rm *resourceManager) updateGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
+func (rm *resourceManager) updateGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.deleteGSIs")
 	defer exit(err)
@@ -251,7 +251,7 @@ func (rm *resourceManager) updateGSIs(ctx context.Context, latest *resource, des
 }
 
 // Add GSIs added in the desired spec.
-func (rm *resourceManager) addGSIs(ctx context.Context, latest *resource, desired *resource) (err error) {
+func (rm *resourceManager) addGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.deleteGSIs")
 	defer exit(err)
