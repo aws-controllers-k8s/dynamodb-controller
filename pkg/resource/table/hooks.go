@@ -208,11 +208,18 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
+	addedGSIs, updatedGSIs, removedGSIs := computeGlobalSecondaryIndexDelta(
+		latest.ko.Spec.GlobalSecondaryIndexes,
+		desired.ko.Spec.GlobalSecondaryIndexes,
+	)
+
 	// Delete GSIs that have been removed first to avoid errors when updating table properties
 	// where required values have not been set for removed GSIs.
-	err = rm.deleteGSIs(ctx, desired, latest)
-	if err != nil {
-		return nil, err
+	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(removedGSIs) > 0 {
+		err = rm.deleteGSIs(ctx, desired, latest, removedGSIs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// If billing mode changing from PAY_PER_REQUEST to PROVISIONED, need to include all GSI updates. Otherwise,
@@ -239,8 +246,8 @@ func (rm *resourceManager) customUpdateTable(
 	}
 
 	// Update any GSIs that have been modified.
-	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") {
-		if err := rm.updateGSIs(ctx, desired, latest); err != nil {
+	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(updatedGSIs) > 0 {
+		if err := rm.updateGSIs(ctx, desired, latest, updatedGSIs); err != nil {
 			return nil, err
 		}
 	}
@@ -259,8 +266,8 @@ func (rm *resourceManager) customUpdateTable(
 				return nil, err
 			}
 		// Create any new GSIs once all existing GSI have been updated.
-		case delta.DifferentAt("Spec.GlobalSecondaryIndexes"):
-			if err := rm.addGSIs(ctx, desired, latest); err != nil {
+		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(addedGSIs) > 0:
+			if err := rm.addGSIs(ctx, desired, latest, addedGSIs); err != nil {
 				return nil, err
 			}
 		case delta.DifferentAt("Spec.TableReplicas"):

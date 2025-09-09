@@ -143,15 +143,16 @@ func isPayPerRequestMode(desired *v1alpha1.GlobalSecondaryIndex, latest *v1alpha
 }
 
 // Delete GSIs removed in the desired spec.
-func (rm *resourceManager) deleteGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
+func (rm *resourceManager) deleteGSIs(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+	removedGSIs []string,
+) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.deleteGSIs")
-	defer exit(err)
+	defer func() { exit(err) }()
 
-	_, _, removedGSIs := computeGlobalSecondaryIndexDelta(
-		latest.ko.Spec.GlobalSecondaryIndexes,
-		desired.ko.Spec.GlobalSecondaryIndexes,
-	)
 	if len(removedGSIs) == 0 {
 		return nil
 	}
@@ -196,15 +197,16 @@ func (rm *resourceManager) deleteGSIs(ctx context.Context, desired *resource, la
 }
 
 // Update GSIs changed in the desired spec.
-func (rm *resourceManager) updateGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
+func (rm *resourceManager) updateGSIs(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+	updatedGSIs []*v1alpha1.GlobalSecondaryIndex,
+) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.deleteGSIs")
-	defer exit(err)
+	exit := rlog.Trace("rm.updateGSIs")
+	defer func() { exit(err) }()
 
-	_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
-		latest.ko.Spec.GlobalSecondaryIndexes,
-		desired.ko.Spec.GlobalSecondaryIndexes,
-	)
 	if len(updatedGSIs) == 0 {
 		return nil
 	}
@@ -251,15 +253,16 @@ func (rm *resourceManager) updateGSIs(ctx context.Context, desired *resource, la
 }
 
 // Add GSIs added in the desired spec.
-func (rm *resourceManager) addGSIs(ctx context.Context, desired *resource, latest *resource) (err error) {
+func (rm *resourceManager) addGSIs(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+	addedGSIs []*v1alpha1.GlobalSecondaryIndex,
+) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
-	exit := rlog.Trace("rm.deleteGSIs")
-	defer exit(err)
+	exit := rlog.Trace("rm.addGSIs")
+	defer func() { exit(err) }()
 
-	addedGSIs, _, _ := computeGlobalSecondaryIndexDelta(
-		latest.ko.Spec.GlobalSecondaryIndexes,
-		desired.ko.Spec.GlobalSecondaryIndexes,
-	)
 	if len(addedGSIs) == 0 {
 		return nil
 	}
