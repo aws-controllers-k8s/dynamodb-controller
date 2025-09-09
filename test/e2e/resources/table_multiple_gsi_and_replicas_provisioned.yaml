@@ -1,0 +1,51 @@
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  tableClass: STANDARD
+  attributeDefinitions:
+    - attributeName: PK
+      attributeType: S
+    - attributeName: SK
+      attributeType: S
+    - attributeName: GSI1PK
+      attributeType: S
+    - attributeName: GSI1SK
+      attributeType: S
+  keySchema:
+    - attributeName: PK
+      keyType: HASH
+    - attributeName: SK
+      keyType: RANGE
+  billingMode: PROVISIONED
+  provisionedThroughput:
+    readCapacityUnits: 2
+    writeCapacityUnits: 2
+  streamSpecification:
+    streamEnabled: true
+    streamViewType: "NEW_AND_OLD_IMAGES"
+  globalSecondaryIndexes:
+    - indexName: GSI1
+      provisionedThroughput:
+        readCapacityUnits: 2
+        writeCapacityUnits: 2
+      keySchema:
+        - attributeName: GSI1PK
+          keyType: HASH
+        - attributeName: GSI1SK
+          keyType: RANGE
+      projection:
+        projectionType: ALL
+    - indexName: GSI2
+      provisionedThroughput:
+        readCapacityUnits: 2
+        writeCapacityUnits: 2
+      keySchema:
+      - attributeName: GSI1PK
+        keyType: HASH
+      - attributeName: GSI1SK
+        keyType: RANGE
+      projection:
+        projectionType: KEYS_ONLY

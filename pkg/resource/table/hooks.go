@@ -208,10 +208,26 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
+	addedGSIs, updatedGSIs, removedGSIs := computeGlobalSecondaryIndexDelta(
+		latest.ko.Spec.GlobalSecondaryIndexes,
+		desired.ko.Spec.GlobalSecondaryIndexes,
+	)
+
+	// Delete GSIs that have been removed first to avoid errors when updating table properties
+	// where required values have not been set for removed GSIs.
+	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(removedGSIs) > 0 {
+		err = rm.deleteGSIs(ctx, desired, latest, removedGSIs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// If billing mode changing from PAY_PER_REQUEST to PROVISIONED, need to include all GSI updates. Otherwise,
+	// need to perform GSI updates one at a time afterwards.
 	if delta.DifferentAt("Spec.BillingMode") ||
 		delta.DifferentAt("Spec.TableClass") || delta.DifferentAt("Spec.DeletionProtectionEnabled") {
-		if err := rm.syncTable(ctx, desired, delta); err != nil {
-			return nil, fmt.Errorf("cannot update table %v", err)
+		if err := rm.syncTable(ctx, desired, latest, delta); err != nil {
+			return nil, err
 		}
 	}
 
@@ -229,25 +245,29 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
+	// Update any GSIs that have been modified.
+	if delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(updatedGSIs) > 0 {
+		if err := rm.updateGSIs(ctx, desired, latest, updatedGSIs); err != nil {
+			return nil, err
+		}
+	}
+
 	// We want to update fast fields first
 	// Then attributes
 	// then GSI
 	if delta.DifferentExcept("Spec.Tags", "Spec.TimeToLive") {
 		switch {
 		case delta.DifferentAt("Spec.StreamSpecification"):
-			if err := rm.syncTable(ctx, desired, delta); err != nil {
+			if err := rm.syncTable(ctx, desired, latest, delta); err != nil {
 				return nil, err
 			}
 		case delta.DifferentAt("Spec.ProvisionedThroughput"):
 			if err := rm.syncTableProvisionedThroughput(ctx, desired); err != nil {
 				return nil, err
 			}
-		case delta.DifferentAt("Spec.GlobalSecondaryIndexes"):
-			if err := rm.syncTableGlobalSecondaryIndexes(ctx, latest, desired); err != nil {
-				if awsErr, ok := ackerr.AWSError(err); ok &&
-					awsErr.ErrorCode() == "LimitExceededException" {
-					return nil, requeueWaitGSIReady
-				}
+		// Create any new GSIs once all existing GSI have been updated.
+		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(addedGSIs) > 0:
+			if err := rm.addGSIs(ctx, desired, latest, addedGSIs); err != nil {
 				return nil, err
 			}
 		case delta.DifferentAt("Spec.TableReplicas"):
@@ -271,74 +291,105 @@ func (rm *resourceManager) customUpdateTable(
 // or SSE specification.
 func (rm *resourceManager) syncTable(
 	ctx context.Context,
-	r *resource,
+	desired *resource,
+	latest *resource,
 	delta *ackcompare.Delta,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTable")
 	defer exit(err)
 
-	input, err := rm.newUpdateTablePayload(ctx, r, delta)
+	input, err := rm.newUpdateTablePayload(ctx, desired, latest, delta)
 	if err != nil {
 		return err
 	}
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot update table %v", err)
 	}
+	// If GSI update were included in the table update we need to requeue.
+	if len(input.GlobalSecondaryIndexUpdates) > 0 {
+		return requeueWaitGSIReady
+	}
+
 	return nil
 }
 
 // newUpdateTablePayload constructs the updateTableInput object.
 func (rm *resourceManager) newUpdateTablePayload(
 	ctx context.Context,
-	r *resource,
+	desired *resource,
+	latest *resource,
 	delta *ackcompare.Delta,
 ) (*svcsdk.UpdateTableInput, error) {
 	input := &svcsdk.UpdateTableInput{
-		TableName: aws.String(*r.ko.Spec.TableName),
+		TableName: aws.String(*desired.ko.Spec.TableName),
 	}
-
+	latestBillingMode := svcsdktypes.BillingMode(*latest.ko.Spec.BillingMode)
 	if delta.DifferentAt("Spec.BillingMode") {
-		if r.ko.Spec.BillingMode != nil {
-			input.BillingMode = svcsdktypes.BillingMode(*r.ko.Spec.BillingMode)
+		if desired.ko.Spec.BillingMode != nil {
+			input.BillingMode = svcsdktypes.BillingMode(*desired.ko.Spec.BillingMode)
 		} else {
 			// set biling mode to the default value `PROVISIONED`
 			input.BillingMode = svcsdktypes.BillingModeProvisioned
 		}
+
 		if input.BillingMode == svcsdktypes.BillingModeProvisioned {
 			input.ProvisionedThroughput = &svcsdktypes.ProvisionedThroughput{}
-			if r.ko.Spec.ProvisionedThroughput != nil {
-				if r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
+			if desired.ko.Spec.ProvisionedThroughput != nil {
+				if desired.ko.Spec.ProvisionedThroughput.ReadCapacityUnits != nil {
 					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(
-						*r.ko.Spec.ProvisionedThroughput.ReadCapacityUnits,
+						*desired.ko.Spec.ProvisionedThroughput.ReadCapacityUnits,
 					)
 				} else {
 					input.ProvisionedThroughput.ReadCapacityUnits = aws.Int64(0)
 				}
 
-				if r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
+				if desired.ko.Spec.ProvisionedThroughput.WriteCapacityUnits != nil {
 					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(
-						*r.ko.Spec.ProvisionedThroughput.WriteCapacityUnits,
+						*desired.ko.Spec.ProvisionedThroughput.WriteCapacityUnits,
 					)
 				} else {
 					input.ProvisionedThroughput.WriteCapacityUnits = aws.Int64(0)
 				}
 			}
 		}
+
+		// If billing mode is changing from PAY_PER_REQUEST to PROVISIONED we need to include all GSI updates
+		if latestBillingMode == svcsdktypes.BillingModePayPerRequest && input.BillingMode == svcsdktypes.BillingModeProvisioned {
+			_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
+				latest.ko.Spec.GlobalSecondaryIndexes,
+				desired.ko.Spec.GlobalSecondaryIndexes,
+			)
+
+			// DynamoDB API fails if GSI updates are empty. Only set GlobalSecondaryIndexUpdates
+			// if there are GSIs to update.
+			if len(updatedGSIs) > 0 {
+				input.GlobalSecondaryIndexUpdates = []svcsdktypes.GlobalSecondaryIndexUpdate{}
+				for _, updatedGSI := range updatedGSIs {
+					update := svcsdktypes.GlobalSecondaryIndexUpdate{
+						Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+							IndexName:             aws.String(*updatedGSI.IndexName),
+							ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+						},
+					}
+					input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
+				}
+			}
+		}
 	}
 	if delta.DifferentAt("Spec.StreamSpecification") {
-		if r.ko.Spec.StreamSpecification != nil {
-			if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
+		if desired.ko.Spec.StreamSpecification != nil {
+			if desired.ko.Spec.StreamSpecification.StreamEnabled != nil {
 				input.StreamSpecification = &svcsdktypes.StreamSpecification{
-					StreamEnabled: aws.Bool(*r.ko.Spec.StreamSpecification.StreamEnabled),
+					StreamEnabled: aws.Bool(*desired.ko.Spec.StreamSpecification.StreamEnabled),
 				}
 				// Only set streamViewType when streamSpefication is enabled and streamViewType is non-nil.
-				if *r.ko.Spec.StreamSpecification.StreamEnabled &&
-					r.ko.Spec.StreamSpecification.StreamViewType != nil {
+				if *desired.ko.Spec.StreamSpecification.StreamEnabled &&
+					desired.ko.Spec.StreamSpecification.StreamViewType != nil {
 					input.StreamSpecification.StreamViewType = svcsdktypes.StreamViewType(
-						*r.ko.Spec.StreamSpecification.StreamViewType,
+						*desired.ko.Spec.StreamSpecification.StreamViewType,
 					)
 				}
 			} else {
@@ -349,13 +400,13 @@ func (rm *resourceManager) newUpdateTablePayload(
 		}
 	}
 	if delta.DifferentAt("Spec.TableClass") {
-		if r.ko.Spec.TableClass != nil {
-			input.TableClass = svcsdktypes.TableClass(*r.ko.Spec.TableClass)
+		if desired.ko.Spec.TableClass != nil {
+			input.TableClass = svcsdktypes.TableClass(*desired.ko.Spec.TableClass)
 		}
 	}
 
 	if delta.DifferentAt("Spec.DeletionProtectionEnabled") {
-		input.DeletionProtectionEnabled = aws.Bool(*r.ko.Spec.DeletionProtectionEnabled)
+		input.DeletionProtectionEnabled = aws.Bool(*desired.ko.Spec.DeletionProtectionEnabled)
 	}
 
 	return input, nil

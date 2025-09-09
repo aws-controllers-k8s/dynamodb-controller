@@ -175,6 +175,72 @@ def table_replicas_gsi():
     time.sleep(DELETE_WAIT_AFTER_SECONDS)
     assert deleted
 
+@pytest.fixture(scope="function")
+def table_multiple_replicas_gsis():
+    table_name = random_suffix_name("table-multiple-replicas-gsis", 32)
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["TABLE_NAME"] = table_name
+    replacements["REPLICA_REGION_1"] = REPLICA_REGION_1
+    replacements["REPLICA_REGION_2"] = REPLICA_REGION_2
+
+    resource_data = load_dynamodb_resource(
+        "table_multiple_gsi_and_replicas",
+        additional_replacements=replacements,
+    )
+
+    ref = k8s.CustomResourceReference(
+        CRD_GROUP, CRD_VERSION, RESOURCE_PLURAL,
+        table_name, namespace="default",
+    )
+    k8s.create_custom_resource(ref, resource_data)
+    cr = k8s.wait_resource_consumed_by_controller(ref)
+
+    table.wait_until(
+        table_name,
+        table.status_matches("ACTIVE"),
+        timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+        interval_seconds=30,
+    )
+
+    yield (ref, cr)
+
+    deleted = k8s.delete_custom_resource(ref)
+    time.sleep(DELETE_WAIT_AFTER_SECONDS)
+    assert deleted
+
+@pytest.fixture(scope="function")
+def table_multiple_replicas_gsis_provisioned():
+    table_name = random_suffix_name("table-provisioned-replicas-gsis", 48)
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["TABLE_NAME"] = table_name
+    replacements["REPLICA_REGION_1"] = REPLICA_REGION_1
+    replacements["REPLICA_REGION_2"] = REPLICA_REGION_2
+
+    resource_data = load_dynamodb_resource(
+        "table_multiple_gsi_and_replicas_provisioned",
+        additional_replacements=replacements,
+    )
+
+    ref = k8s.CustomResourceReference(
+        CRD_GROUP, CRD_VERSION, RESOURCE_PLURAL,
+        table_name, namespace="default",
+    )
+    k8s.create_custom_resource(ref, resource_data)
+    cr = k8s.wait_resource_consumed_by_controller(ref)
+
+    table.wait_until(
+        table_name,
+        table.status_matches("ACTIVE"),
+        timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+        interval_seconds=30,
+    )
+
+    yield (ref, cr)
+
+    deleted = k8s.delete_custom_resource(ref)
+    time.sleep(DELETE_WAIT_AFTER_SECONDS)
+    assert deleted
+
 @service_marker
 @pytest.mark.canary
 class TestTableReplicas:
@@ -446,4 +512,347 @@ class TestTableReplicas:
         assert REPLICA_REGION_1 in region_names
         assert REPLICA_REGION_2 in region_names
         assert REPLICA_REGION_3 in region_names
+
+
+    def test_gsi_updates_pay_per_request_to_provisioned(self, table_multiple_replicas_gsis):
+        (ref, cr) = table_multiple_replicas_gsis
+        table_name = cr["spec"]["tableName"]
+        max_wait_seconds = REPLICA_WAIT_AFTER_SECONDS
+        interval_seconds = 30
+        start_time = time.time()
+
+
+        while time.time() - start_time < max_wait_seconds:
+            if self.table_exists(table_name):
+                break
+            time.sleep(interval_seconds)
+        assert self.table_exists(table_name)
+
+        table.wait_until(
+            table_name,
+            table.gsi_matches([
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    },
+                },
+                {
+                    "indexName": "GSI2",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    }
+                }
+            ]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+            interval_seconds=30,
+        )
+
+        table.wait_until(
+            table_name,
+            table.replicas_match(
+                [REPLICA_REGION_1, REPLICA_REGION_2]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            interval_seconds=30,
+        )
+
+        table_info = table.get(table_name)
+
+        # Step 2: Update - add second GSI, two more replicas, and change billing mode to PROVISIONED
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Change billing mode to PROVISIONED
+        cr["spec"]["billingMode"] = "PROVISIONED"
+        cr["spec"]["provisionedThroughput"] = {
+            "readCapacityUnits": 2,
+            "writeCapacityUnits": 2
+        }
+
+        # Update GSIs
+        updated_gsis = [
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    },
+                    "provisionedThroughput": {
+                        "readCapacityUnits": 2,
+                        "writeCapacityUnits": 2
+                    }
+                },
+                {
+                    "indexName": "GSI3",
+                    "keySchema": [
+                        {"attributeName": "GSI3PK", "keyType": "HASH"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    },
+                    "provisionedThroughput": {
+                        "readCapacityUnits": 2,
+                        "writeCapacityUnits": 2
+                    }
+                }
+            ]
+
+        cr["spec"]["globalSecondaryIndexes"] = updated_gsis
+
+
+        # Add attribute definition needed for GSI3
+        cr["spec"]["attributeDefinitions"].append(
+            {"attributeName": "GSI3PK", "attributeType": "S"}
+        )
+
+        # Add one more replicas
+        cr["spec"]["tableReplicas"] = [
+            {"regionName": REPLICA_REGION_1,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]},
+            {"regionName": REPLICA_REGION_2,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]},
+            {"regionName": REPLICA_REGION_3,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]}
+        ]
+
+        # Update the resource
+        k8s.patch_custom_resource(ref, cr)
+
+        # Wait for the new GSI to be created
+        table.wait_until(
+            table_name,
+            table.gsi_matches([
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    },
+                    "provisionedThroughput": {
+                        "readCapacityUnits": 2,
+                        "writeCapacityUnits": 2
+                    }
+                },
+                {
+                    "indexName": "GSI3",
+                    "keySchema": [
+                        {"attributeName": "GSI3PK", "keyType": "HASH"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    },
+                    "provisionedThroughput": {
+                        "readCapacityUnits": 2,
+                        "writeCapacityUnits": 2
+                    }
+                }
+            ]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            interval_seconds=30,
+        )
+
+        table.wait_until(
+            table_name,
+            table.replicas_match(
+                [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            interval_seconds=30,
+        )
+
+        for region in [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]:
+            table.wait_until(
+                table_name,
+                table.replica_status_matches(region, "ACTIVE"),
+                timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+                interval_seconds=30,
+            )
+
+        table_info = table.get(table_name)
+        assert table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
+        assert "GlobalSecondaryIndexes" in table_info
+        assert len(table_info["GlobalSecondaryIndexes"]) == 2
+        gsi_names = [gsi["IndexName"]
+                        for gsi in table_info["GlobalSecondaryIndexes"]]
+        assert "GSI1" in gsi_names
+        assert "GSI3" in gsi_names
+
+        replicas = table.get_replicas(table_name)
+        assert replicas is not None
+        assert len(replicas) == 3
+        region_names = [r["RegionName"] for r in replicas]
+        assert REPLICA_REGION_1 in region_names
+        assert REPLICA_REGION_2 in region_names
+        assert REPLICA_REGION_3 in region_names
+
+    def test_gsi_updates_provisioned_to_pay_per_request(self, table_multiple_replicas_gsis_provisioned):
+        (ref, cr) = table_multiple_replicas_gsis_provisioned
+        table_name = cr["spec"]["tableName"]
+        max_wait_seconds = REPLICA_WAIT_AFTER_SECONDS
+        interval_seconds = 30
+        start_time = time.time()
+
+
+        while time.time() - start_time < max_wait_seconds:
+            if self.table_exists(table_name):
+                break
+            time.sleep(interval_seconds)
+        assert self.table_exists(table_name)
+
+        table.wait_until(
+            table_name,
+            table.gsi_matches([
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    },
+                },
+                {
+                    "indexName": "GSI2",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    }
+                }
+            ]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+            interval_seconds=30,
+        )
+
+        table_info = table.get(table_name)
+
+        # Step 2: Update - add second GSI, two more replicas, and change billing mode to PROVISIONED
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Change billing mode to PAY_PER_REQUEST 
+        cr["spec"]["billingMode"] = "PAY_PER_REQUEST"
+        cr["spec"]["provisionedThroughput"] = {}
+
+        # Update GSIs
+        updated_gsis = [
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    }
+                },
+                {
+                    "indexName": "GSI3",
+                    "keySchema": [
+                        {"attributeName": "GSI3PK", "keyType": "HASH"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    }
+                }
+            ]
+
+        cr["spec"]["globalSecondaryIndexes"] = updated_gsis
+
+
+        # Add attribute definition needed for GSI3
+        cr["spec"]["attributeDefinitions"].append(
+            {"attributeName": "GSI3PK", "attributeType": "S"}
+        )
+
+        # Add replicas
+        cr["spec"]["tableReplicas"] = [
+            {"regionName": REPLICA_REGION_1,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]},
+            {"regionName": REPLICA_REGION_2,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]},
+            {"regionName": REPLICA_REGION_3,
+                "globalSecondaryIndexes": [{"indexName": "GSI1"}, {"indexName": "GSI3"}]}
+        ]
+
+        # Update the resource
+        k8s.patch_custom_resource(ref, cr)
+
+        # Wait for the new GSI to be created
+        table.wait_until(
+            table_name,
+            table.gsi_matches([
+                {
+                    "indexName": "GSI1",
+                    "keySchema": [
+                        {"attributeName": "GSI1PK", "keyType": "HASH"},
+                        {"attributeName": "GSI1SK", "keyType": "RANGE"}
+                    ],
+                    "projection": {
+                        "projectionType": "ALL"
+                    }
+                },
+                {
+                    "indexName": "GSI3",
+                    "keySchema": [
+                        {"attributeName": "GSI3PK", "keyType": "HASH"}
+                    ],
+                    "projection": {
+                        "projectionType": "KEYS_ONLY"
+                    }
+                }
+            ]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            interval_seconds=30,
+        )
+
+        table.wait_until(
+            table_name,
+            table.replicas_match(
+                [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]),
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*3,
+            interval_seconds=30,
+        )
+
+        for region in [REPLICA_REGION_1, REPLICA_REGION_2, REPLICA_REGION_3]:
+            table.wait_until(
+                table_name,
+                table.replica_status_matches(region, "ACTIVE"),
+                timeout_seconds=REPLICA_WAIT_AFTER_SECONDS,
+                interval_seconds=30,
+            )
+
+        table_info = table.get(table_name)
+        assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
+        assert "GlobalSecondaryIndexes" in table_info
+        assert len(table_info["GlobalSecondaryIndexes"]) == 2
+        gsi_names = [gsi["IndexName"]
+                        for gsi in table_info["GlobalSecondaryIndexes"]]
+        assert "GSI1" in gsi_names
+        assert "GSI3" in gsi_names
+
+        replicas = table.get_replicas(table_name)
+        assert replicas is not None
+        assert len(replicas) == 3
+        region_names = [r["RegionName"] for r in replicas]
+        assert REPLICA_REGION_1 in region_names
+        assert REPLICA_REGION_2 in region_names
+        assert REPLICA_REGION_3 in region_names
+
+    
+    
 	
