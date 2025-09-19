@@ -97,11 +97,11 @@ func (r *resource) SetIdentifiers(identifier *ackv1alpha1.AWSIdentifiers) error 
 
 // PopulateResourceFromAnnotation populates the fields passed from adoption annotation
 func (r *resource) PopulateResourceFromAnnotation(fields map[string]string) error {
-	tmp, ok := fields["globalTableName"]
+	f0, ok := fields["globalTableName"]
 	if !ok {
 		return ackerrors.NewTerminalError(fmt.Errorf("required field missing: globalTableName"))
 	}
-	r.ko.Spec.GlobalTableName = &tmp
+	r.ko.Spec.GlobalTableName = &f0
 
 	return nil
 }
