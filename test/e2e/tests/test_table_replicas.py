@@ -372,28 +372,16 @@ class TestTableReplicas:
         max_wait_seconds = 120
         interval_seconds = 10
         start_time = time.time()
-        terminal_reason_found = False
 
         while time.time() - start_time < max_wait_seconds:
             try:
-                condition.assert_type_status(
-                    ref,
-                    condition.CONDITION_TYPE_READY,
-                    False)
-                cond = k8s.get_resource_condition(
-                    ref, condition.CONDITION_TYPE_READY)
-                assert "Terminal error, the custom resource Spec needs to be updated before any further sync can occur" in cond[
-                    "reason"]
-
-                terminal_reason_found = True
-
-                assert "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES" in cond[
-                    "message"]
+                condition.assert_terminal(ref, "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES")
                 break
             except:
                 time.sleep(interval_seconds)
 
-        assert terminal_reason_found, "Terminal condition was not set for invalid StreamSpecification"
+        condition.assert_terminal(ref, "table must have DynamoDB Streams enabled with StreamViewType set to NEW_AND_OLD_IMAGES")
+
 
     def test_staged_replicas_and_gsi_updates(self, table_replicas_gsi):
         (ref, cr) = table_replicas_gsi
