@@ -175,7 +175,7 @@ class TestTable:
         (ref, res) = table_lsi
 
         table_name = res["spec"]["tableName"]
-        condition.assert_synced(ref)
+        condition.assert_ready(ref)
 
         # Check DynamoDB Table exists
         assert self.table_exists(table_name)
@@ -476,7 +476,7 @@ class TestTable:
         (ref, res) = table_insights
 
         table_name = res["spec"]["tableName"]
-        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        assert k8s.wait_on_condition(ref, "Ready", "True", wait_periods=5)
 
         cr = k8s.get_resource(ref)
 
@@ -493,7 +493,7 @@ class TestTable:
         }
         # Patch k8s resource
         k8s.patch_custom_resource(ref, updates)
-        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        assert k8s.wait_on_condition(ref, "Ready", "True", wait_periods=5)
         cr = k8s.get_resource(ref)
         assert cr['spec']['contributorInsights'] == "DISABLE"
         assert self.table_insight_status(table_name, "DISABLED")

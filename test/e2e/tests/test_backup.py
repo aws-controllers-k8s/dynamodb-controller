@@ -125,7 +125,7 @@ class TestBackup:
             20,
             5,
         )
-        condition.assert_synced(ref)
+        condition.assert_ready(ref)
         
         backupArn = k8s.get_resource_arn(cr)
         # Check DynamoDB Backup exists

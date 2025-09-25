@@ -18,7 +18,7 @@ import pytest
 from acktest.k8s import resource
 
 CONDITION_TYPE_ADOPTED = "ACK.Adopted"
-CONDITION_TYPE_RESOURCE_SYNCED = "ACK.ResourceSynced"
+CONDITION_TYPE_READY = "Ready"
 CONDITION_TYPE_TERMINAL = "ACK.Terminal"
 CONDITION_TYPE_RECOVERABLE = "ACK.Recoverable"
 CONDITION_TYPE_ADVISORY = "ACK.Advisory"
@@ -28,11 +28,11 @@ CONDITION_TYPE_REFERENCES_RESOLVED = "ACK.ReferencesResolved"
 
 def assert_type_status(
     ref: resource.CustomResourceReference,
-    cond_type_match: str = CONDITION_TYPE_RESOURCE_SYNCED,
+    cond_type_match: str = CONDITION_TYPE_READY,
     cond_status_match: bool = True,
 ):
     """Asserts that the supplied resource has a condition of type
-    ACK.ResourceSynced and that the Status of this condition is True.
+    Ready and that the Status of this condition is True.
 
     Usage:
         from acktest.k8s import resource
@@ -46,7 +46,7 @@ def assert_type_status(
         resource.wait_resource_consumed_by_controller(ref)
         condition.assert_type_status(
             ref,
-            condition.CONDITION_TYPE_RESOURCE_SYNCED,
+            condition.CONDITION_TYPE_READY,
             False)
 
     Raises:
@@ -71,7 +71,7 @@ def assert_synced_status(
     cond_status_match: bool,
 ):
     """Asserts that the supplied resource has a condition of type
-    ACK.ResourceSynced and that the Status of this condition is True.
+    Ready and that the Status of this condition is True.
 
     Usage:
         from acktest.k8s import resource
@@ -86,15 +86,15 @@ def assert_synced_status(
         condition.assert_synced_status(ref, False)
 
     Raises:
-        pytest.fail when ACK.ResourceSynced condition is not found or is not in
+        pytest.fail when Ready condition is not found or is not in
         a True status.
     """
-    assert_type_status(ref, CONDITION_TYPE_RESOURCE_SYNCED, cond_status_match)
+    assert_type_status(ref, CONDITION_TYPE_READY, cond_status_match)
 
 
-def assert_synced(ref: resource.CustomResourceReference):
+def assert_ready(ref: resource.CustomResourceReference):
     """Asserts that the supplied resource has a condition of type
-    ACK.ResourceSynced and that the Status of this condition is True.
+    Ready and that the Status of this condition is True.
 
     Usage:
         from acktest.k8s import resource
@@ -106,18 +106,18 @@ def assert_synced(ref: resource.CustomResourceReference):
         )
         resource.create_custom_resource(ref, resource_data)
         resource.wait_resource_consumed_by_controller(ref)
-        condition.assert_synced(ref)
+        condition.assert_ready(ref)
 
     Raises:
-        pytest.fail when ACK.ResourceSynced condition is not found or is not in
+        pytest.fail when Ready condition is not found or is not in
         a True status.
     """
     return assert_synced_status(ref, True)
 
 
-def assert_not_synced(ref: resource.CustomResourceReference):
+def assert_not_ready(ref: resource.CustomResourceReference):
     """Asserts that the supplied resource has a condition of type
-    ACK.ResourceSynced and that the Status of this condition is False.
+    Ready and that the Status of this condition is False.
 
     Usage:
         from acktest.k8s import resource
@@ -129,10 +129,10 @@ def assert_not_synced(ref: resource.CustomResourceReference):
         )
         resource.create_custom_resource(ref, resource_data)
         resource.wait_resource_consumed_by_controller(ref)
-        condition.assert_not_synced(ref)
+        condition.assert_not_ready(ref)
 
     Raises:
-        pytest.fail when ACK.ResourceSynced condition is not found or is not in
+        pytest.fail when Ready condition is not found or is not in
         a False status.
     """
     return assert_synced_status(ref, False)

@@ -132,7 +132,7 @@ class TestGlobalTable:
             10,
             5,
         )
-        condition.assert_synced(ref)
+        condition.assert_ready(ref)
 
         # Check DynamoDB Global Table exists
         exists = self.global_table_exists(dynamodb_client, global_table_name)
