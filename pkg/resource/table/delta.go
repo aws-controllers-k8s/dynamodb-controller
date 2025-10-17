@@ -87,6 +87,13 @@ func newResourceDelta(
 			}
 		}
 	}
+	if ackcompare.HasNilDifference(a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy) {
+		delta.Add("Spec.ResourcePolicy", a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy)
+	} else if a.ko.Spec.ResourcePolicy != nil && b.ko.Spec.ResourcePolicy != nil {
+		if *a.ko.Spec.ResourcePolicy != *b.ko.Spec.ResourcePolicy {
+			delta.Add("Spec.ResourcePolicy", a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy)
+		}
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.StreamSpecification, b.ko.Spec.StreamSpecification) {
 		delta.Add("Spec.StreamSpecification", a.ko.Spec.StreamSpecification, b.ko.Spec.StreamSpecification)
 	} else if a.ko.Spec.StreamSpecification != nil && b.ko.Spec.StreamSpecification != nil {

@@ -948,28 +948,31 @@ func (rm *resourceManager) newCreateRequestPayload(
 		}
 		res.ProvisionedThroughput = f6
 	}
+	if r.ko.Spec.ResourcePolicy != nil {
+		res.ResourcePolicy = r.ko.Spec.ResourcePolicy
+	}
 	if r.ko.Spec.SSESpecification != nil {
-		f7 := &svcsdktypes.SSESpecification{}
+		f8 := &svcsdktypes.SSESpecification{}
 		if r.ko.Spec.SSESpecification.Enabled != nil {
-			f7.Enabled = r.ko.Spec.SSESpecification.Enabled
+			f8.Enabled = r.ko.Spec.SSESpecification.Enabled
 		}
 		if r.ko.Spec.SSESpecification.KMSMasterKeyID != nil {
-			f7.KMSMasterKeyId = r.ko.Spec.SSESpecification.KMSMasterKeyID
+			f8.KMSMasterKeyId = r.ko.Spec.SSESpecification.KMSMasterKeyID
 		}
 		if r.ko.Spec.SSESpecification.SSEType != nil {
-			f7.SSEType = svcsdktypes.SSEType(*r.ko.Spec.SSESpecification.SSEType)
+			f8.SSEType = svcsdktypes.SSEType(*r.ko.Spec.SSESpecification.SSEType)
 		}
-		res.SSESpecification = f7
+		res.SSESpecification = f8
 	}
 	if r.ko.Spec.StreamSpecification != nil {
-		f8 := &svcsdktypes.StreamSpecification{}
+		f9 := &svcsdktypes.StreamSpecification{}
 		if r.ko.Spec.StreamSpecification.StreamEnabled != nil {
-			f8.StreamEnabled = r.ko.Spec.StreamSpecification.StreamEnabled
+			f9.StreamEnabled = r.ko.Spec.StreamSpecification.StreamEnabled
 		}
 		if r.ko.Spec.StreamSpecification.StreamViewType != nil {
-			f8.StreamViewType = svcsdktypes.StreamViewType(*r.ko.Spec.StreamSpecification.StreamViewType)
+			f9.StreamViewType = svcsdktypes.StreamViewType(*r.ko.Spec.StreamSpecification.StreamViewType)
 		}
-		res.StreamSpecification = f8
+		res.StreamSpecification = f9
 	}
 	if r.ko.Spec.TableClass != nil {
 		res.TableClass = svcsdktypes.TableClass(*r.ko.Spec.TableClass)
@@ -978,18 +981,18 @@ func (rm *resourceManager) newCreateRequestPayload(
 		res.TableName = r.ko.Spec.TableName
 	}
 	if r.ko.Spec.Tags != nil {
-		f11 := []svcsdktypes.Tag{}
-		for _, f11iter := range r.ko.Spec.Tags {
-			f11elem := &svcsdktypes.Tag{}
-			if f11iter.Key != nil {
-				f11elem.Key = f11iter.Key
+		f12 := []svcsdktypes.Tag{}
+		for _, f12iter := range r.ko.Spec.Tags {
+			f12elem := &svcsdktypes.Tag{}
+			if f12iter.Key != nil {
+				f12elem.Key = f12iter.Key
 			}
-			if f11iter.Value != nil {
-				f11elem.Value = f11iter.Value
+			if f12iter.Value != nil {
+				f12elem.Value = f12iter.Value
 			}
-			f11 = append(f11, *f11elem)
+			f12 = append(f12, *f12elem)
 		}
-		res.Tags = f11
+		res.Tags = f12
 	}
 
 	return res, nil

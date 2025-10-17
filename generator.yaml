@@ -11,7 +11,7 @@ ignore:
   # Replica of Spec.SSESpecification
   - TableDescription.SSEDescription
   - TableDescription.TableClassSummary
-  - CreateTableInput.ResourcePolicy
+  # - CreateTableInput.ResourcePolicy
   - CreateTableInput.WarmThroughput
 operations:
   UpdateGlobalTable:
