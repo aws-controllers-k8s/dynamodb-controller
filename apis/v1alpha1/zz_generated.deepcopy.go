@@ -2744,6 +2744,11 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		*out = new(ProvisionedThroughput)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ResourcePolicy != nil {
+		in, out := &in.ResourcePolicy, &out.ResourcePolicy
+		*out = new(string)
+		**out = **in
+	}
 	if in.SSESpecification != nil {
 		in, out := &in.SSESpecification, &out.SSESpecification
 		*out = new(SSESpecification)
