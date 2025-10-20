@@ -89,7 +89,7 @@ func (rm *resourceManager) deleteResourcePolicy(
 			ResourceArn: tableARN,
 		},
 	)
-
+	rm.metrics.RecordAPICall("DELETE", "DeleteResourcePolicy", err)
 	if err != nil {
 		var policyNotFoundErr *svcsdktypes.PolicyNotFoundException
 		if errors.As(err, &policyNotFoundErr) {
@@ -98,7 +98,6 @@ func (rm *resourceManager) deleteResourcePolicy(
 		}
 	}
 
-	rm.metrics.RecordAPICall("DELETE", "DeleteResourcePolicy", err)
 	return err
 }
 
