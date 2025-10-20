@@ -1,3 +1,5 @@
+github.com/a-hilaly/aws-iam-policy v0.0.0-20231121054900-2c56e839ca53 h1:2uNM0nR2WUDN88EYFxjEaroH+PZJ6k/h9kl+KO0dWVc=
+github.com/a-hilaly/aws-iam-policy v0.0.0-20231121054900-2c56e839ca53/go.mod h1:Ojgst9ZFn+VEEJpqtuw/LxVGqEf2+hwWBlkYWvF/XWM=
 github.com/aws-controllers-k8s/kms-controller v1.0.21 h1:ar8gCdl/l7qbXzr48YN5tNq4vJbB5UqnRH7pAIkP3tI=
 github.com/aws-controllers-k8s/kms-controller v1.0.21/go.mod h1:tHFXV8lkrzautPPvQtPUJABPlJ9MXPRj8GB1UublGHQ=
 github.com/aws-controllers-k8s/runtime v0.52.0 h1:Q5UIAn6SSBr60t/DiU/zr6NLBlUuK2AG3yy2ma/9gDU=

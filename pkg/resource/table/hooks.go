@@ -694,14 +694,7 @@ func customPreCompare(
 			delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
 		}
 	}
-
-	if ackcompare.HasNilDifference(a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy) {
-		delta.Add("Spec.ResourcePolicy", a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy)
-	} else if a.ko.Spec.ResourcePolicy != nil && b.ko.Spec.ResourcePolicy != nil {
-		if *a.ko.Spec.ResourcePolicy != *b.ko.Spec.ResourcePolicy {
-			delta.Add("Spec.ResourcePolicy", a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy)
-		}
-	}
+	compareResourcePolicyDocument(delta, a, b)
 
 }
 

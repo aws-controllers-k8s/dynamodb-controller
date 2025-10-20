@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.8
 	github.com/aws/smithy-go v1.22.2
 	github.com/go-logr/logr v1.4.2
+	github.com/micahhausler/aws-iam-policy v0.4.2
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
 	k8s.io/api v0.32.1
@@ -19,6 +20,10 @@ require (
 	k8s.io/client-go v0.32.1
 	sigs.k8s.io/controller-runtime v0.20.4
 )
+
+// Temporary fix for github.com/micahhausler/aws-iam-policy. Awaiting for a-hilaly to send
+// a PR to micahhausler/aws-iam-policy to build Equal() method for PolicyDocument struct.
+replace github.com/micahhausler/aws-iam-policy => github.com/a-hilaly/aws-iam-policy v0.0.0-20231121054900-2c56e839ca53
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.28.6 // indirect
