@@ -274,6 +274,27 @@ def get_point_in_time_recovery_enabled(table_name):
         return None
 
 
+def get_resource_policy(table_arn):
+    """Returns the resource policy for the table with a supplied ARN.
+
+    Args:
+        table_arn: the ARN of the DynamoDB table
+
+    Returns:
+        A dict representing the JSON policy document and Revision Id of the policy or None if no policy exists
+    """
+    c = boto3.client('dynamodb', region_name=get_region())
+    try:
+        resp = c.get_resource_policy(ResourceArn=table_arn)
+        if 'Policy' in resp and resp['Policy']:
+            return resp
+        return None
+    except c.exceptions.PolicyNotFoundException:
+        return None
+    except c.exceptions.ResourceNotFoundException:
+        return None
+
+
 class ReplicaMatcher:
     def __init__(self, expected_regions):
         self.expected_regions = expected_regions

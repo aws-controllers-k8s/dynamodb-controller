@@ -14,6 +14,7 @@
 """Integration tests for the DynamoDB Table API.
 """
 
+import json
 import logging
 import time
 from typing import Dict, Tuple
@@ -21,6 +22,7 @@ from typing import Dict, Tuple
 import boto3
 import pytest
 from acktest import tags
+from acktest.aws.identity import get_region, get_account_id
 from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
 from e2e import (CRD_GROUP, CRD_VERSION, condition, get_resource_tags,
@@ -162,12 +164,85 @@ def table_basic_pay_per_request():
     except:
         pass
 
+
+@pytest.fixture(scope="function")
+def table_resource_policy():
+    resource_name = random_suffix_name("table-resource-policy", 32)
+    account_id = get_account_id()
+    region = get_region()
+    resource_policy = {
+        "Version": "2012-10-17",
+        "Id": "ack-table-with-policy",
+        "Statement": [
+            {
+                "Sid": "EnableResourcePolicyOnTable",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": f'arn:aws:iam::{account_id}:root'
+                },
+                "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan"
+                ],
+                "Resource": f'arn:aws:dynamodb:{region}:{account_id}:table/{resource_name}'
+            }
+        ]
+    }
+
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["TABLE_NAME"] = resource_name
+    replacements["RESOURCE_POLICY"] = json.dumps(resource_policy)
+
+    # Create the k8s resource
+    resource_data = load_dynamodb_resource(
+        "table_resource_policy",
+        additional_replacements=replacements,
+    )
+
+    ref = k8s.CustomResourceReference(
+        CRD_GROUP, CRD_VERSION, "tables",
+        resource_name, namespace="default",
+    )
+
+    time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+    # Create table
+    k8s.create_custom_resource(ref, resource_data)
+    cr = k8s.wait_resource_consumed_by_controller(ref)
+
+    assert cr is not None
+    assert k8s.get_resource_exists(ref)
+
+    # Wait for the resource to be synced (table created and policy applied)
+    # Resource policy is applied after table creation
+    assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+    # Now wait for table to be ACTIVE
+    wait_for_cr_status(
+        ref,
+        "tableStatus",
+        "ACTIVE",
+        90,
+        3,
+    )
+
+    yield (ref, cr, resource_policy)
+
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
+
 @service_marker
 @pytest.mark.canary
 class TestTable:
     def table_exists(self, table_name: str) -> bool:
         return table.get(table_name) is not None
-    
+
     def table_insight_status(self, table_name: str, status: str) -> bool:
         return table.get(table_name) is not None
 
@@ -217,7 +292,6 @@ class TestTable:
             expected=tags_dict,
             actual=table_tags,
         )
-
 
         cr = k8s.wait_resource_consumed_by_controller(ref)
         # make multiple updates at once
@@ -471,7 +545,7 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
-    
+
     def test_update_insights(self, table_insights):
         (ref, res) = table_insights
 
@@ -497,7 +571,6 @@ class TestTable:
         cr = k8s.get_resource(ref)
         assert cr['spec']['contributorInsights'] == "DISABLE"
         assert self.table_insight_status(table_name, "DISABLED")
-       
 
     def test_enable_sse_specification(self, table_lsi):
         (ref, res) = table_lsi
@@ -574,7 +647,6 @@ class TestTable:
 
         # Set table class
         cr["spec"]["tableClass"] = "STANDARD"
-        
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
@@ -689,7 +761,6 @@ class TestTable:
             new_gsi_dict("office-per-country", "Country", 5),
         ]
 
-
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
 
@@ -731,7 +802,6 @@ class TestTable:
             new_gsi_dict("office-per-city", "City", 10), # update op
             new_gsi_dict("office-per-country", "Country", 5), # new gsi
         ]
-    
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
@@ -880,6 +950,7 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
             interval_seconds=15,
         )
+
     def test_create_gsi_same_attributes(self, table_basic):
         (ref, res) = table_basic
 
@@ -912,7 +983,7 @@ class TestTable:
         cr["spec"]['globalSecondaryIndexes'] = [
             gsi,
         ]
-    
+
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
         k8s.wait_resource_consumed_by_controller(ref)
@@ -927,3 +998,45 @@ class TestTable:
             interval_seconds=15,
         )
 
+    def test_resource_policy(self, table_resource_policy):
+        (ref, res, resource_policy) = table_resource_policy
+        table_name = res["spec"]["tableName"]
+
+        assert self.table_exists(table_name)
+
+        # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetResourcePolicy.html
+        # Need to wait and use an arn to query if the resource policy is added to the table
+        condition.assert_synced(ref)
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        table_arn = cr["status"]["ackResourceMetadata"]["arn"]
+
+        policy = table.get_resource_policy(table_arn)
+        assert policy is not None
+        assert 'ack-table-with-policy' in policy['Policy']
+
+        # Update resource policy - add statement ID to verify update
+        resource_policy['Id'] = 'updated-table-policy'
+        updates = {
+            "spec": {
+                "resourcePolicy": json.dumps(resource_policy)
+            }
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # Verify policy was updated
+        policy = table.get_resource_policy(table_arn)
+        assert 'updated-table-policy' in policy['Policy']
+
+        # Delete resource policy
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        cr["spec"]["resourcePolicy"] = None
+
+        k8s.patch_custom_resource(ref, cr)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        # Verify policy was deleted
+        deleted_policy = table.get_resource_policy(table_arn)
+        assert deleted_policy is None

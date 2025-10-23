@@ -166,17 +166,6 @@ func (rm *resourceManager) customUpdateTable(
 		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
 		return desired, requeueWaitWhileCreating
 	}
-	if isTableUpdating(latest) {
-		msg := "table is currently being updated"
-		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
-		return desired, requeueWaitWhileUpdating
-	}
-	if tableHasTerminalStatus(latest) {
-		msg := "table is in '" + *latest.ko.Status.TableStatus + "' status"
-		setTerminalCondition(desired, corev1.ConditionTrue, &msg, nil)
-		setSyncedCondition(desired, corev1.ConditionTrue, nil, nil)
-		return desired, nil
-	}
 
 	// Merge in the information we read from the API call above to the copy of
 	// the original Kubernetes object we passed to the function
@@ -188,8 +177,34 @@ func (rm *resourceManager) customUpdateTable(
 			return nil, err
 		}
 	}
-	if !delta.DifferentExcept("Spec.Tags") {
+
+	// ResourcePolicy can be updated independently of table state
+	if delta.DifferentAt("Spec.ResourcePolicy") {
+		if latest.ko.Status.ACKResourceMetadata == nil || latest.ko.Status.ACKResourceMetadata.ARN == nil {
+			rlog.Debug("skipping ResourcePolicy sync - table ARN not available yet")
+			return &resource{ko}, requeueWaitWhileCreating
+		}
+
+		err = rm.syncResourcePolicy(ctx, desired, latest)
+		if err != nil {
+			return nil, fmt.Errorf("cannot update table resource policy %v", err)
+		}
+	}
+
+	if !delta.DifferentExcept("Spec.Tags", "Spec.ResourcePolicy") {
 		return &resource{ko}, nil
+	}
+
+	if isTableUpdating(latest) {
+		msg := "table is currently being updated"
+		setSyncedCondition(desired, corev1.ConditionFalse, &msg, nil)
+		return desired, requeueWaitWhileUpdating
+	}
+	if tableHasTerminalStatus(latest) {
+		msg := "table is in '" + *latest.ko.Status.TableStatus + "' status"
+		setTerminalCondition(desired, corev1.ConditionTrue, &msg, nil)
+		setSyncedCondition(desired, corev1.ConditionTrue, nil, nil)
+		return desired, nil
 	}
 
 	if delta.DifferentAt("Spec.TimeToLive") {
@@ -522,6 +537,15 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	} else {
 		ko.Spec.ContinuousBackups = pitrSpec
 	}
+
+	if ko.Status.ACKResourceMetadata != nil && ko.Status.ACKResourceMetadata.ARN != nil {
+		policy, err := rm.getResourcePolicyWithContext(ctx, (*string)(ko.Status.ACKResourceMetadata.ARN))
+		if err != nil {
+			return err
+		}
+		ko.Spec.ResourcePolicy = policy
+	}
+
 	return nil
 }
 
@@ -670,6 +694,7 @@ func customPreCompare(
 			delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
 		}
 	}
+	compareResourcePolicyDocument(delta, a, b)
 
 }
 

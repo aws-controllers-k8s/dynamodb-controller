@@ -144,6 +144,19 @@ type TableSpec struct {
 	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
 	// in the Amazon DynamoDB Developer Guide.
 	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	// An Amazon Web Services resource-based policy document in JSON format.
+	//
+	//   - The maximum size supported for a resource-based policy document is 20
+	//     KB. DynamoDB counts whitespaces when calculating the size of a policy
+	//     against this limit.
+	//
+	//   - Within a resource-based policy, if the action for a DynamoDB service-linked
+	//     role (SLR) to replicate data for a global table is denied, adding or deleting
+	//     a replica will fail with an error.
+	//
+	// For a full list of all considerations that apply while attaching a resource-based
+	// policy, see Resource-based policy considerations (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/rbac-considerations.html).
+	ResourcePolicy *string `json:"resourcePolicy,omitempty"`
 	// Represents the settings used to enable server-side encryption.
 	SSESpecification *SSESpecification `json:"sseSpecification,omitempty"`
 	// The settings for DynamoDB Streams on the table. These settings consist of:
