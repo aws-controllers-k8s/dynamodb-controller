@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	svcapitypes "github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 var (
@@ -501,6 +502,113 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			if delta := newResourceDelta(tt.args.a, tt.args.b); isEqual(delta) != tt.want {
 				t.Errorf("Compare attribution defintions should be %v", tt.want)
+			}
+		})
+	}
+}
+
+func Test_compareProvisionedThroughput(t *testing.T) {
+	type managementType int
+	const (
+		managedByDefault managementType = iota
+		managedByACKController
+		managedByExternalAutoscaler
+	)
+
+	// Helper function to apply management type to a table
+	applyManagement := func(table *v1alpha1.Table, mgmt managementType) *v1alpha1.Table {
+		switch mgmt {
+		case managedByACKController:
+			if table.Annotations == nil {
+				table.Annotations = make(map[string]string)
+			}
+			table.Annotations[svcapitypes.TableProvisionedThroughputManagedByAnnotation] = svcapitypes.TableProvisionedThroughputManagedByACKController
+			return table
+		case managedByExternalAutoscaler:
+			if table.Annotations == nil {
+				table.Annotations = make(map[string]string)
+			}
+			table.Annotations[svcapitypes.TableProvisionedThroughputManagedByAnnotation] = svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
+			return table
+		default:
+			return table // managedByDefault
+		}
+	}
+
+	tests := []struct {
+		name        string
+		mgmt        managementType
+		aRpu, aWpu  *int64 // Table A provisioned throughput (nil means no throughput spec)
+		bRpu, bWpu  *int64 // Table B provisioned throughput (nil means no throughput spec)
+		expectDelta bool
+	}{
+		// ManagedByDefault scenarios
+		{"default: both nil ProvisionedThroughput", managedByDefault, nil, nil, nil, nil, false},
+		{"default: (a) nil ProvisionedThroughput", managedByDefault, nil, nil, aws.Int64(5), aws.Int64(5), true},
+		{"default: (b) nil ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), nil, nil, true},
+		{"default: equal ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"default: different ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), true},
+
+		// ManagedByACKController scenarios
+		{"ack: both nil ProvisionedThroughput", managedByACKController, nil, nil, nil, nil, false},
+		{"ack: (a) nil ProvisionedThroughput", managedByACKController, nil, nil, aws.Int64(5), aws.Int64(5), true},
+		{"ack: (b) nil ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), nil, nil, true},
+		{"ack: equal ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"ack: different ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), true},
+
+		// ManagedByExternalAutoscaler scenarios (delta should be false for changes)
+		{"external: both nil ProvisionedThroughput", managedByExternalAutoscaler, nil, nil, nil, nil, false},
+		{"external: (a) nil ProvisionedThroughput", managedByExternalAutoscaler, nil, nil, aws.Int64(5), aws.Int64(5), false},
+		{"external: (b) nil ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), nil, nil, false},
+		{"external: equal ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"external: different ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create tables based on throughput parameters
+			var tableA, tableB *v1alpha1.Table
+			if tt.aRpu == nil && tt.aWpu == nil {
+				tableA = &v1alpha1.Table{
+					Spec: v1alpha1.TableSpec{
+						ProvisionedThroughput: nil,
+					},
+				}
+			} else {
+				tableA = &v1alpha1.Table{
+					Spec: v1alpha1.TableSpec{
+						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+							ReadCapacityUnits:  tt.aRpu,
+							WriteCapacityUnits: tt.aWpu,
+						},
+					},
+				}
+			}
+			if tt.bRpu == nil && tt.bWpu == nil {
+				tableB = &v1alpha1.Table{
+					Spec: v1alpha1.TableSpec{
+						ProvisionedThroughput: nil,
+					},
+				}
+			} else {
+				tableB = &v1alpha1.Table{
+					Spec: v1alpha1.TableSpec{
+						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+							ReadCapacityUnits:  tt.bRpu,
+							WriteCapacityUnits: tt.bWpu,
+						},
+					},
+				}
+			}
+
+			// Apply management type
+			tableA = applyManagement(tableA, tt.mgmt)
+			tableB = applyManagement(tableB, tt.mgmt)
+
+			// Test comparison
+			delta := newResourceDelta(&resource{tableA}, &resource{tableB})
+			if tt.expectDelta != delta.DifferentAt("Spec.ProvisionedThroughput") {
+				t.Errorf("customPostCompare() has delta at ProvisionedThroughput = %v, want %v", delta.DifferentAt("Spec.ProvisionedThroughput"), tt.expectDelta)
 			}
 		})
 	}
