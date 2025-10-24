@@ -515,6 +515,25 @@ func Test_compareProvisionedThroughput(t *testing.T) {
 		managedByExternalAutoscaler
 	)
 
+	// Helper to create table with given throughput parameters
+	createTable := func(rpu, wpu *int64) *v1alpha1.Table {
+		if rpu == nil && wpu == nil {
+			return &v1alpha1.Table{
+				Spec: v1alpha1.TableSpec{
+					ProvisionedThroughput: nil,
+				},
+			}
+		}
+		return &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+					ReadCapacityUnits:  rpu,
+					WriteCapacityUnits: wpu,
+				},
+			},
+		}
+	}
+
 	// Helper function to apply management type to a table
 	applyManagement := func(table *v1alpha1.Table, mgmt managementType) *v1alpha1.Table {
 		switch mgmt {
@@ -566,40 +585,9 @@ func Test_compareProvisionedThroughput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create tables based on throughput parameters
-			var tableA, tableB *v1alpha1.Table
-			if tt.aRpu == nil && tt.aWpu == nil {
-				tableA = &v1alpha1.Table{
-					Spec: v1alpha1.TableSpec{
-						ProvisionedThroughput: nil,
-					},
-				}
-			} else {
-				tableA = &v1alpha1.Table{
-					Spec: v1alpha1.TableSpec{
-						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
-							ReadCapacityUnits:  tt.aRpu,
-							WriteCapacityUnits: tt.aWpu,
-						},
-					},
-				}
-			}
-			if tt.bRpu == nil && tt.bWpu == nil {
-				tableB = &v1alpha1.Table{
-					Spec: v1alpha1.TableSpec{
-						ProvisionedThroughput: nil,
-					},
-				}
-			} else {
-				tableB = &v1alpha1.Table{
-					Spec: v1alpha1.TableSpec{
-						ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
-							ReadCapacityUnits:  tt.bRpu,
-							WriteCapacityUnits: tt.bWpu,
-						},
-					},
-				}
-			}
+			// Create tables
+			tableA := createTable(tt.aRpu, tt.aWpu)
+			tableB := createTable(tt.bRpu, tt.bWpu)
 
 			// Apply management type
 			tableA = applyManagement(tableA, tt.mgmt)
