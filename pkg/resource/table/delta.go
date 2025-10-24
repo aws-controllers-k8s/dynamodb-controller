@@ -138,5 +138,6 @@ func newResourceDelta(
 		}
 	}
 
+	customPostCompare(delta, a, b)
 	return delta
 }
