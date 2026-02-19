@@ -20,7 +20,6 @@ operations:
     resource_name: GlobalTable
   DescribeBackup:
     output_wrapper_field_path: BackupDescription.BackupDetails
-    primary_identifier_field_name: BackupArn
 resources:
   Table:
     fields:
