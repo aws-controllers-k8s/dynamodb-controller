@@ -79,7 +79,7 @@ def dynamodb_table():
         pass
 
 @service_marker
-@pytest.mark.canary
+@pytest.mark.skip(reason="CreateGlobalTable: DynamoDB global tables version 2017.11.29 is not supported")
 class TestGlobalTable:
     
     def get_global_table(self, dynamodb_client, global_table_name: str) -> dict:
