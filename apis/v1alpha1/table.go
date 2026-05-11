@@ -134,6 +134,10 @@ type TableSpec struct {
 	//
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	LocalSecondaryIndexes []*LocalSecondaryIndex `json:"localSecondaryIndexes,omitempty"`
+	// Sets the maximum number of read and write units for the specified table in
+	// on-demand capacity mode. If you use this parameter, you must specify MaxReadRequestUnits,
+	// MaxWriteRequestUnits, or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents the provisioned throughput settings for a specified table or index.
 	// The settings can be modified using the UpdateTable operation.
 	//

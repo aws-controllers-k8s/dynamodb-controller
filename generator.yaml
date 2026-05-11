@@ -1,6 +1,5 @@
 ignore:
   shape_names:
-  - OnDemandThroughput
   - WarmThroughput
   - GlobalSecondaryIndexWarmThroughputDescription
   - OnDemandThroughputOverride

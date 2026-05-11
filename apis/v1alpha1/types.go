@@ -152,6 +152,10 @@ type ContributorInsightsSummary struct {
 type CreateGlobalSecondaryIndexAction struct {
 	IndexName *string             `json:"indexName,omitempty"`
 	KeySchema []*KeySchemaElement `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents attributes that are copied (projected) from the table into an
 	// index. These are in addition to the primary key attributes and index key
 	// attributes, which are automatically projected.
@@ -247,6 +251,10 @@ type Get struct {
 type GlobalSecondaryIndex struct {
 	IndexName *string             `json:"indexName,omitempty"`
 	KeySchema []*KeySchemaElement `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents attributes that are copied (projected) from the table into an
 	// index. These are in addition to the primary key attributes and index key
 	// attributes, which are automatically projected.
@@ -275,6 +283,10 @@ type GlobalSecondaryIndexDescription struct {
 	IndexStatus    *string             `json:"indexStatus,omitempty"`
 	ItemCount      *int64              `json:"itemCount,omitempty"`
 	KeySchema      []*KeySchemaElement `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents attributes that are copied (projected) from the table into an
 	// index. These are in addition to the primary key attributes and index key
 	// attributes, which are automatically projected.
@@ -289,6 +301,10 @@ type GlobalSecondaryIndexDescription struct {
 type GlobalSecondaryIndexInfo struct {
 	IndexName *string             `json:"indexName,omitempty"`
 	KeySchema []*KeySchemaElement `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents attributes that are copied (projected) from the table into an
 	// index. These are in addition to the primary key attributes and index key
 	// attributes, which are automatically projected.
@@ -408,6 +424,14 @@ type LocalSecondaryIndexInfo struct {
 	// index. These are in addition to the primary key attributes and index key
 	// attributes, which are automatically projected.
 	Projection *Projection `json:"projection,omitempty"`
+}
+
+// Sets the maximum number of read and write units for the specified on-demand
+// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+// or both.
+type OnDemandThroughput struct {
+	MaxReadRequestUnits  *int64 `json:"maxReadRequestUnits,omitempty"`
+	MaxWriteRequestUnits *int64 `json:"maxWriteRequestUnits,omitempty"`
 }
 
 // The description of the point in time settings applied to the table.
@@ -622,6 +646,10 @@ type SourceTableDetails struct {
 	BillingMode *string             `json:"billingMode,omitempty"`
 	ItemCount   *int64              `json:"itemCount,omitempty"`
 	KeySchema   []*KeySchemaElement `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents the provisioned throughput settings for a specified table or index.
 	// The settings can be modified using the UpdateTable operation.
 	//
@@ -673,6 +701,10 @@ type TableCreationParameters struct {
 	BillingMode            *string                 `json:"billingMode,omitempty"`
 	GlobalSecondaryIndexes []*GlobalSecondaryIndex `json:"globalSecondaryIndexes,omitempty"`
 	KeySchema              []*KeySchemaElement     `json:"keySchema,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents the provisioned throughput settings for a specified table or index.
 	// The settings can be modified using the UpdateTable operation.
 	//
@@ -699,6 +731,10 @@ type TableDescription struct {
 	LatestStreamARN           *string                            `json:"latestStreamARN,omitempty"`
 	LatestStreamLabel         *string                            `json:"latestStreamLabel,omitempty"`
 	LocalSecondaryIndexes     []*LocalSecondaryIndexDescription  `json:"localSecondaryIndexes,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents the provisioned throughput settings for the table, consisting
 	// of read and write capacity units, along with data about increases and decreases.
 	ProvisionedThroughput *ProvisionedThroughputDescription `json:"provisionedThroughput,omitempty"`
@@ -752,6 +788,10 @@ type Update struct {
 // secondary index.
 type UpdateGlobalSecondaryIndexAction struct {
 	IndexName *string `json:"indexName,omitempty"`
+	// Sets the maximum number of read and write units for the specified on-demand
+	// table. If you use this parameter, you must specify MaxReadRequestUnits, MaxWriteRequestUnits,
+	// or both.
+	OnDemandThroughput *OnDemandThroughput `json:"onDemandThroughput,omitempty"`
 	// Represents the provisioned throughput settings for a specified table or index.
 	// The settings can be modified using the UpdateTable operation.
 	//
