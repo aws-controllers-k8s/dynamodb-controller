@@ -280,6 +280,10 @@ func (rm *resourceManager) customUpdateTable(
 			if err := rm.syncTableProvisionedThroughput(ctx, desired); err != nil {
 				return nil, err
 			}
+		case delta.DifferentAt("Spec.OnDemandThroughput"):
+			if err := rm.syncTableOnDemandThroughput(ctx, desired); err != nil {
+				return nil, err
+			}
 		// Create any new GSIs once all existing GSI have been updated.
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(addedGSIs) > 0:
 			if err := rm.addGSIs(ctx, desired, latest, addedGSIs); err != nil {
@@ -466,6 +470,28 @@ func (rm *resourceManager) syncTableSSESpecification(
 		return err
 	}
 	return err
+}
+
+// syncTableOnDemandThroughput updates a given table on-demand throughput settings
+func (rm *resourceManager) syncTableOnDemandThroughput(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableOnDemandThroughput")
+	defer exit(err)
+
+	input := &svcsdk.UpdateTableInput{
+		TableName:          aws.String(*r.ko.Spec.TableName),
+		OnDemandThroughput: newSDKOnDemandThroughput(r.ko.Spec.OnDemandThroughput),
+	}
+
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // syncTableProvisionedThroughput updates a given table provisioned throughputs

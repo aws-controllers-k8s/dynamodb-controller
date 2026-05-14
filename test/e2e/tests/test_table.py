@@ -152,6 +152,19 @@ def table_insights():
     except:
         pass
 
+@pytest.fixture(scope="function")
+def table_on_demand_throughput():
+    resource_name = random_suffix_name("table-odt", 32)
+    (ref, cr) = create_table(resource_name, "table_on_demand_throughput")
+
+    yield ref, cr
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
+
 @pytest.fixture(scope="module")
 def table_basic_pay_per_request():
     resource_name = random_suffix_name("table-basic-pay-per-request", 32)
@@ -995,6 +1008,82 @@ class TestTable:
                 ],
             ),
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
+            interval_seconds=15,
+        )
+
+    def test_create_on_demand_throughput(self, table_on_demand_throughput):
+        (ref, res) = table_on_demand_throughput
+
+        table_name = res["spec"]["tableName"]
+        assert self.table_exists(table_name)
+
+        condition.assert_synced(ref)
+
+        table.wait_until(
+            table_name,
+            table.on_demand_throughput_matcher(100, 100),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=3,
+        )
+
+        table.wait_until(
+            table_name,
+            table.gsi_on_demand_throughput_matcher("gsi-one", 50, 50),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS * 20,
+            interval_seconds=15,
+        )
+
+    def test_update_on_demand_throughput(self, table_on_demand_throughput):
+        (ref, res) = table_on_demand_throughput
+
+        table_name = res["spec"]["tableName"]
+        assert self.table_exists(table_name)
+
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        cr["spec"]["onDemandThroughput"] = {
+            "maxReadRequestUnits": 200,
+            "maxWriteRequestUnits": 200,
+        }
+
+        k8s.patch_custom_resource(ref, cr)
+
+        table.wait_until(
+            table_name,
+            table.on_demand_throughput_matcher(200, 200),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=3,
+        )
+
+    def test_update_gsi_on_demand_throughput(self, table_on_demand_throughput):
+        (ref, res) = table_on_demand_throughput
+
+        table_name = res["spec"]["tableName"]
+        assert self.table_exists(table_name)
+
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        cr["spec"]["globalSecondaryIndexes"] = [
+            {
+                "indexName": "gsi-one",
+                "keySchema": [
+                    {"attributeName": "GSI1PK", "keyType": "HASH"},
+                    {"attributeName": "SK", "keyType": "RANGE"},
+                ],
+                "projection": {"projectionType": "ALL"},
+                "onDemandThroughput": {
+                    "maxReadRequestUnits": 100,
+                    "maxWriteRequestUnits": 100,
+                },
+            }
+        ]
+
+        k8s.patch_custom_resource(ref, cr)
+
+        table.wait_until(
+            table_name,
+            table.gsi_on_demand_throughput_matcher("gsi-one", 100, 100),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS * 20,
             interval_seconds=15,
         )
 

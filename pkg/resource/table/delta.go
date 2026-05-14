@@ -67,6 +67,24 @@ func newResourceDelta(
 			delta.Add("Spec.DeletionProtectionEnabled", a.ko.Spec.DeletionProtectionEnabled, b.ko.Spec.DeletionProtectionEnabled)
 		}
 	}
+	if ackcompare.HasNilDifference(a.ko.Spec.OnDemandThroughput, b.ko.Spec.OnDemandThroughput) {
+		delta.Add("Spec.OnDemandThroughput", a.ko.Spec.OnDemandThroughput, b.ko.Spec.OnDemandThroughput)
+	} else if a.ko.Spec.OnDemandThroughput != nil && b.ko.Spec.OnDemandThroughput != nil {
+		if ackcompare.HasNilDifference(a.ko.Spec.OnDemandThroughput.MaxReadRequestUnits, b.ko.Spec.OnDemandThroughput.MaxReadRequestUnits) {
+			delta.Add("Spec.OnDemandThroughput.MaxReadRequestUnits", a.ko.Spec.OnDemandThroughput.MaxReadRequestUnits, b.ko.Spec.OnDemandThroughput.MaxReadRequestUnits)
+		} else if a.ko.Spec.OnDemandThroughput.MaxReadRequestUnits != nil && b.ko.Spec.OnDemandThroughput.MaxReadRequestUnits != nil {
+			if *a.ko.Spec.OnDemandThroughput.MaxReadRequestUnits != *b.ko.Spec.OnDemandThroughput.MaxReadRequestUnits {
+				delta.Add("Spec.OnDemandThroughput.MaxReadRequestUnits", a.ko.Spec.OnDemandThroughput.MaxReadRequestUnits, b.ko.Spec.OnDemandThroughput.MaxReadRequestUnits)
+			}
+		}
+		if ackcompare.HasNilDifference(a.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits, b.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits) {
+			delta.Add("Spec.OnDemandThroughput.MaxWriteRequestUnits", a.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits, b.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits)
+		} else if a.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits != nil && b.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits != nil {
+			if *a.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits != *b.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits {
+				delta.Add("Spec.OnDemandThroughput.MaxWriteRequestUnits", a.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits, b.ko.Spec.OnDemandThroughput.MaxWriteRequestUnits)
+			}
+		}
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput) {
 		delta.Add("Spec.ProvisionedThroughput", a.ko.Spec.ProvisionedThroughput, b.ko.Spec.ProvisionedThroughput)
 	} else if a.ko.Spec.ProvisionedThroughput != nil && b.ko.Spec.ProvisionedThroughput != nil {

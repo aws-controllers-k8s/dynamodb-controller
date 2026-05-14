@@ -98,6 +98,17 @@ func equalGlobalSecondaryIndexes(
 			return false
 		}
 	}
+	if ackcompare.HasNilDifference(a.OnDemandThroughput, b.OnDemandThroughput) {
+		return false
+	}
+	if a.OnDemandThroughput != nil && b.OnDemandThroughput != nil {
+		if !equalInt64s(a.OnDemandThroughput.MaxReadRequestUnits, b.OnDemandThroughput.MaxReadRequestUnits) {
+			return false
+		}
+		if !equalInt64s(a.OnDemandThroughput.MaxWriteRequestUnits, b.OnDemandThroughput.MaxWriteRequestUnits) {
+			return false
+		}
+	}
 	if ackcompare.HasNilDifference(a.Projection, b.Projection) {
 		return false
 	}
@@ -226,6 +237,7 @@ func (rm *resourceManager) updateGSIs(
 		update := svcsdktypes.GlobalSecondaryIndexUpdate{
 			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
 				IndexName:             aws.String(*updatedGSI.IndexName),
+				OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
 				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
 			},
 		}
@@ -284,6 +296,7 @@ func (rm *resourceManager) addGSIs(
 				IndexName:             aws.String(*addedGSI.IndexName),
 				Projection:            newSDKProjection(addedGSI.Projection),
 				KeySchema:             newSDKKeySchemaArray(addedGSI.KeySchema),
+				OnDemandThroughput:    newSDKOnDemandThroughput(addedGSI.OnDemandThroughput),
 				ProvisionedThroughput: newSDKProvisionedThroughput(addedGSI.ProvisionedThroughput),
 			},
 		}
@@ -373,4 +386,19 @@ func newSDKKeySchemaArray(kss []*v1alpha1.KeySchemaElement) []svcsdktypes.KeySch
 		keySchemas = append(keySchemas, keySchema)
 	}
 	return keySchemas
+}
+
+// newSDKOnDemandThroughput builds a new *svcsdktypes.OnDemandThroughput
+func newSDKOnDemandThroughput(odt *v1alpha1.OnDemandThroughput) *svcsdktypes.OnDemandThroughput {
+	if odt == nil {
+		return nil
+	}
+	onDemandThroughput := &svcsdktypes.OnDemandThroughput{}
+	if odt.MaxReadRequestUnits != nil {
+		onDemandThroughput.MaxReadRequestUnits = aws.Int64(*odt.MaxReadRequestUnits)
+	}
+	if odt.MaxWriteRequestUnits != nil {
+		onDemandThroughput.MaxWriteRequestUnits = aws.Int64(*odt.MaxWriteRequestUnits)
+	}
+	return onDemandThroughput
 }
