@@ -128,6 +128,48 @@ def provisioned_throughput_matcher(read_capacity_units: int, write_capacity_unit
     return ProvisionedThroughputMatcher(read_capacity_units, write_capacity_units)
 
 
+class OnDemandThroughputMatcher:
+    def __init__(self, max_read: int, max_write: int):
+        self.max_read = max_read
+        self.max_write = max_write
+
+    def __call__(self, record: dict) -> bool:
+        odt = record.get("OnDemandThroughput")
+        if odt is None:
+            return False
+        return (odt.get("MaxReadRequestUnits") == self.max_read
+                and odt.get("MaxWriteRequestUnits") == self.max_write)
+
+
+def on_demand_throughput_matcher(max_read: int, max_write: int) -> TableMatchFunc:
+    return OnDemandThroughputMatcher(max_read, max_write)
+
+
+class GSIOnDemandThroughputMatcher:
+    def __init__(self, index_name: str, max_read: int, max_write: int):
+        self.index_name = index_name
+        self.max_read = max_read
+        self.max_write = max_write
+
+    def __call__(self, record: dict) -> bool:
+        gsis = record.get("GlobalSecondaryIndexes", [])
+        for gsi in gsis:
+            if gsi.get("IndexName") != self.index_name:
+                continue
+            if gsi.get("IndexStatus") != "ACTIVE":
+                return False
+            odt = gsi.get("OnDemandThroughput")
+            if odt is None:
+                return False
+            return (odt.get("MaxReadRequestUnits") == self.max_read
+                    and odt.get("MaxWriteRequestUnits") == self.max_write)
+        return False
+
+
+def gsi_on_demand_throughput_matcher(index_name: str, max_read: int, max_write: int) -> TableMatchFunc:
+    return GSIOnDemandThroughputMatcher(index_name, max_read, max_write)
+
+
 class SSESpecificationMatcher:
     def __init__(self, enabled: int, type: int):
         self.enabled = enabled

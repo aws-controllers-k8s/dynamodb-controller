@@ -1,0 +1,34 @@
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  billingMode: PAY_PER_REQUEST
+  attributeDefinitions:
+    - attributeName: PK
+      attributeType: S
+    - attributeName: SK
+      attributeType: S
+    - attributeName: GSI1PK
+      attributeType: S
+  keySchema:
+    - attributeName: PK
+      keyType: HASH
+    - attributeName: SK
+      keyType: RANGE
+  onDemandThroughput:
+    maxReadRequestUnits: 100
+    maxWriteRequestUnits: 100
+  globalSecondaryIndexes:
+    - indexName: gsi-one
+      keySchema:
+        - attributeName: GSI1PK
+          keyType: HASH
+        - attributeName: SK
+          keyType: RANGE
+      projection:
+        projectionType: ALL
+      onDemandThroughput:
+        maxReadRequestUnits: 50
+        maxWriteRequestUnits: 50
