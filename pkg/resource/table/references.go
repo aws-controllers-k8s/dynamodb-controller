@@ -26,6 +26,7 @@ import (
 	kmsapitypes "github.com/aws-controllers-k8s/kms-controller/apis/v1alpha1"
 	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
+	ackrt "github.com/aws-controllers-k8s/runtime/pkg/runtime"
 	acktypes "github.com/aws-controllers-k8s/runtime/pkg/types"
 
 	svcapitypes "github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
@@ -103,9 +104,17 @@ func (rm *resourceManager) resolveReferenceForSSESpecification_KMSMasterKeyID(
 			if arr.Name == nil || *arr.Name == "" {
 				return hasReferences, fmt.Errorf("provided resource reference is nil or empty: SSESpecification.KMSMasterKeyRef")
 			}
-			namespace := ko.ObjectMeta.GetNamespace()
-			if arr.Namespace != nil && *arr.Namespace != "" {
-				namespace = *arr.Namespace
+			namespace, err := ackrt.ResolveCrossNamespaceReference(
+				ctx,
+				rm.cfg.EnableCrossNamespace,
+				&ko.Status.Conditions,
+				ackrt.CrossNamespaceRefKindResource,
+				ko.ObjectMeta.GetNamespace(),
+				arr.Namespace,
+				*arr.Name,
+			)
+			if err != nil {
+				return hasReferences, err
 			}
 			obj := &kmsapitypes.Key{}
 			if err := getReferencedResourceState_Key(ctx, apiReader, obj, *arr.Name, namespace); err != nil {
