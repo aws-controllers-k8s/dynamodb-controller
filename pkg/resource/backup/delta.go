@@ -20,6 +20,7 @@ import (
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	acktags "github.com/aws-controllers-k8s/runtime/pkg/tags"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 // Hack to avoid import errors during build...
@@ -54,6 +55,9 @@ func newResourceDelta(
 		if *a.ko.Spec.TableName != *b.ko.Spec.TableName {
 			delta.Add("Spec.TableName", a.ko.Spec.TableName, b.ko.Spec.TableName)
 		}
+	}
+	if !equality.Semantic.Equalities.DeepEqual(a.ko.Spec.TableRef, b.ko.Spec.TableRef) {
+		delta.Add("Spec.TableRef", a.ko.Spec.TableRef, b.ko.Spec.TableRef)
 	}
 
 	return delta

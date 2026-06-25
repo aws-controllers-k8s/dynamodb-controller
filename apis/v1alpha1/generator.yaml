@@ -27,6 +27,11 @@ resources:
           list_of: CreateReplicationGroupMemberAction
         compare:
           is_ignored: true
+      TableReplicas.KMSMasterKeyID:
+        references:
+          service_name: kms
+          resource: Key
+          path: Status.ACKResourceMetadata.ARN
       ResourcePolicy:
         from:
           operation: PutResourcePolicy
@@ -136,6 +141,11 @@ resources:
           in:
             - ACTIVE
   Backup:
+    fields:
+      TableName:
+        references:
+          resource: Table
+          path: Spec.TableName
     exceptions:
       errors:
         404:

@@ -444,6 +444,20 @@ spec:
                       type: array
                     kmsMasterKeyID:
                       type: string
+                    kmsMasterKeyRef:
+                      description: Reference field for KMSMasterKeyID
+                      properties:
+                        from:
+                          description: |-
+                            AWSResourceReference provides all the values necessary to reference another
+                            k8s resource for finding the identifier(Id/ARN/Name)
+                          properties:
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                          type: object
+                      type: object
                     provisionedThroughputOverride:
                       description: |-
                         Replica-specific provisioned throughput settings. If not specified, uses
