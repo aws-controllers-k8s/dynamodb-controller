@@ -178,6 +178,8 @@ type CreateReplicaAction struct {
 type CreateReplicationGroupMemberAction struct {
 	GlobalSecondaryIndexes []*ReplicaGlobalSecondaryIndex `json:"globalSecondaryIndexes,omitempty"`
 	KMSMasterKeyID         *string                        `json:"kmsMasterKeyID,omitempty"`
+	// Reference field for KMSMasterKeyID
+	KMSMasterKeyRef *ackv1alpha1.AWSResourceReferenceWrapper `json:"kmsMasterKeyRef,omitempty"`
 	// Replica-specific provisioned throughput settings. If not specified, uses
 	// the source table's provisioned throughput settings.
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`

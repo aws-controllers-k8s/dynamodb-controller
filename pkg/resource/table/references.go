@@ -35,6 +35,9 @@ import (
 // +kubebuilder:rbac:groups=kms.services.k8s.aws,resources=keys,verbs=get;list
 // +kubebuilder:rbac:groups=kms.services.k8s.aws,resources=keys/status,verbs=get;list
 
+// +kubebuilder:rbac:groups=kms.services.k8s.aws,resources=keys,verbs=get;list
+// +kubebuilder:rbac:groups=kms.services.k8s.aws,resources=keys/status,verbs=get;list
+
 // ClearResolvedReferences removes any reference values that were made
 // concrete in the spec. It returns a copy of the input AWSResource which
 // contains the original *Ref values, but none of their respective concrete
@@ -45,6 +48,12 @@ func (rm *resourceManager) ClearResolvedReferences(res acktypes.AWSResource) ack
 	if ko.Spec.SSESpecification != nil {
 		if ko.Spec.SSESpecification.KMSMasterKeyRef != nil {
 			ko.Spec.SSESpecification.KMSMasterKeyID = nil
+		}
+	}
+
+	for f0idx, f0iter := range ko.Spec.TableReplicas {
+		if f0iter.KMSMasterKeyRef != nil {
+			ko.Spec.TableReplicas[f0idx].KMSMasterKeyID = nil
 		}
 	}
 
@@ -73,6 +82,12 @@ func (rm *resourceManager) ResolveReferences(
 		resourceHasReferences = resourceHasReferences || fieldHasReferences
 	}
 
+	if fieldHasReferences, err := rm.resolveReferenceForTableReplicas_KMSMasterKeyID(ctx, apiReader, ko); err != nil {
+		return &resource{ko}, (resourceHasReferences || fieldHasReferences), err
+	} else {
+		resourceHasReferences = resourceHasReferences || fieldHasReferences
+	}
+
 	return &resource{ko}, resourceHasReferences, err
 }
 
@@ -83,6 +98,12 @@ func validateReferenceFields(ko *svcapitypes.Table) error {
 	if ko.Spec.SSESpecification != nil {
 		if ko.Spec.SSESpecification.KMSMasterKeyRef != nil && ko.Spec.SSESpecification.KMSMasterKeyID != nil {
 			return ackerr.ResourceReferenceAndIDNotSupportedFor("SSESpecification.KMSMasterKeyID", "SSESpecification.KMSMasterKeyRef")
+		}
+	}
+
+	for _, f0iter := range ko.Spec.TableReplicas {
+		if f0iter.KMSMasterKeyRef != nil && f0iter.KMSMasterKeyID != nil {
+			return ackerr.ResourceReferenceAndIDNotSupportedFor("TableReplicas.KMSMasterKeyID", "TableReplicas.KMSMasterKeyRef")
 		}
 	}
 	return nil
@@ -179,4 +200,43 @@ func getReferencedResourceState_Key(
 			"Status.ACKResourceMetadata.ARN")
 	}
 	return nil
+}
+
+// resolveReferenceForTableReplicas_KMSMasterKeyID reads the resource referenced
+// from TableReplicas.KMSMasterKeyRef field and sets the TableReplicas.KMSMasterKeyID
+// from referenced resource. Returns a boolean indicating whether a reference
+// contains references, or an error
+func (rm *resourceManager) resolveReferenceForTableReplicas_KMSMasterKeyID(
+	ctx context.Context,
+	apiReader client.Reader,
+	ko *svcapitypes.Table,
+) (hasReferences bool, err error) {
+	for f0idx, f0iter := range ko.Spec.TableReplicas {
+		if f0iter.KMSMasterKeyRef != nil && f0iter.KMSMasterKeyRef.From != nil {
+			hasReferences = true
+			arr := f0iter.KMSMasterKeyRef.From
+			if arr.Name == nil || *arr.Name == "" {
+				return hasReferences, fmt.Errorf("provided resource reference is nil or empty: TableReplicas.KMSMasterKeyRef")
+			}
+			namespace, err := ackrt.ResolveCrossNamespaceReference(
+				ctx,
+				rm.cfg.EnableCrossNamespace,
+				&ko.Status.Conditions,
+				ackrt.CrossNamespaceRefKindResource,
+				ko.ObjectMeta.GetNamespace(),
+				arr.Namespace,
+				*arr.Name,
+			)
+			if err != nil {
+				return hasReferences, err
+			}
+			obj := &kmsapitypes.Key{}
+			if err := getReferencedResourceState_Key(ctx, apiReader, obj, *arr.Name, namespace); err != nil {
+				return hasReferences, err
+			}
+			ko.Spec.TableReplicas[f0idx].KMSMasterKeyID = (*string)(obj.Status.ACKResourceMetadata.ARN)
+		}
+	}
+
+	return hasReferences, nil
 }
