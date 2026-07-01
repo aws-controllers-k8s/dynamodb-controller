@@ -1,0 +1,23 @@
+# Table used to test stream resource policy functionality
+apiVersion: dynamodb.services.k8s.aws/v1alpha1
+kind: Table
+metadata:
+  name: $TABLE_NAME
+spec:
+  tableName: $TABLE_NAME
+  billingMode: PAY_PER_REQUEST
+  tableClass: STANDARD
+  attributeDefinitions:
+    - attributeName: Bill
+      attributeType: S
+    - attributeName: Total
+      attributeType: S
+  keySchema:
+    - attributeName: Bill
+      keyType: HASH
+    - attributeName: Total
+      keyType: RANGE
+  streamSpecification:
+    streamEnabled: true
+    streamViewType: NEW_AND_OLD_IMAGES
+  streamResourcePolicy: '$STREAM_RESOURCE_POLICY'

@@ -191,7 +191,31 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
-	if !delta.DifferentExcept("Spec.Tags", "Spec.ResourcePolicy") {
+	// StreamResourcePolicy is attached to the table's DynamoDB stream (not the
+	// table itself) via PutResourcePolicy against the stream ARN. The stream
+	// ARN only exists once DynamoDB Streams has been enabled and the stream is
+	// available, so we can only sync it when Status.LatestStreamARN is set. If
+	// the policy is desired but the stream ARN isn't available yet (e.g. streams
+	// are being enabled in this same reconcile), defer the sync so the stream
+	// gets created first and requeue below.
+	streamResourcePolicyDeferred := false
+	if delta.DifferentAt("Spec.StreamResourcePolicy") {
+		if latest.ko.Status.LatestStreamARN != nil && *latest.ko.Status.LatestStreamARN != "" {
+			if err = rm.syncStreamResourcePolicy(ctx, desired, latest); err != nil {
+				return nil, fmt.Errorf("cannot update stream resource policy %v", err)
+			}
+		} else {
+			rlog.Debug("deferring StreamResourcePolicy sync - stream ARN not available yet")
+			streamResourcePolicyDeferred = true
+		}
+	}
+
+	if !delta.DifferentExcept("Spec.Tags", "Spec.ResourcePolicy", "Spec.StreamResourcePolicy") {
+		if streamResourcePolicyDeferred {
+			// Stream policy is desired but the stream ARN isn't available yet;
+			// requeue until DynamoDB Streams is enabled and the stream exists.
+			return &resource{ko}, requeueWaitWhileUpdating
+		}
 		return &resource{ko}, nil
 	}
 
@@ -572,6 +596,17 @@ func (rm *resourceManager) setResourceAdditionalFields(
 		ko.Spec.ResourcePolicy = policy
 	}
 
+	// The stream resource policy lives on the stream ARN, which only exists once
+	// DynamoDB Streams is enabled. GetResourcePolicy works against the same API
+	// for both tables and streams.
+	if ko.Status.LatestStreamARN != nil && *ko.Status.LatestStreamARN != "" {
+		streamPolicy, err := rm.getResourcePolicyWithContext(ctx, ko.Status.LatestStreamARN)
+		if err != nil {
+			return err
+		}
+		ko.Spec.StreamResourcePolicy = streamPolicy
+	}
+
 	return nil
 }
 
@@ -721,6 +756,7 @@ func customPreCompare(
 		}
 	}
 	compareResourcePolicyDocument(delta, a, b)
+	compareStreamResourcePolicyDocument(delta, a, b)
 
 }
 
