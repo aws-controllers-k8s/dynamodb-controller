@@ -250,6 +250,80 @@ def table_resource_policy():
         pass
 
 
+@pytest.fixture(scope="function")
+def table_stream_resource_policy():
+    resource_name = random_suffix_name("table-stream-resource-policy", 32)
+    account_id = get_account_id()
+    region = get_region()
+    stream_resource_policy = {
+        "Version": "2012-10-17",
+        "Id": "ack-stream-with-policy",
+        "Statement": [
+            {
+                "Sid": "EnableResourcePolicyOnStream",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": f'arn:aws:iam::{account_id}:root'
+                },
+                "Action": [
+                    "dynamodb:DescribeStream",
+                    "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator",
+                    "dynamodb:ListStreams"
+                ],
+                # The stream ARN is timestamp-based and non-deterministic, so
+                # the policy targets all streams of this table with a wildcard.
+                "Resource": f'arn:aws:dynamodb:{region}:{account_id}:table/{resource_name}/stream/*'
+            }
+        ]
+    }
+
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["TABLE_NAME"] = resource_name
+    replacements["STREAM_RESOURCE_POLICY"] = json.dumps(stream_resource_policy)
+
+    # Create the k8s resource
+    resource_data = load_dynamodb_resource(
+        "table_stream_resource_policy",
+        additional_replacements=replacements,
+    )
+
+    ref = k8s.CustomResourceReference(
+        CRD_GROUP, CRD_VERSION, "tables",
+        resource_name, namespace="default",
+    )
+
+    time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+    # Create table
+    k8s.create_custom_resource(ref, resource_data)
+    cr = k8s.wait_resource_consumed_by_controller(ref)
+
+    assert cr is not None
+    assert k8s.get_resource_exists(ref)
+
+    # Now wait for table to be ACTIVE
+    wait_for_cr_status(
+        ref,
+        "tableStatus",
+        "ACTIVE",
+        90,
+        3,
+    )
+
+    # The stream ARN is only assigned once the stream is available, and the
+    # stream policy is applied afterwards, so allow extra reconcile cycles.
+    assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+    yield (ref, cr, stream_resource_policy)
+
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
+
 @service_marker
 @pytest.mark.canary
 class TestTable:
@@ -1128,4 +1202,50 @@ class TestTable:
 
         # Verify policy was deleted
         deleted_policy = table.get_resource_policy(table_arn)
+        assert deleted_policy is None
+
+    def test_stream_resource_policy(self, table_stream_resource_policy):
+        (ref, res, stream_resource_policy) = table_stream_resource_policy
+        table_name = res["spec"]["tableName"]
+
+        assert self.table_exists(table_name)
+
+        # The stream resource policy is attached to the stream ARN, which is
+        # assigned by DynamoDB once Streams is enabled and surfaced in
+        # status.latestStreamARN.
+        condition.assert_synced(ref)
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        stream_arn = cr["status"]["latestStreamARN"]
+        assert stream_arn is not None
+
+        policy = table.get_resource_policy(stream_arn)
+        assert policy is not None
+        assert 'ack-stream-with-policy' in policy['Policy']
+
+        # Update stream resource policy - change the Id to verify update
+        stream_resource_policy['Id'] = 'updated-stream-policy'
+        updates = {
+            "spec": {
+                "streamResourcePolicy": json.dumps(stream_resource_policy)
+            }
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # Verify policy was updated
+        policy = table.get_resource_policy(stream_arn)
+        assert 'updated-stream-policy' in policy['Policy']
+
+        # Delete stream resource policy
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        cr["spec"]["streamResourcePolicy"] = None
+
+        k8s.patch_custom_resource(ref, cr)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # Verify policy was deleted
+        deleted_policy = table.get_resource_policy(stream_arn)
         assert deleted_policy is None

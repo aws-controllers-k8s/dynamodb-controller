@@ -33,6 +33,16 @@ resources:
           path: Policy
         compare:
           is_ignored: true
+      # Resource-based policy attached to the table's DynamoDB stream via
+      # PutResourcePolicy against the stream ARN (Status.LatestStreamARN).
+      # There is no native input field for a stream policy, so this is a
+      # custom field synced entirely through hooks.
+      StreamResourcePolicy:
+        from:
+          operation: PutResourcePolicy
+          path: Policy
+        compare:
+          is_ignored: true
       GlobalSecondaryIndexesDescriptions:
         custom_field:
           list_of: GlobalSecondaryIndexDescription

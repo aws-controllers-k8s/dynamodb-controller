@@ -2819,6 +2819,11 @@ func (in *TableSpec) DeepCopyInto(out *TableSpec) {
 		*out = new(SSESpecification)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.StreamResourcePolicy != nil {
+		in, out := &in.StreamResourcePolicy, &out.StreamResourcePolicy
+		*out = new(string)
+		**out = **in
+	}
 	if in.StreamSpecification != nil {
 		in, out := &in.StreamSpecification, &out.StreamSpecification
 		*out = new(StreamSpecification)
