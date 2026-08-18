@@ -1,21 +1,21 @@
 ignore:
   shape_names:
-  - WarmThroughput
-  - GlobalSecondaryIndexWarmThroughputDescription
-  - OnDemandThroughputOverride
-  - TableWarmThroughputDescription
+    - WarmThroughput
+    - GlobalSecondaryIndexWarmThroughputDescription
+    - OnDemandThroughputOverride
+    - TableWarmThroughputDescription
   field_paths:
-  # Replica of Spec.BillingMode
-  - TableDescription.BillingModeSummary
-  # Replica of Spec.SSESpecification
-  - TableDescription.SSEDescription
-  - TableDescription.TableClassSummary
-  - CreateTableInput.WarmThroughput
+    # Replica of Spec.BillingMode
+    - TableDescription.BillingModeSummary
+    # Replica of Spec.SSESpecification
+    - TableDescription.SSEDescription
+    - TableDescription.TableClassSummary
+    - CreateTableInput.WarmThroughput
 operations:
   UpdateGlobalTable:
     operation_type:
-    - Update
-    - Delete
+      - Update
+      - Delete
     resource_name: GlobalTable
   DescribeBackup:
     output_wrapper_field_path: BackupDescription.BackupDetails
