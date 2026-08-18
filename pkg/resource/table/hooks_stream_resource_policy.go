@@ -23,6 +23,42 @@ import (
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+// errStreamResourcePolicyRequiresStream is returned when a stream resource
+// policy is requested for a table that does not have DynamoDB Streams enabled.
+var errStreamResourcePolicyRequiresStream = errors.New(
+	"streamSpecification.resourcePolicy requires streamSpecification.streamEnabled to be true",
+)
+
+// streamResourcePolicy returns the desired resource-based policy for the
+// table's DynamoDB stream, or nil when none is configured.
+func streamResourcePolicy(r *resource) *string {
+	if r.ko.Spec.StreamSpecification == nil {
+		return nil
+	}
+	return r.ko.Spec.StreamSpecification.ResourcePolicy
+}
+
+// isStreamEnabled returns whether DynamoDB Streams is enabled on the resource.
+func isStreamEnabled(r *resource) bool {
+	return r.ko.Spec.StreamSpecification != nil &&
+		r.ko.Spec.StreamSpecification.StreamEnabled != nil &&
+		*r.ko.Spec.StreamSpecification.StreamEnabled
+}
+
+// streamSettingsChanged reports whether the stream specification changed in a
+// way that requires an UpdateTable call. The nested ResourcePolicy field is
+// synced through the resource-policy APIs instead, so a change limited to it
+// must not trigger a table update.
+func streamSettingsChanged(delta *ackcompare.Delta) bool {
+	for _, diff := range delta.Differences {
+		if diff.Path.Contains("Spec.StreamSpecification") &&
+			!diff.Path.Contains("Spec.StreamSpecification.ResourcePolicy") {
+			return true
+		}
+	}
+	return false
+}
+
 // syncStreamResourcePolicy attaches, updates, or removes the resource-based
 // policy on the table's DynamoDB stream. The policy is applied to the stream
 // ARN (Status.LatestStreamARN), which is distinct from the table ARN. The same
@@ -37,7 +73,7 @@ func (rm *resourceManager) syncStreamResourcePolicy(
 	exit := rlog.Trace("rm.syncStreamResourcePolicy")
 	defer func(err error) { exit(err) }(err)
 
-	if desired.ko.Spec.StreamResourcePolicy == nil {
+	if streamResourcePolicy(desired) == nil {
 		return rm.deleteStreamResourcePolicy(ctx, latest)
 	}
 
@@ -56,7 +92,8 @@ func (rm *resourceManager) putStreamResourcePolicy(
 	exit := rlog.Trace("rm.putStreamResourcePolicy")
 	defer func(err error) { exit(err) }(err)
 
-	if desired.ko.Spec.StreamResourcePolicy == nil {
+	policy := streamResourcePolicy(desired)
+	if policy == nil {
 		return nil
 	}
 
@@ -69,7 +106,7 @@ func (rm *resourceManager) putStreamResourcePolicy(
 		ctx,
 		&svcsdk.PutResourcePolicyInput{
 			ResourceArn: streamARN,
-			Policy:      desired.ko.Spec.StreamResourcePolicy,
+			Policy:      policy,
 		},
 	)
 	rm.metrics.RecordAPICall("UPDATE", "PutResourcePolicy", err)
@@ -109,22 +146,4 @@ func (rm *resourceManager) deleteStreamResourcePolicy(
 	}
 
 	return err
-}
-
-// compareStreamResourcePolicyDocument records a delta when the desired and
-// latest stream resource-policy documents differ. See
-// compareResourcePolicyDocument / policyDocumentsDiffer for why a JSON-aware
-// comparison is required.
-func compareStreamResourcePolicyDocument(
-	delta *ackcompare.Delta,
-	a *resource,
-	b *resource,
-) {
-	if policyDocumentsDiffer(a.ko.Spec.StreamResourcePolicy, b.ko.Spec.StreamResourcePolicy) {
-		delta.Add(
-			"Spec.StreamResourcePolicy",
-			a.ko.Spec.StreamResourcePolicy,
-			b.ko.Spec.StreamResourcePolicy,
-		)
-	}
 }

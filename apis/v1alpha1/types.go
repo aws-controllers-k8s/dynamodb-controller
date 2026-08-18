@@ -679,6 +679,7 @@ type SourceTableFeatureDetails struct {
 
 // Represents the DynamoDB Streams configuration for a table in DynamoDB.
 type StreamSpecification struct {
+	ResourcePolicy *string `json:"resourcePolicy,omitempty"`
 	StreamEnabled  *bool   `json:"streamEnabled,omitempty"`
 	StreamViewType *string `json:"streamViewType,omitempty"`
 }

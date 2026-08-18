@@ -19,15 +19,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
-	compare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 )
 
-func Test_compareStreamResourcePolicyDocument(t *testing.T) {
+func Test_streamResourcePolicyDelta(t *testing.T) {
 	streamPolicy := func(policy *string) *resource {
 		return &resource{
 			ko: &v1alpha1.Table{
 				Spec: v1alpha1.TableSpec{
-					StreamResourcePolicy: policy,
+					StreamSpecification: &v1alpha1.StreamSpecification{
+						StreamEnabled:  aws.Bool(true),
+						StreamViewType: aws.String("NEW_AND_OLD_IMAGES"),
+						ResourcePolicy: policy,
+					},
 				},
 			},
 		}
@@ -103,12 +106,11 @@ func Test_compareStreamResourcePolicyDocument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			delta := compare.NewDelta()
-			compareStreamResourcePolicyDocument(delta, tt.a, tt.b)
-			gotDifferent := delta.DifferentAt("Spec.StreamResourcePolicy")
+			delta := newResourceDelta(tt.a, tt.b)
+			gotDifferent := delta.DifferentAt("Spec.StreamSpecification.ResourcePolicy")
 			if gotDifferent != tt.wantDifferent {
 				t.Errorf(
-					"compareStreamResourcePolicyDocument() DifferentAt = %v, want %v",
+					"newResourceDelta() DifferentAt = %v, want %v",
 					gotDifferent, tt.wantDifferent,
 				)
 			}

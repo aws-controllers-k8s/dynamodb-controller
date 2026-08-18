@@ -1226,7 +1226,11 @@ class TestTable:
         stream_resource_policy['Id'] = 'updated-stream-policy'
         updates = {
             "spec": {
-                "streamResourcePolicy": json.dumps(stream_resource_policy)
+                "streamSpecification": {
+                    "streamEnabled": True,
+                    "streamViewType": "NEW_AND_OLD_IMAGES",
+                    "resourcePolicy": json.dumps(stream_resource_policy),
+                }
             }
         }
 
@@ -1240,7 +1244,7 @@ class TestTable:
 
         # Delete stream resource policy
         cr = k8s.wait_resource_consumed_by_controller(ref)
-        cr["spec"]["streamResourcePolicy"] = None
+        cr["spec"]["streamSpecification"]["resourcePolicy"] = None
 
         k8s.patch_custom_resource(ref, cr)
         time.sleep(MODIFY_WAIT_AFTER_SECONDS)
@@ -1249,3 +1253,25 @@ class TestTable:
         # Verify policy was deleted
         deleted_policy = table.get_resource_policy(stream_arn)
         assert deleted_policy is None
+
+    def test_stream_resource_policy_requires_stream(self, table_stream_resource_policy):
+        (ref, res, stream_resource_policy) = table_stream_resource_policy
+
+        # Disabling the stream while a stream resource policy is still desired
+        # is unreachable, so the controller must surface a terminal condition
+        # instead of requeueing forever.
+        updates = {
+            "spec": {
+                "streamSpecification": {
+                    "streamEnabled": False,
+                    "resourcePolicy": json.dumps(stream_resource_policy),
+                }
+            }
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        assert k8s.wait_on_condition(ref, "ACK.Terminal", "True", wait_periods=10)
+        terminal_condition = k8s.get_resource_condition(ref, "ACK.Terminal")
+        assert "streamEnabled" in terminal_condition["message"]

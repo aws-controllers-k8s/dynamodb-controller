@@ -19,10 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
-	compare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 )
 
-func Test_compareResourcePolicyDocument(t *testing.T) {
+func Test_resourcePolicyDelta(t *testing.T) {
 	type args struct {
 		a *resource
 		b *resource
@@ -225,10 +224,9 @@ func Test_compareResourcePolicyDocument(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			delta := &compare.Delta{}
-			compareResourcePolicyDocument(delta, tt.args.a, tt.args.b)
+			delta := newResourceDelta(tt.args.a, tt.args.b)
 			if got := delta.DifferentAt("Spec.ResourcePolicy"); got != tt.wantDifferent {
-				t.Errorf("compareResourcePolicyDocument() difference = %v, want %v", got, tt.wantDifferent)
+				t.Errorf("newResourceDelta() difference = %v, want %v", got, tt.wantDifferent)
 			}
 		})
 	}

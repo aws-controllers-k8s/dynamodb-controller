@@ -15,16 +15,12 @@ package table
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"reflect"
 
-	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	awsiampolicy "github.com/micahhausler/aws-iam-policy/policy"
 )
 
 // syncResourcePolicy updates a DynamoDB table's resource-based policy.
@@ -134,46 +130,4 @@ func (rm *resourceManager) getResourcePolicyWithContext(
 	}
 
 	return res.Policy, nil
-}
-
-// compareResourcePolicyDocument is a custom comparison function for
-// ResourcePolicy documents. The reason why we need a custom function for
-// this field is to handle the variability in shapes of JSON objects representing
-// IAM policies, especially when it comes to statements, actions, and other fields.
-func compareResourcePolicyDocument(
-	delta *ackcompare.Delta,
-	a *resource,
-	b *resource,
-) {
-	if policyDocumentsDiffer(a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy) {
-		delta.Add("Spec.ResourcePolicy", a.ko.Spec.ResourcePolicy, b.ko.Spec.ResourcePolicy)
-	}
-}
-
-// policyDocumentsDiffer reports whether two IAM resource-policy JSON documents
-// differ semantically. It handles the variability in shapes of JSON objects
-// representing IAM policies, especially when it comes to statements, actions,
-// and other fields, as well as differences in whitespace and key ordering. To
-// do so it uses a custom json.Unmarshaller crafted for this need: @micahhausler
-// built a library dedicated to it: github.com/micahhausler/aws-iam-policy.
-//
-// Copied from IAM Controller: https://github.com/aws-controllers-k8s/iam-controller/blob/main/pkg/resource/role/hooks.go#L398-L432
-// Based on review feedback: https://github.com/aws-controllers-k8s/dynamodb-controller/pull/154#discussion_r2443876840
-func policyDocumentsDiffer(a, b *string) bool {
-	// If exactly one policy is nil, they're different.
-	if ackcompare.HasNilDifference(a, b) {
-		return true
-	}
-	// If both policies are nil, there's no difference.
-	if a == nil && b == nil {
-		return false
-	}
-
-	// At this point, both policies are non-nil, so compare their JSON content.
-	var policyDocumentA awsiampolicy.Policy
-	_ = json.Unmarshal([]byte(*a), &policyDocumentA)
-	var policyDocumentB awsiampolicy.Policy
-	_ = json.Unmarshal([]byte(*b), &policyDocumentB)
-
-	return !reflect.DeepEqual(policyDocumentA, policyDocumentB)
 }
