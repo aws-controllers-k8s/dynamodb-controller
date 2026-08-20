@@ -27,7 +27,6 @@ License version 2.0, we include the full text of the package's License below.
 * `github.com/aws/aws-sdk-go-v2/service/dynamodb`
 * `github.com/aws/smithy-go`
 * `github.com/go-logr/logr`
-* `github.com/micahhausler/aws-iam-policy`
 * `github.com/spf13/pflag`
 * `github.com/stretchr/testify`
 * `k8s.io/api`
@@ -2046,8 +2045,6 @@ Subdependencies:
 #### github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery
 
 License Identifier: Apache-2.0
-
-
 
 
 
