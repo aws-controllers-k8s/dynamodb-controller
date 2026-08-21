@@ -17,6 +17,7 @@ import (
 	"context"
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
@@ -36,6 +37,10 @@ func (rm *resourceManager) syncContinuousBackup(
 	if desired.ko.Spec.ContinuousBackups != nil &&
 		desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
 		pitrSpec.PointInTimeRecoveryEnabled = desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled
+		if *desired.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled &&
+			desired.ko.Spec.ContinuousBackups.RecoveryPeriodInDays != nil {
+			pitrSpec.RecoveryPeriodInDays = aws.Int32(int32(*desired.ko.Spec.ContinuousBackups.RecoveryPeriodInDays))
+		}
 	}
 
 	_, err = rm.sdkapi.UpdateContinuousBackups(
@@ -72,11 +77,18 @@ func (rm *resourceManager) getResourcePointInTimeRecoveryWithContext(
 	}
 
 	isEnabled := false
-	if res.ContinuousBackupsDescription != nil {
-		isEnabled = res.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus == svcsdktypes.PointInTimeRecoveryStatusEnabled
+	var recoveryPeriodInDays *int64
+	if res.ContinuousBackupsDescription != nil &&
+		res.ContinuousBackupsDescription.PointInTimeRecoveryDescription != nil {
+		pitrDesc := res.ContinuousBackupsDescription.PointInTimeRecoveryDescription
+		isEnabled = pitrDesc.PointInTimeRecoveryStatus == svcsdktypes.PointInTimeRecoveryStatusEnabled
+		if pitrDesc.RecoveryPeriodInDays != nil {
+			recoveryPeriodInDays = aws.Int64(int64(*pitrDesc.RecoveryPeriodInDays))
+		}
 	}
 
 	return &v1alpha1.PointInTimeRecoverySpecification{
 		PointInTimeRecoveryEnabled: &isEnabled,
+		RecoveryPeriodInDays:       recoveryPeriodInDays,
 	}, nil
 }

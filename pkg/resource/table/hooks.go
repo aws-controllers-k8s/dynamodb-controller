@@ -732,6 +732,28 @@ func customPreCompare(
 			PointInTimeRecoveryEnabled: &DefaultPITREnabledValue,
 		}
 	}
+	// recoveryPeriodInDays is only meaningful when point-in-time recovery (PITR)
+	// is enabled. delta.go generates a HasNilDifference comparison for
+	// RecoveryPeriodInDays, so we must normalize the desired (a) value to match
+	// the observed (b) value in two situations, otherwise the delta never
+	// clears and the resource never reaches ACK.ResourceSynced=True:
+	//
+	//   1. PITR enabled, recoveryPeriodInDays omitted: AWS fills in a
+	//      server-side default. A desired nil vs an observed value would
+	//      produce a perpetual delta, so back-fill from b.
+	//   2. PITR disabled (nil or false) but the user left a leftover
+	//      recoveryPeriodInDays in the spec: the server (DescribeContinuousBackups)
+	//      reports no recovery period, so b's value is nil while a still holds
+	//      the stale value. Since the write path never sends recoveryPeriodInDays
+	//      when PITR is disabled, the field is irrelevant here and must be
+	//      normalized out of the comparison (matching whatever b reports).
+	if a.ko.Spec.ContinuousBackups != nil && b.ko.Spec.ContinuousBackups != nil {
+		pitrEnabled := a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil &&
+			*a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled
+		if !pitrEnabled || a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays == nil {
+			a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays = b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays
+		}
+	}
 
 	// Handle ReplicaUpdates API comparison
 	if len(a.ko.Spec.TableReplicas) != len(b.ko.Spec.TableReplicas) {

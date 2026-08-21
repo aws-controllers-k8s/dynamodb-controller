@@ -59,6 +59,13 @@ func newResourceDelta(
 				delta.Add("Spec.ContinuousBackups.PointInTimeRecoveryEnabled", a.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled, b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled)
 			}
 		}
+		if ackcompare.HasNilDifference(a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays, b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays) {
+			delta.Add("Spec.ContinuousBackups.RecoveryPeriodInDays", a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays, b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays)
+		} else if a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays != nil && b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays != nil {
+			if *a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays != *b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays {
+				delta.Add("Spec.ContinuousBackups.RecoveryPeriodInDays", a.ko.Spec.ContinuousBackups.RecoveryPeriodInDays, b.ko.Spec.ContinuousBackups.RecoveryPeriodInDays)
+			}
+		}
 	}
 	if ackcompare.HasNilDifference(a.ko.Spec.DeletionProtectionEnabled, b.ko.Spec.DeletionProtectionEnabled) {
 		delta.Add("Spec.DeletionProtectionEnabled", a.ko.Spec.DeletionProtectionEnabled, b.ko.Spec.DeletionProtectionEnabled)

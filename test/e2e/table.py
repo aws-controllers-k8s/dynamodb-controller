@@ -315,6 +315,19 @@ def get_point_in_time_recovery_enabled(table_name):
     except c.exceptions.ResourceNotFoundException:
         return None
 
+def get_point_in_time_recovery_period(table_name):
+    """Returns the RecoveryPeriodInDays for point in time recovery of the table
+    with a supplied name.
+
+    If no such Table exists, or the recovery period is not set, returns None.
+    """
+    c = boto3.client('dynamodb', region_name=get_region())
+    try:
+        resp = c.describe_continuous_backups(TableName=table_name)
+        return resp['ContinuousBackupsDescription']['PointInTimeRecoveryDescription'].get('RecoveryPeriodInDays')
+    except c.exceptions.ResourceNotFoundException:
+        return None
+
 
 def get_resource_policy(table_arn):
     """Returns the resource policy for the table with a supplied ARN.

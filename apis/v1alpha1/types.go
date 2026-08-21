@@ -436,11 +436,13 @@ type OnDemandThroughput struct {
 type PointInTimeRecoveryDescription struct {
 	EarliestRestorableDateTime *metav1.Time `json:"earliestRestorableDateTime,omitempty"`
 	LatestRestorableDateTime   *metav1.Time `json:"latestRestorableDateTime,omitempty"`
+	RecoveryPeriodInDays       *int64       `json:"recoveryPeriodInDays,omitempty"`
 }
 
 // Represents the settings used to enable point in time recovery.
 type PointInTimeRecoverySpecification struct {
-	PointInTimeRecoveryEnabled *bool `json:"pointInTimeRecoveryEnabled,omitempty"`
+	PointInTimeRecoveryEnabled *bool  `json:"pointInTimeRecoveryEnabled,omitempty"`
+	RecoveryPeriodInDays       *int64 `json:"recoveryPeriodInDays,omitempty"`
 }
 
 // Represents attributes that are copied (projected) from the table into an

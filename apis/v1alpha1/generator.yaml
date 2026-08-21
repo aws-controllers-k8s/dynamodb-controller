@@ -10,6 +10,8 @@ ignore:
     # Replica of Spec.SSESpecification
     - TableDescription.SSEDescription
     - TableDescription.TableClassSummary
+    # Deferring proper Spec/mutable implementation; exclude from the CRD for now
+    - TableDescription.MultiRegionConsistency
     - CreateTableInput.WarmThroughput
 operations:
   UpdateGlobalTable:

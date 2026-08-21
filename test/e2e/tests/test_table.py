@@ -463,11 +463,12 @@ class TestTable:
         # Get CR latest revision
         cr = k8s.wait_resource_consumed_by_controller(ref)
 
-        # Update PITR
+        # Update PITR, also setting a non-default recovery period
         updates = {
             "spec": {
                 "continuousBackups": {
-                    "pointInTimeRecoveryEnabled": True
+                    "pointInTimeRecoveryEnabled": True,
+                    "recoveryPeriodInDays": 7
                 }
             }
         }
@@ -483,6 +484,38 @@ class TestTable:
         pitr_enabled = table.get_point_in_time_recovery_enabled(table_name)
         assert pitr_enabled is not None
         assert pitr_enabled
+
+        # The resource should settle back into a synced state
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        # The configured recovery period should be reflected in AWS
+        assert table.get_point_in_time_recovery_period(table_name) == 7
+
+        # And the CR spec should round-trip the value
+        cr = k8s.get_resource(ref)
+        assert cr["spec"]["continuousBackups"]["recoveryPeriodInDays"] == 7
+
+        # Update to another valid recovery period and verify the mutable path
+        updates = {
+            "spec": {
+                "continuousBackups": {
+                    "pointInTimeRecoveryEnabled": True,
+                    "recoveryPeriodInDays": 10
+                }
+            }
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        # The resource should settle back into a synced state
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        assert table.get_point_in_time_recovery_period(table_name) == 10
+
+        cr = k8s.get_resource(ref)
+        assert cr["spec"]["continuousBackups"]["recoveryPeriodInDays"] == 10
 
         # turn off pitr again and ensure it is disabled
         updates = {
@@ -500,6 +533,9 @@ class TestTable:
             table_name,
             table.point_in_time_recovery_matches(False),
         )
+
+        # The resource should settle back into a synced state
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
 
         pitr_enabled = table.get_point_in_time_recovery_enabled(table_name)
         assert pitr_enabled is not None

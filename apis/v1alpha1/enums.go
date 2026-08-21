@@ -218,6 +218,13 @@ const (
 	KeyType_RANGE KeyType = "RANGE"
 )
 
+type MultiRegionConsistency string
+
+const (
+	MultiRegionConsistency_EVENTUAL MultiRegionConsistency = "EVENTUAL"
+	MultiRegionConsistency_STRONG   MultiRegionConsistency = "STRONG"
+)
+
 type PointInTimeRecoveryStatus string
 
 const (
