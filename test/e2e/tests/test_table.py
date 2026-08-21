@@ -268,8 +268,7 @@ def table_stream_resource_policy():
                 "Action": [
                     "dynamodb:DescribeStream",
                     "dynamodb:GetRecords",
-                    "dynamodb:GetShardIterator",
-                    "dynamodb:ListStreams"
+                    "dynamodb:GetShardIterator"
                 ],
                 # The stream ARN is timestamp-based and non-deterministic, so
                 # the policy targets all streams of this table with a wildcard.
