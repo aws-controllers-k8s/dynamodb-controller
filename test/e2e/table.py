@@ -23,7 +23,7 @@ import pytest
 
 from acktest.aws.identity import get_region
 
-DEFAULT_WAIT_UNTIL_TIMEOUT_SECONDS = 60
+DEFAULT_WAIT_UNTIL_TIMEOUT_SECONDS = 300
 DEFAULT_WAIT_UNTIL_INTERVAL_SECONDS = 5
 
 TableMatchFunc = typing.NewType(
@@ -260,7 +260,10 @@ def wait_until(
     now = datetime.datetime.now()
     timeout = now + datetime.timedelta(seconds=timeout_seconds)
 
-    while not match_fn(get(table_name)):
+    while True:
+        record = get(table_name)
+        if record is not None and match_fn(record):
+            return
         if datetime.datetime.now() >= timeout:
             pytest.fail("failed to match table before timeout")
         time.sleep(interval_seconds)

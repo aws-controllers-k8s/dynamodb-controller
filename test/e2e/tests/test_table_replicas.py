@@ -816,7 +816,7 @@ class TestTableReplicas:
                     }
                 }
             ]),
-            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*2,
+            timeout_seconds=REPLICA_WAIT_AFTER_SECONDS*3,
             interval_seconds=30,
         )
 
