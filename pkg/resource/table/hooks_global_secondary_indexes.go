@@ -171,7 +171,6 @@ func (rm *resourceManager) deleteGSIs(
 	if !canUpdateTableGSIs(latest) {
 		return requeueWaitGSIReady
 	}
-	gsiDeletesInQueue := len(removedGSIs) - 1
 
 	input := &svcsdk.UpdateTableInput{
 		TableName:            aws.String(*latest.ko.Spec.TableName),
@@ -200,11 +199,22 @@ func (rm *resourceManager) deleteGSIs(
 		return err
 	}
 
-	if gsiDeletesInQueue > 0 {
-		return requeueWaitGSIReady
-	}
-
-	return nil
+	// Requeue after issuing any GSI deletion, not only when more deletions are
+	// queued behind it. The DeleteGlobalSecondaryIndex above puts the table into
+	// UPDATING with the removed index still present, so returning nil here lets
+	// customUpdateTable fall straight through to syncTable and issue a second
+	// UpdateTable against a table mid-delete. Switching billingMode to
+	// PROVISIONED in that window is rejected with
+	//
+	//   ValidationException: One or more parameter values were invalid:
+	//   ProvisionedThroughput must be specified for index: <removed index>
+	//
+	// because the payload is built from the desired spec, which no longer
+	// carries the index AWS still sees. ValidationException is a terminal code
+	// for this resource, so that leaves the table stuck instead of retrying.
+	// Wait for the delete to settle; the next reconcile no longer sees the
+	// index as removed and the property update succeeds.
+	return requeueWaitGSIReady
 }
 
 // Update GSIs changed in the desired spec.

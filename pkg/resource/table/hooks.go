@@ -193,7 +193,7 @@ func (rm *resourceManager) customUpdateTable(
 
 		err = rm.syncResourcePolicy(ctx, desired, latest)
 		if err != nil {
-			return nil, fmt.Errorf("cannot update table resource policy %v", err)
+			return nil, fmt.Errorf("cannot update table resource policy %w", err)
 		}
 	}
 
@@ -245,7 +245,7 @@ func (rm *resourceManager) customUpdateTable(
 
 	if delta.DifferentAt("Spec.SSESpecification") {
 		if err := rm.syncTableSSESpecification(ctx, desired); err != nil {
-			return nil, fmt.Errorf("cannot update table %v", err)
+			return nil, fmt.Errorf("cannot update table %w", err)
 		}
 	}
 
@@ -275,7 +275,7 @@ func (rm *resourceManager) customUpdateTable(
 	if delta.DifferentAt("Spec.ContinuousBackups") {
 		err = rm.syncContinuousBackup(ctx, desired)
 		if err != nil {
-			return nil, fmt.Errorf("cannot update table %v", err)
+			return nil, fmt.Errorf("cannot update table %w", err)
 		}
 	}
 
@@ -351,7 +351,7 @@ func (rm *resourceManager) syncTable(
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
 	if err != nil {
-		return fmt.Errorf("cannot update table %v", err)
+		return fmt.Errorf("cannot update table %w", err)
 	}
 	// If GSI update were included in the table update we need to requeue.
 	if len(input.GlobalSecondaryIndexUpdates) > 0 {
@@ -977,7 +977,7 @@ func (rm *resourceManager) updateContributorInsights(
 
 	insight, err := ensureContibutorInsight(r)
 	if err != nil {
-		return fmt.Errorf("failed preparing contributorInsight: %v", err)
+		return fmt.Errorf("failed preparing contributorInsight: %w", err)
 	}
 
 	_, err = rm.sdkapi.UpdateContributorInsights(

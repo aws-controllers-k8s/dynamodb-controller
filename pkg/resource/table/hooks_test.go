@@ -14,12 +14,21 @@
 package table
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"net/http"
 	"reflect"
 	"testing"
 
+	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	"github.com/aws-controllers-k8s/runtime/pkg/compare"
+	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
+	ackmetrics "github.com/aws-controllers-k8s/runtime/pkg/metrics"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
@@ -504,4 +513,245 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 			}
 		})
 	}
+}
+
+const testTableARN = "arn:aws:dynamodb:us-west-2:000000000000:table/test-table"
+
+// validationExceptionHTTPClient answers every request with the 400
+// ValidationException that DynamoDB returns for an invalid parameter, so the
+// update paths below fail with a real, fully deserialized smithy.APIError
+// rather than a hand-rolled stand-in.
+type validationExceptionHTTPClient struct{}
+
+func (validationExceptionHTTPClient) Do(*http.Request) (*http.Response, error) {
+	body := `{"__type":"com.amazon.coral.validate#ValidationException",` +
+		`"message":"Invalid table-class parameter provided. Please try again with a ` +
+		`valid table-class value: [STANDARD, STANDARD_INFREQUENT_ACCESS]."}`
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     "400 Bad Request",
+		Header: http.Header{
+			"Content-Type":     []string{"application/x-amz-json-1.0"},
+			"X-Amzn-Errortype": []string{"ValidationException"},
+			"X-Amzn-Requestid": []string{"TESTREQUESTID"},
+		},
+		Body: io.NopCloser(bytes.NewReader([]byte(body))),
+	}, nil
+}
+
+// fakeCredentialsProvider satisfies the signer without touching the
+// environment, a config file, or IMDS. Declared locally rather than using
+// aws-sdk-go-v2/credentials, which is only an indirect dependency of this
+// module -- importing it would promote it to a direct require and make the
+// committed go.mod disagree with `go mod tidy` in the code-gen check.
+type fakeCredentialsProvider struct{}
+
+func (fakeCredentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
+	return aws.Credentials{
+		AccessKeyID:     "AKIAFAKEFAKEFAKEFAKE",
+		SecretAccessKey: "fake",
+		Source:          "hooks_test",
+	}, nil
+}
+
+// newFailingResourceManager returns a resourceManager whose DynamoDB client
+// always fails with ValidationException. No real credentials are resolved and
+// no network call is made; retries are disabled so each test drives exactly
+// one request.
+func newFailingResourceManager() *resourceManager {
+	return &resourceManager{
+		metrics: ackmetrics.NewMetrics("dynamodb"),
+		sdkapi: svcsdk.NewFromConfig(aws.Config{
+			Region:           "us-west-2",
+			Credentials:      fakeCredentialsProvider{},
+			HTTPClient:       validationExceptionHTTPClient{},
+			RetryMaxAttempts: 1,
+		}),
+	}
+}
+
+// newTestTable builds a minimally valid ACTIVE table resource. Fields that the
+// update paths dereference unconditionally (TableName, BillingMode) are always
+// populated.
+func newTestTable() *resource {
+	return &resource{ko: &v1alpha1.Table{
+		Spec: v1alpha1.TableSpec{
+			TableName:   aws.String("test-table"),
+			BillingMode: aws.String("PAY_PER_REQUEST"),
+			TableClass:  aws.String("STANDARD"),
+		},
+		Status: v1alpha1.TableStatus{
+			TableStatus: aws.String("ACTIVE"),
+			ACKResourceMetadata: &ackv1alpha1.ResourceMetadata{
+				ARN: (*ackv1alpha1.AWSResourceName)(aws.String(testTableARN)),
+			},
+		},
+	}}
+}
+
+// Test_customUpdateTable_preservesTerminalAWSError asserts that every update
+// path in customUpdateTable that wraps an AWS SDK error keeps that error
+// reachable through the error chain, so terminalAWSError can still recognize
+// the ValidationException listed under generator.yaml's terminal_codes.
+//
+// Wrapping with %v instead of %w flattens the AWS error to a string and
+// defeats the errors.As lookup, which is what caused
+// https://github.com/aws-controllers-k8s/community/issues/3006 -- the
+// controller reported ACK.Recoverable and retried an invalid update forever.
+//
+// Each case names the hooks.go wrap site it covers.
+func Test_customUpdateTable_preservesTerminalAWSError(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(desired *resource)
+		deltaAt string
+	}{
+		{
+			// syncTable -> "cannot update table %w"
+			name:    "TableClass update wraps UpdateTable error",
+			deltaAt: "Spec.TableClass",
+			setup: func(desired *resource) {
+				desired.ko.Spec.TableClass = aws.String("NONEXISTENT_CLASS")
+			},
+		},
+		{
+			// customUpdateTable -> "cannot update table %w"
+			name:    "SSESpecification update wraps UpdateTable error",
+			deltaAt: "Spec.SSESpecification",
+			setup: func(desired *resource) {
+				desired.ko.Spec.SSESpecification = &v1alpha1.SSESpecification{
+					Enabled: aws.Bool(true),
+					SSEType: aws.String("KMS"),
+				}
+			},
+		},
+		{
+			// customUpdateTable -> "cannot update table %w"
+			name:    "ContinuousBackups update wraps UpdateContinuousBackups error",
+			deltaAt: "Spec.ContinuousBackups",
+			setup: func(desired *resource) {
+				desired.ko.Spec.ContinuousBackups = &v1alpha1.PointInTimeRecoverySpecification{
+					PointInTimeRecoveryEnabled: aws.Bool(true),
+				}
+			},
+		},
+		{
+			// customUpdateTable -> "cannot update table resource policy %w"
+			name:    "ResourcePolicy update wraps PutResourcePolicy error",
+			deltaAt: "Spec.ResourcePolicy",
+			setup: func(desired *resource) {
+				desired.ko.Spec.ResourcePolicy = aws.String(`{"Version":"2012-10-17","Statement":[]}`)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rm := newFailingResourceManager()
+			desired, latest := newTestTable(), newTestTable()
+			tt.setup(desired)
+
+			delta := compare.NewDelta()
+			delta.Add(tt.deltaAt, desired, latest)
+
+			_, err := rm.customUpdateTable(context.Background(), desired, latest, delta)
+			require.Error(t, err)
+			require.True(t, rm.terminalAWSError(err),
+				"ValidationException must stay reachable through the wrap for %s; "+
+					"wrap the AWS error with %%w, not %%v. got: %v", tt.deltaAt, err)
+		})
+	}
+}
+
+// Test_customUpdateTable_setsTerminalCondition asserts the user-visible
+// outcome reported in community#3006: an invalid tableClass update must settle
+// on ACK.Terminal, and onError must return ackerr.Terminal so the runtime
+// stops requeuing instead of retrying the doomed update forever.
+func Test_customUpdateTable_setsTerminalCondition(t *testing.T) {
+	rm := newFailingResourceManager()
+	desired, latest := newTestTable(), newTestTable()
+	desired.ko.Spec.TableClass = aws.String("NONEXISTENT_CLASS")
+
+	delta := compare.NewDelta()
+	delta.Add("Spec.TableClass", desired, latest)
+
+	_, err := rm.customUpdateTable(context.Background(), desired, latest, delta)
+	require.Error(t, err)
+
+	updated, onErr := rm.onError(latest, err)
+	require.Equal(t, ackerr.Terminal, onErr,
+		"a terminal AWS error must short-circuit the requeue loop")
+
+	var terminal, recoverable *ackv1alpha1.Condition
+	for _, c := range updated.Conditions() {
+		switch c.Type {
+		case ackv1alpha1.ConditionTypeTerminal:
+			terminal = c
+		case ackv1alpha1.ConditionTypeRecoverable:
+			recoverable = c
+		}
+	}
+
+	require.NotNil(t, terminal, "ACK.Terminal condition must be set")
+	require.Equal(t, corev1.ConditionTrue, terminal.Status)
+	require.NotNil(t, terminal.Message)
+	require.Contains(t, *terminal.Message, "ValidationException")
+	require.Nil(t, recoverable, "ACK.Recoverable must not be set for a terminal error")
+}
+
+// okHTTPClient answers every request with an empty successful JSON body, which
+// is enough for the SDK to deserialize an UpdateTable response.
+type okHTTPClient struct{}
+
+func (okHTTPClient) Do(*http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Status:     "200 OK",
+		Header: http.Header{
+			"Content-Type":     []string{"application/x-amz-json-1.0"},
+			"X-Amzn-Requestid": []string{"TESTREQUESTID"},
+		},
+		Body: io.NopCloser(bytes.NewReader([]byte(`{}`))),
+	}, nil
+}
+
+// Test_deleteGSIs_requeuesAfterSingleDelete guards the update ordering in
+// customUpdateTable. deleteGSIs used to return nil once it had issued the last
+// queued deletion, which let customUpdateTable continue into syncTable and
+// issue a second UpdateTable while the table was still UPDATING and the removed
+// index still present. AWS rejects that with
+//
+//	ValidationException: ... ProvisionedThroughput must be specified for index: <name>
+//
+// which is a terminal code for this resource, so the table would stop
+// reconciling instead of retrying. Every successful deletion must requeue.
+//
+// See https://github.com/aws-controllers-k8s/community/issues/3006
+func Test_deleteGSIs_requeuesAfterSingleDelete(t *testing.T) {
+	rm := &resourceManager{
+		metrics: ackmetrics.NewMetrics("dynamodb"),
+		sdkapi: svcsdk.NewFromConfig(aws.Config{
+			Region:           "us-west-2",
+			Credentials:      fakeCredentialsProvider{},
+			HTTPClient:       okHTTPClient{},
+			RetryMaxAttempts: 1,
+		}),
+	}
+
+	activeGSI := func(name string) *v1alpha1.GlobalSecondaryIndexDescription {
+		return &v1alpha1.GlobalSecondaryIndexDescription{
+			IndexName:   aws.String(name),
+			IndexStatus: aws.String("ACTIVE"),
+		}
+	}
+
+	desired, latest := newTestTable(), newTestTable()
+	latest.ko.Status.GlobalSecondaryIndexesDescriptions =
+		[]*v1alpha1.GlobalSecondaryIndexDescription{activeGSI("GSI1"), activeGSI("GSI2")}
+
+	// A single removed index: the case that previously returned nil.
+	err := rm.deleteGSIs(context.Background(), desired, latest, []string{"GSI2"})
+	require.Equal(t, requeueWaitGSIReady, err,
+		"a successful GSI deletion must requeue so the table settles before "+
+			"customUpdateTable attempts any further table property update")
 }

@@ -1310,3 +1310,67 @@ class TestTable:
         assert k8s.wait_on_condition(ref, "ACK.Terminal", "True", wait_periods=10)
         terminal_condition = k8s.get_resource_condition(ref, "ACK.Terminal")
         assert "streamEnabled" in terminal_condition["message"]
+
+    def test_terminal_condition_for_invalid_table_class(self, table_basic):
+        """An update rejected by DynamoDB with ValidationException must settle
+        on ACK.Terminal, not ACK.Recoverable, because ValidationException is
+        listed under terminal_codes in generator.yaml. Wrapping the AWS error
+        with %v instead of %w hid it from errors.As and made the controller
+        retry the invalid update forever.
+
+        See https://github.com/aws-controllers-k8s/community/issues/3006
+        """
+        (ref, res) = table_basic
+
+        table_name = res["spec"]["tableName"]
+        assert self.table_exists(table_name)
+        condition.assert_synced(ref)
+
+        # Patch tableClass to a value DynamoDB will reject. UpdateTable answers
+        # with ValidationException, which generator.yaml marks terminal.
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        cr["spec"]["tableClass"] = "NONEXISTENT_CLASS"
+        k8s.patch_custom_resource(ref, cr)
+
+        assert k8s.wait_on_condition(
+            ref, condition.CONDITION_TYPE_TERMINAL, "True",
+            wait_periods=18, period_length=10,
+        ), "ACK.Terminal was not set for an invalid tableClass"
+
+        terminal = k8s.get_resource_condition(
+            ref, condition.CONDITION_TYPE_TERMINAL)
+        assert "ValidationException" in terminal["message"]
+
+        # A terminal resource is by definition not synced.
+        condition.assert_not_synced(ref)
+
+        # The rejected update must not have partially applied. STANDARD is the
+        # default class, which DynamoDB reports by omitting TableClassSummary.
+        aws_table = table.get(table_name)
+        assert aws_table.get("TableClassSummary", {}).get(
+            "TableClass", "STANDARD") == "STANDARD"
+
+        # The terminal state must clear once the spec is corrected, otherwise
+        # the resource would be permanently stuck. The runtime clears every
+        # condition at the start of each reconcile and only re-adds the ones
+        # that still apply, so a cleared ACK.Terminal is absent from
+        # status.conditions rather than present with status False.
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+        cr["spec"]["tableClass"] = "STANDARD"
+        k8s.patch_custom_resource(ref, cr)
+
+        terminal_cleared = False
+        for _ in range(18):
+            cond = k8s.get_resource_condition(
+                ref, condition.CONDITION_TYPE_TERMINAL)
+            if cond is None or cond.get("status") != "True":
+                terminal_cleared = True
+                break
+            time.sleep(10)
+        assert terminal_cleared, \
+            "ACK.Terminal did not clear after the invalid tableClass was corrected"
+
+        assert k8s.wait_on_condition(
+            ref, condition.CONDITION_TYPE_RESOURCE_SYNCED, "True",
+            wait_periods=18, period_length=10,
+        ), "table did not return to synced after the invalid tableClass was corrected"
