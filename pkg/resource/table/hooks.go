@@ -210,7 +210,7 @@ func (rm *resourceManager) customUpdateTable(
 			rlog.Debug("deferring StreamSpecification.ResourcePolicy sync - stream not ready")
 			streamResourcePolicyDeferred = true
 		} else if err = rm.syncStreamResourcePolicy(ctx, desired, latest); err != nil {
-			return nil, fmt.Errorf("cannot update stream resource policy %v", err)
+			return nil, fmt.Errorf("cannot update stream resource policy %w", err)
 		}
 	}
 
