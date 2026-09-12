@@ -34,6 +34,12 @@ RESOURCE_PLURAL = "tables"
 CREATE_WAIT_AFTER_SECONDS = 30
 DELETE_WAIT_AFTER_SECONDS = 15
 MODIFY_WAIT_AFTER_SECONDS = 90
+# Some table mutations (billing-mode switch, on-demand throughput change) are
+# applied asynchronously by DynamoDB and can take well over 90s server-side.
+# These waits previously used the bare MODIFY_WAIT_AFTER_SECONDS (90s), which
+# was too tight and caused intermittent "failed to match table before timeout"
+# flakes; use a dedicated, larger floor for those matcher waits.
+SLOW_MODIFY_WAIT_AFTER_SECONDS = 600
 
 def new_gsi_dict(index_name: str, hash_key: str, read_write_pt: int):
     return {
@@ -538,14 +544,14 @@ class TestTable:
         table.wait_until(
             table_name,
             table.billing_mode_matcher("PROVISIONED"),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
 
         table.wait_until(
             table_name,
             table.provisioned_throughput_matcher(5, 5),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
 
@@ -858,8 +864,15 @@ class TestTable:
         table.wait_until(
             table_name,
             table.gsi_matches([new_gsi_dict("office-per-city", "City", 10), new_gsi_dict("office-per-country", "Country", 5)]),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
-            interval_seconds=15,
+            # This patch both MODIFIES office-per-city and ADDS office-per-country.
+            # DynamoDB only allows one GSI create/update at a time, so the
+            # controller correctly serializes: it waits out office-per-city's
+            # CREATING phase before issuing the office-per-country create, which
+            # then has its own backfill. End-to-end this occasionally exceeds the
+            # previous 1h window; widen it and poll more responsively so a
+            # convergence isn't missed between polls.
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*60,
+            interval_seconds=10,
         )
 
     def test_multi_updates(self, table_gsi):
@@ -1087,7 +1100,7 @@ class TestTable:
         table.wait_until(
             table_name,
             table.on_demand_throughput_matcher(200, 200),
-            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS,
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=3,
         )
 

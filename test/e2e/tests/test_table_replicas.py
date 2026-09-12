@@ -32,7 +32,11 @@ RESOURCE_PLURAL = "tables"
 CREATE_WAIT_AFTER_SECONDS = 30
 DELETE_WAIT_AFTER_SECONDS = 30
 MODIFY_WAIT_AFTER_SECONDS = 600
-REPLICA_WAIT_AFTER_SECONDS = 600
+# Multi-region replica + GSI operations are serialized server-side by DynamoDB
+# (each GSI must leave CREATING before the next mutation is accepted), so
+# convergence can legitimately exceed 10 minutes under load. The base wait is
+# multiplied (e.g. *2, *3) at individual call sites for the heaviest waits.
+REPLICA_WAIT_AFTER_SECONDS = 900
 
 REPLICA_REGION_1 = "us-east-1"
 REPLICA_REGION_2 = "eu-west-1"
@@ -193,7 +197,16 @@ def table_multiple_replicas_gsis():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    # A table with multiple replicas and GSIs can take several minutes for the
+    # controller to first reconcile, so allow up to 5 minutes for the CR to be
+    # consumed (the acktest default is only ~30s). Fail loudly if it never is,
+    # rather than yielding cr=None and crashing downstream with a TypeError.
+    cr = k8s.wait_resource_consumed_by_controller(
+        ref, wait_periods=30, period_length=10,
+    )
+    assert cr is not None, (
+        f"controller never consumed {table_name} within the wait window"
+    )
 
     table.wait_until(
         table_name,
