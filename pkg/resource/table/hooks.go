@@ -167,6 +167,12 @@ func (rm *resourceManager) customUpdateTable(
 		return desired, requeueWaitWhileCreating
 	}
 
+	// A stream resource policy is attached to the table's DynamoDB stream, so
+	// it cannot be reached unless Streams is enabled on the table.
+	if streamResourcePolicy(desired) != nil && !isStreamEnabled(desired) {
+		return nil, ackerr.NewTerminalError(errStreamResourcePolicyRequiresStream)
+	}
+
 	// Merge in the information we read from the API call above to the copy of
 	// the original Kubernetes object we passed to the function
 	ko := desired.ko.DeepCopy()
@@ -191,7 +197,27 @@ func (rm *resourceManager) customUpdateTable(
 		}
 	}
 
-	if !delta.DifferentExcept("Spec.Tags", "Spec.ResourcePolicy") {
+	// StreamSpecification.ResourcePolicy is attached to the table's DynamoDB
+	// stream rather than to the table itself, so it can only be synced while the
+	// stream exists. When the stream settings are changing in the same delta we
+	// let the table update run first and sync the policy on a later reconcile:
+	// that way the policy is only attached once the stream has been created, and
+	// only removed once the stream has actually been disabled.
+	streamResourcePolicyDeferred := false
+	if delta.DifferentAt("Spec.StreamSpecification.ResourcePolicy") {
+		streamARN := latest.ko.Status.LatestStreamARN
+		if streamSettingsChanged(delta) || streamARN == nil || *streamARN == "" {
+			rlog.Debug("deferring StreamSpecification.ResourcePolicy sync - stream not ready")
+			streamResourcePolicyDeferred = true
+		} else if err = rm.syncStreamResourcePolicy(ctx, desired, latest); err != nil {
+			return nil, fmt.Errorf("cannot update stream resource policy %w", err)
+		}
+	}
+
+	if !delta.DifferentExcept("Spec.Tags", "Spec.ResourcePolicy", "Spec.StreamSpecification.ResourcePolicy") {
+		if streamResourcePolicyDeferred {
+			return &resource{ko}, requeueWaitWhileUpdating
+		}
 		return &resource{ko}, nil
 	}
 
@@ -272,7 +298,7 @@ func (rm *resourceManager) customUpdateTable(
 	// then GSI
 	if delta.DifferentExcept("Spec.Tags", "Spec.TimeToLive") {
 		switch {
-		case delta.DifferentAt("Spec.StreamSpecification"):
+		case streamSettingsChanged(delta):
 			if err := rm.syncTable(ctx, desired, latest, delta); err != nil {
 				return nil, err
 			}
@@ -398,7 +424,7 @@ func (rm *resourceManager) newUpdateTablePayload(
 			}
 		}
 	}
-	if delta.DifferentAt("Spec.StreamSpecification") {
+	if streamSettingsChanged(delta) {
 		if desired.ko.Spec.StreamSpecification != nil {
 			if desired.ko.Spec.StreamSpecification.StreamEnabled != nil {
 				input.StreamSpecification = &svcsdktypes.StreamSpecification{
@@ -572,6 +598,18 @@ func (rm *resourceManager) setResourceAdditionalFields(
 		ko.Spec.ResourcePolicy = policy
 	}
 
+	// The stream's resource policy lives on the stream ARN, which only exists
+	// once DynamoDB Streams is enabled. GetResourcePolicy works against the same
+	// API for both tables and streams.
+	if ko.Spec.StreamSpecification != nil &&
+		ko.Status.LatestStreamARN != nil && *ko.Status.LatestStreamARN != "" {
+		streamPolicy, err := rm.getResourcePolicyWithContext(ctx, ko.Status.LatestStreamARN)
+		if err != nil {
+			return err
+		}
+		ko.Spec.StreamSpecification.ResourcePolicy = streamPolicy
+	}
+
 	return nil
 }
 
@@ -742,8 +780,6 @@ func customPreCompare(
 			delta.Add("Spec.ContributorInsights", a.ko.Spec.ContributorInsights, b.ko.Spec.ContributorInsights)
 		}
 	}
-	compareResourcePolicyDocument(delta, a, b)
-
 }
 
 // equalAttributeDefinitions return whether two AttributeDefinition arrays are equal or not.

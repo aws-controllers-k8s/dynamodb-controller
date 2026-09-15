@@ -164,7 +164,8 @@ def table_replicas_gsi():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = k8s.wait_resource_consumed_by_controller(ref, wait_periods=12, period_length=10)
+    assert cr is not None, f"controller did not consume {table_name} in time"
 
     table.wait_until(
         table_name,
@@ -197,6 +198,7 @@ def table_multiple_replicas_gsis():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
+    
     # A table with multiple replicas and GSIs can take several minutes for the
     # controller to first reconcile, so allow up to 5 minutes for the CR to be
     # consumed (the acktest default is only ~30s). Fail loudly if it never is,
@@ -207,7 +209,7 @@ def table_multiple_replicas_gsis():
     assert cr is not None, (
         f"controller never consumed {table_name} within the wait window"
     )
-
+    
     table.wait_until(
         table_name,
         table.status_matches("ACTIVE"),
@@ -239,7 +241,8 @@ def table_multiple_replicas_gsis_provisioned():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = k8s.wait_resource_consumed_by_controller(ref, wait_periods=12, period_length=10)
+    assert cr is not None, f"controller did not consume {table_name} in time"
 
     table.wait_until(
         table_name,

@@ -409,6 +409,8 @@ spec:
                      NEW_AND_OLD_IMAGES - Both the new and the old item images of the item
                      are written to the stream.
                 properties:
+                  resourcePolicy:
+                    type: string
                   streamEnabled:
                     type: boolean
                   streamViewType:
