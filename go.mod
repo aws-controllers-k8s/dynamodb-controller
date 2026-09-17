@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aws-controllers-k8s/kms-controller v1.5.0
-	github.com/aws-controllers-k8s/runtime v0.63.0
+	github.com/aws-controllers-k8s/runtime v0.64.0
 	github.com/aws/aws-sdk-go-v2 v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.8
 	github.com/aws/smithy-go v1.22.2

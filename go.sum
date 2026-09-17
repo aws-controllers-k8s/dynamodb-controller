@@ -2,8 +2,8 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/aws-controllers-k8s/kms-controller v1.5.0 h1:VgZbNYW+nHQJF8nr3ZLgHoAC+JDpnygnfVcyz29HHyU=
 github.com/aws-controllers-k8s/kms-controller v1.5.0/go.mod h1:7x7QW+WLFP/JjMlcIP0sHtFd2dDNzpZm56rQvHCFya8=
-github.com/aws-controllers-k8s/runtime v0.63.0 h1:BR8uOwV08AoP5bNS7tlqoLXkSK6E82r7K8fJOuaoVZw=
-github.com/aws-controllers-k8s/runtime v0.63.0/go.mod h1:U0E02HFCvRnLQplApOIeTPDBiRBKXjvyaRhb475bcGs=
+github.com/aws-controllers-k8s/runtime v0.64.0 h1:fWoRgEcMewpcZDqHfu6jIItSRShkF5+er/Xz/B3EAko=
+github.com/aws-controllers-k8s/runtime v0.64.0/go.mod h1:U0E02HFCvRnLQplApOIeTPDBiRBKXjvyaRhb475bcGs=
 github.com/aws/aws-sdk-go-v2 v1.36.0 h1:b1wM5CcE65Ujwn565qcwgtOTT1aT4ADOHHgglKjG7fk=
 github.com/aws/aws-sdk-go-v2 v1.36.0/go.mod h1:5PMILGVKiW32oDzjj6RU52yrNrDPUHcbZQYr1sM7qmM=
 github.com/aws/aws-sdk-go-v2/config v1.28.6 h1:D89IKtGrs/I3QXOLNTH93NJYtDhm8SYa9Q5CsPShmyo=
