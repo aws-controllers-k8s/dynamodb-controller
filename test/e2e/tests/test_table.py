@@ -385,6 +385,28 @@ class TestTable:
         ttl_status = ttl["TimeToLiveStatus"]
         assert ttl_status in ("ENABLED", "ENABLING")
 
+    def test_disabled_ttl_with_attribute_name(self, table_basic):
+        (ref, res) = table_basic
+
+        table_name = res["spec"]["tableName"]
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        updates = {
+            "spec": {
+                "timeToLive": {
+                    "attributeName": "ForumName",
+                    "enabled": False
+                }
+            }
+        }
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        ttl = table.get_time_to_live(table_name)
+        assert ttl is not None
+        assert ttl["TimeToLiveStatus"] == "DISABLED"
+
     def test_enable_point_in_time_recovery(self, table_lsi):
         (ref, res) = table_lsi
 
