@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
@@ -65,7 +64,6 @@ var TerminalStatuses = []v1alpha1.TableStatus_SDK{
 }
 
 var (
-	DefaultTTLEnabledValue  = false
 	DefaultPITREnabledValue = false
 )
 
@@ -208,12 +206,8 @@ func (rm *resourceManager) customUpdateTable(
 	}
 
 	if delta.DifferentAt("Spec.TimeToLive") {
-		if err := rm.syncTTL(ctx, desired, latest); err != nil {
-			// Ignore "already disabled errors"
-			if awsErr, ok := ackerr.AWSError(err); ok && !(awsErr.ErrorCode() == "ValidationException" &&
-				strings.HasPrefix(awsErr.ErrorMessage(), "TimeToLive is already disabled")) {
-				return nil, err
-			}
+		if err := rm.syncTTL(ctx, desired, latest); err != nil && !isTTLAlreadyDisabledError(err) {
+			return nil, err
 		}
 	}
 
@@ -683,10 +677,8 @@ func customPreCompare(
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 		}
 	}
-	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
-		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
-			Enabled: &DefaultTTLEnabledValue,
-		}
+	if !equalTTL(a.ko.Spec.TimeToLive, b.ko.Spec.TimeToLive) {
+		delta.Add("Spec.TimeToLive", a.ko.Spec.TimeToLive, b.ko.Spec.TimeToLive)
 	}
 	if a.ko.Spec.ContinuousBackups == nil && b.ko.Spec.ContinuousBackups != nil &&
 		b.ko.Spec.ContinuousBackups.PointInTimeRecoveryEnabled != nil {
