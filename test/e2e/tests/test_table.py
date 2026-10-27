@@ -110,7 +110,7 @@ def table_lsi():
     except:
         pass
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def table_gsi():
     resource_name = random_suffix_name("table-gsi", 32)
     (ref, cr) = create_table(resource_name, "table_global_secondary_indexes")
