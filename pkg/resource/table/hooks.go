@@ -626,14 +626,27 @@ func customPreCompare(
 		}
 	}
 
-	if len(a.ko.Spec.AttributeDefinitions) != len(b.ko.Spec.AttributeDefinitions) {
+	// DynamoDB only stores attribute definitions that are referenced by the
+	// table's key schema or by an index. An attribute definition in the desired
+	// spec that is referenced by nothing is not a state DynamoDB can represent
+	// (UpdateTable only accepts AttributeDefinitions alongside
+	// GlobalSecondaryIndexUpdates), so it can never be reconciled. Including it
+	// in the delta produces a diff that no update branch can resolve, which
+	// requeues the resource forever without ever setting ACK.ResourceSynced=True.
+	// See https://github.com/aws-controllers-k8s/community/issues/3011.
+	//
+	// Compare only the subset of desired attribute definitions that are actually
+	// referenced, so an unused leftover definition (e.g. one orphaned by removing
+	// the last GSI that referenced it) does not drive a permanent diff.
+	referencedAttrDefs := referencedAttributeDefinitions(a)
+	if len(referencedAttrDefs) != len(b.ko.Spec.AttributeDefinitions) {
 		delta.Add(
 			"Spec.AttributeDefinitions",
 			a.ko.Spec.AttributeDefinitions,
 			b.ko.Spec.AttributeDefinitions,
 		)
-	} else if a.ko.Spec.AttributeDefinitions != nil && b.ko.Spec.AttributeDefinitions != nil {
-		if !equalAttributeDefinitions(a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions) {
+	} else if referencedAttrDefs != nil && b.ko.Spec.AttributeDefinitions != nil {
+		if !equalAttributeDefinitions(referencedAttrDefs, b.ko.Spec.AttributeDefinitions) {
 			delta.Add("Spec.AttributeDefinitions", a.ko.Spec.AttributeDefinitions, b.ko.Spec.AttributeDefinitions)
 		}
 	}
@@ -744,6 +757,54 @@ func customPreCompare(
 	}
 	compareResourcePolicyDocument(delta, a, b)
 
+}
+
+// referencedAttributeDefinitions returns the subset of the resource's desired
+// Spec.AttributeDefinitions whose attribute name is referenced by the table's
+// key schema or by any global/local secondary index key schema. DynamoDB only
+// stores attribute definitions that back a key, so unreferenced definitions are
+// not part of the server-side state and must be excluded when diffing against
+// the observed resource. See
+// https://github.com/aws-controllers-k8s/community/issues/3011.
+func referencedAttributeDefinitions(r *resource) []*v1alpha1.AttributeDefinition {
+	if r == nil || r.ko == nil {
+		return nil
+	}
+	if len(r.ko.Spec.AttributeDefinitions) == 0 {
+		return r.ko.Spec.AttributeDefinitions
+	}
+
+	referenced := map[string]struct{}{}
+	addKeySchema := func(ks []*v1alpha1.KeySchemaElement) {
+		for _, kse := range ks {
+			if kse != nil && kse.AttributeName != nil {
+				referenced[*kse.AttributeName] = struct{}{}
+			}
+		}
+	}
+
+	addKeySchema(r.ko.Spec.KeySchema)
+	for _, gsi := range r.ko.Spec.GlobalSecondaryIndexes {
+		if gsi != nil {
+			addKeySchema(gsi.KeySchema)
+		}
+	}
+	for _, lsi := range r.ko.Spec.LocalSecondaryIndexes {
+		if lsi != nil {
+			addKeySchema(lsi.KeySchema)
+		}
+	}
+
+	filtered := make([]*v1alpha1.AttributeDefinition, 0, len(r.ko.Spec.AttributeDefinitions))
+	for _, ad := range r.ko.Spec.AttributeDefinitions {
+		if ad == nil || ad.AttributeName == nil {
+			continue
+		}
+		if _, ok := referenced[*ad.AttributeName]; ok {
+			filtered = append(filtered, ad)
+		}
+	}
+	return filtered
 }
 
 // equalAttributeDefinitions return whether two AttributeDefinition arrays are equal or not.
