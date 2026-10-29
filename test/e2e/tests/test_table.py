@@ -826,6 +826,43 @@ class TestTable:
             interval_seconds=15,
         )
 
+    def test_delete_gsi_keep_attribute_definition(self, table_gsi):
+        """Removing the last GSI that references an attribute while leaving
+        that attribute in spec.attributeDefinitions must still converge.
+
+        DynamoDB drops the now-unreferenced definition server-side, so the
+        desired spec keeps an attribute the observed table no longer has.
+        The controller must ignore unreferenced definitions in its delta and
+        reach ACK.ResourceSynced=True instead of requeueing forever.
+        See https://github.com/aws-controllers-k8s/community/issues/3011.
+        """
+        (ref, res) = table_gsi
+
+        table_name = res["spec"]["tableName"]
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+
+        # Get CR latest revision
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Remove office-per-city, the only GSI, but deliberately keep its
+        # "City" attribute definition in the spec.
+        cr["spec"]["globalSecondaryIndexes"] = []
+
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, cr)
+
+        table.wait_until(
+            table_name,
+            table.gsi_matches([]),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
+            interval_seconds=15,
+        )
+
+        # The orphaned definition must not leave the resource out of sync.
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
     def test_create_update_gsi(self, table_gsi):
         (ref, res) = table_gsi
 
