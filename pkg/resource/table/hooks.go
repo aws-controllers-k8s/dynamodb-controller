@@ -284,6 +284,10 @@ func (rm *resourceManager) customUpdateTable(
 			if err := rm.syncTableOnDemandThroughput(ctx, desired); err != nil {
 				return nil, err
 			}
+		case delta.DifferentAt("Spec.WarmThroughput"):
+			if err := rm.syncTableWarmThroughput(ctx, desired); err != nil {
+				return nil, err
+			}
 		// Create any new GSIs once all existing GSI have been updated.
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(addedGSIs) > 0:
 			if err := rm.addGSIs(ctx, desired, latest, addedGSIs); err != nil {
@@ -494,6 +498,42 @@ func (rm *resourceManager) syncTableOnDemandThroughput(
 	return nil
 }
 
+// syncTableWarmThroughput updates a given table warm throughput settings.
+// Only the members set in the desired spec are sent to AWS.
+func (rm *resourceManager) syncTableWarmThroughput(
+	ctx context.Context,
+	r *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncTableWarmThroughput")
+	defer exit(err)
+
+	if r.ko.Spec.WarmThroughput == nil {
+		return nil
+	}
+	input := &svcsdk.UpdateTableInput{
+		TableName:      aws.String(*r.ko.Spec.TableName),
+		WarmThroughput: &svcsdktypes.WarmThroughput{},
+	}
+	if r.ko.Spec.WarmThroughput.ReadUnitsPerSecond != nil {
+		input.WarmThroughput.ReadUnitsPerSecond = aws.Int64(
+			*r.ko.Spec.WarmThroughput.ReadUnitsPerSecond,
+		)
+	}
+	if r.ko.Spec.WarmThroughput.WriteUnitsPerSecond != nil {
+		input.WarmThroughput.WriteUnitsPerSecond = aws.Int64(
+			*r.ko.Spec.WarmThroughput.WriteUnitsPerSecond,
+		)
+	}
+
+	_, err = rm.sdkapi.UpdateTable(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // syncTableProvisionedThroughput updates a given table provisioned throughputs
 func (rm *resourceManager) syncTableProvisionedThroughput(
 	ctx context.Context,
@@ -674,6 +714,10 @@ func customPreCompare(
 	}
 	if aws.ToString(b.ko.Spec.BillingMode) == string(v1alpha1.BillingMode_PAY_PER_REQUEST) {
 		b.ko.Spec.ProvisionedThroughput = nil
+	}
+
+	if warmThroughputNeedsIncrease(a.ko.Spec.WarmThroughput, b.ko.Spec.WarmThroughput) {
+		delta.Add("Spec.WarmThroughput", a.ko.Spec.WarmThroughput, b.ko.Spec.WarmThroughput)
 	}
 
 	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
@@ -957,4 +1001,33 @@ func (rm *resourceManager) updateContributorInsights(
 	}
 
 	return nil
+}
+
+// warmThroughputNeedsIncrease returns true if the desired warm throughput has
+// a member that is higher than the observed value (or the observed value is
+// missing). Warm throughput can only be increased and AWS sets default values
+// and may raise them on its own, so a nil desired value (or member) means
+// "not managed", and a desired value lower than or equal to the observed value
+// is considered in sync.
+func warmThroughputNeedsIncrease(
+	desired *v1alpha1.WarmThroughput,
+	latest *v1alpha1.WarmThroughput,
+) bool {
+	if desired == nil {
+		return false
+	}
+	if latest == nil {
+		return desired.ReadUnitsPerSecond != nil || desired.WriteUnitsPerSecond != nil
+	}
+	return int64NeedsIncrease(desired.ReadUnitsPerSecond, latest.ReadUnitsPerSecond) ||
+		int64NeedsIncrease(desired.WriteUnitsPerSecond, latest.WriteUnitsPerSecond)
+}
+
+// int64NeedsIncrease returns true if desired is set and either latest is unset
+// or lower than desired.
+func int64NeedsIncrease(desired *int64, latest *int64) bool {
+	if desired == nil {
+		return false
+	}
+	return latest == nil || *latest < *desired
 }

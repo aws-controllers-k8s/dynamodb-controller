@@ -748,6 +748,17 @@ type TableDescription struct {
 	TableName           *string              `json:"tableName,omitempty"`
 	TableSizeBytes      *int64               `json:"tableSizeBytes,omitempty"`
 	TableStatus         *string              `json:"tableStatus,omitempty"`
+	// Represents the warm throughput value (in read units per second and write
+	// units per second) of the base table.
+	WarmThroughput *TableWarmThroughputDescription `json:"warmThroughput,omitempty"`
+}
+
+// Represents the warm throughput value (in read units per second and write
+// units per second) of the base table.
+type TableWarmThroughputDescription struct {
+	ReadUnitsPerSecond  *int64  `json:"readUnitsPerSecond,omitempty"`
+	Status              *string `json:"status,omitempty"`
+	WriteUnitsPerSecond *int64  `json:"writeUnitsPerSecond,omitempty"`
 }
 
 // Describes a tag. A tag is a key-value pair. You can add up to 50 tags to
@@ -810,4 +821,13 @@ type UpdateReplicationGroupMemberAction struct {
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`
 	RegionName                    *string                        `json:"regionName,omitempty"`
 	TableClassOverride            *string                        `json:"tableClassOverride,omitempty"`
+}
+
+// Provides visibility into the number of read and write operations your table
+// or secondary index can instantaneously support. The settings can be modified
+// using the UpdateTable operation to meet the throughput requirements of an
+// upcoming peak event.
+type WarmThroughput struct {
+	ReadUnitsPerSecond  *int64 `json:"readUnitsPerSecond,omitempty"`
+	WriteUnitsPerSecond *int64 `json:"writeUnitsPerSecond,omitempty"`
 }

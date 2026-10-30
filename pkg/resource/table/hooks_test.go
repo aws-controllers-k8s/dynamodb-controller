@@ -755,3 +755,31 @@ func Test_deleteGSIs_requeuesAfterSingleDelete(t *testing.T) {
 		"a successful GSI deletion must requeue so the table settles before "+
 			"customUpdateTable attempts any further table property update")
 }
+
+func Test_warmThroughputNeedsIncrease(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	cases := []struct {
+		name    string
+		desired *v1alpha1.WarmThroughput
+		latest  *v1alpha1.WarmThroughput
+		want    bool
+	}{
+		{"desired nil is unmanaged", nil, wt(aws.Int64(12000), aws.Int64(4000)), false},
+		{"desired nil latest nil", nil, nil, false},
+		{"desired set latest nil", wt(aws.Int64(13000), nil), nil, true},
+		{"desired empty latest nil", wt(nil, nil), nil, false},
+		{"equal values in sync", wt(aws.Int64(13000), aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), false},
+		{"AWS raised above desired in sync", wt(aws.Int64(13000), aws.Int64(5000)), wt(aws.Int64(20000), aws.Int64(9000)), false},
+		{"read increase needed", wt(aws.Int64(14000), aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
+		{"write increase needed", wt(nil, aws.Int64(6000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
+		{"unset member unmanaged", wt(nil, aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), false},
+		{"latest member missing", wt(aws.Int64(13000), nil), wt(nil, aws.Int64(5000)), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, warmThroughputNeedsIncrease(tc.desired, tc.latest))
+		})
+	}
+}

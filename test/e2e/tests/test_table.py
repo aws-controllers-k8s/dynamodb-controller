@@ -171,6 +171,19 @@ def table_on_demand_throughput():
         pass
 
 
+@pytest.fixture(scope="function")
+def table_warm_throughput():
+    resource_name = random_suffix_name("table-wt", 32)
+    (ref, cr) = create_table(resource_name, "table_warm_throughput")
+
+    yield ref, cr
+    try:
+        _, deleted = k8s.delete_custom_resource(ref, wait_periods=3, period_length=10)
+        assert deleted
+    except:
+        pass
+
+
 @pytest.fixture(scope="module")
 def table_basic_pay_per_request():
     resource_name = random_suffix_name("table-basic-pay-per-request", 32)
@@ -1135,6 +1148,49 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS * 20,
             interval_seconds=15,
         )
+
+    def test_create_update_warm_throughput(self, table_warm_throughput):
+        (ref, res) = table_warm_throughput
+
+        table_name = res["spec"]["tableName"]
+        assert self.table_exists(table_name)
+
+        # Create: AWS reports at least the requested warm throughput
+        table.wait_until(
+            table_name,
+            table.warm_throughput_matcher(13000, 5000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        cr = k8s.get_resource(ref)
+        assert cr["spec"]["warmThroughput"]["readUnitsPerSecond"] >= 13000
+        assert cr["spec"]["warmThroughput"]["writeUnitsPerSecond"] >= 5000
+
+        # Update: warm throughput can only be increased
+        cr["spec"]["warmThroughput"] = {
+            "readUnitsPerSecond": 14000,
+            "writeUnitsPerSecond": 6000,
+        }
+        k8s.patch_custom_resource(ref, cr)
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+        table.wait_until(
+            table_name,
+            table.warm_throughput_matcher(14000, 6000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        cr = k8s.get_resource(ref)
+        assert cr["spec"]["warmThroughput"]["readUnitsPerSecond"] >= 14000
+        assert cr["spec"]["warmThroughput"]["writeUnitsPerSecond"] >= 6000
+
+        aws_wt = table.get(table_name)["WarmThroughput"]
+        assert aws_wt["ReadUnitsPerSecond"] >= 14000
+        assert aws_wt["WriteUnitsPerSecond"] >= 6000
 
     def test_resource_policy(self, table_resource_policy):
         (ref, res, resource_policy) = table_resource_policy
