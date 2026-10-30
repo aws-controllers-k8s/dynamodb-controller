@@ -405,6 +405,18 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.TableStatus = nil
 	}
+	if resp.Table.WarmThroughput != nil {
+		f21 := &svcapitypes.WarmThroughput{}
+		if resp.Table.WarmThroughput.ReadUnitsPerSecond != nil {
+			f21.ReadUnitsPerSecond = resp.Table.WarmThroughput.ReadUnitsPerSecond
+		}
+		if resp.Table.WarmThroughput.WriteUnitsPerSecond != nil {
+			f21.WriteUnitsPerSecond = resp.Table.WarmThroughput.WriteUnitsPerSecond
+		}
+		ko.Spec.WarmThroughput = f21
+	} else {
+		ko.Spec.WarmThroughput = nil
+	}
 
 	rm.setStatusDefaults(ko)
 	if resp.Table.GlobalSecondaryIndexes != nil {
@@ -473,6 +485,11 @@ func (rm *resourceManager) sdkFind(
 		return &resource{ko}, err
 	}
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
+	// Warm throughput updates may be in progress while TableStatus stays
+	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
+	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
 		return &resource{ko}, requeueWaitWhileUpdating
 	}
 
@@ -850,6 +867,18 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.TableStatus = nil
 	}
+	if resp.TableDescription.WarmThroughput != nil {
+		f21 := &svcapitypes.WarmThroughput{}
+		if resp.TableDescription.WarmThroughput.ReadUnitsPerSecond != nil {
+			f21.ReadUnitsPerSecond = resp.TableDescription.WarmThroughput.ReadUnitsPerSecond
+		}
+		if resp.TableDescription.WarmThroughput.WriteUnitsPerSecond != nil {
+			f21.WriteUnitsPerSecond = resp.TableDescription.WarmThroughput.WriteUnitsPerSecond
+		}
+		ko.Spec.WarmThroughput = f21
+	} else {
+		ko.Spec.WarmThroughput = nil
+	}
 
 	rm.setStatusDefaults(ko)
 	// The resource now exists in AWS and ko carries its identifiers. Mark any
@@ -1070,6 +1099,16 @@ func (rm *resourceManager) newCreateRequestPayload(
 			f13 = append(f13, *f13elem)
 		}
 		res.Tags = f13
+	}
+	if r.ko.Spec.WarmThroughput != nil {
+		f14 := &svcsdktypes.WarmThroughput{}
+		if r.ko.Spec.WarmThroughput.ReadUnitsPerSecond != nil {
+			f14.ReadUnitsPerSecond = r.ko.Spec.WarmThroughput.ReadUnitsPerSecond
+		}
+		if r.ko.Spec.WarmThroughput.WriteUnitsPerSecond != nil {
+			f14.WriteUnitsPerSecond = r.ko.Spec.WarmThroughput.WriteUnitsPerSecond
+		}
+		res.WarmThroughput = f14
 	}
 
 	return res, nil

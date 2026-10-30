@@ -1,9 +1,7 @@
 ignore:
   shape_names:
-  - WarmThroughput
   - GlobalSecondaryIndexWarmThroughputDescription
   - OnDemandThroughputOverride
-  - TableWarmThroughputDescription
   field_paths:
   # Replica of Spec.BillingMode
   - TableDescription.BillingModeSummary
@@ -12,7 +10,12 @@ ignore:
   - TableDescription.TableClassSummary
   # Deferring proper Spec/mutable implementation; exclude from the CRD for now
   - TableDescription.MultiRegionConsistency
-  - CreateTableInput.WarmThroughput
+  # Only table-level WarmThroughput is supported; GSI and replica level
+  # warm throughput are deferred.
+  - GlobalSecondaryIndex.WarmThroughput
+  - CreateGlobalSecondaryIndexAction.WarmThroughput
+  - UpdateGlobalSecondaryIndexAction.WarmThroughput
+  - ReplicaDescription.WarmThroughput
 operations:
   UpdateGlobalTable:
     operation_type:
@@ -68,6 +71,11 @@ resources:
         compare:
           is_ignored: true
       SSESpecification:
+        compare:
+          is_ignored: true
+      # Compared in customPreCompare: AWS sets defaults and may raise values,
+      # and warm throughput can only be increased.
+      WarmThroughput:
         compare:
           is_ignored: true
       SSESpecification.KMSMasterKeyID:

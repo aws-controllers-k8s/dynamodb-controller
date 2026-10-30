@@ -145,6 +145,25 @@ def on_demand_throughput_matcher(max_read: int, max_write: int) -> TableMatchFun
     return OnDemandThroughputMatcher(max_read, max_write)
 
 
+class WarmThroughputMatcher:
+    """Matches when table warm throughput is ACTIVE and at least the requested
+    values (AWS may raise warm throughput on its own)."""
+    def __init__(self, read_units: int, write_units: int):
+        self.read_units = read_units
+        self.write_units = write_units
+
+    def __call__(self, record: dict) -> bool:
+        wt = record.get("WarmThroughput")
+        if wt is None or wt.get("Status") != "ACTIVE":
+            return False
+        return (wt.get("ReadUnitsPerSecond", 0) >= self.read_units
+                and wt.get("WriteUnitsPerSecond", 0) >= self.write_units)
+
+
+def warm_throughput_matcher(read_units: int, write_units: int) -> TableMatchFunc:
+    return WarmThroughputMatcher(read_units, write_units)
+
+
 class GSIOnDemandThroughputMatcher:
     def __init__(self, index_name: str, max_read: int, max_write: int):
         self.index_name = index_name

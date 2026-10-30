@@ -66,6 +66,11 @@
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
 	}
+	// Warm throughput updates may be in progress while TableStatus stays
+	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
+	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
 
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err

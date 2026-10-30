@@ -496,6 +496,18 @@ spec:
                   enabled:
                     type: boolean
                 type: object
+              warmThroughput:
+                description: |-
+                  Represents the warm throughput (in read units per second and write units
+                  per second) for creating a table.
+                properties:
+                  readUnitsPerSecond:
+                    format: int64
+                    type: integer
+                  writeUnitsPerSecond:
+                    format: int64
+                    type: integer
+                type: object
             required:
             - attributeDefinitions
             - keySchema
