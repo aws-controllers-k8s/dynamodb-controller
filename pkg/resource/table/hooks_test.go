@@ -16,9 +16,9 @@ package table
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
-	"reflect"
 	"testing"
 
 	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
@@ -52,82 +52,174 @@ var (
 	}
 )
 
-func Test_computeTagsDelta(t *testing.T) {
-	type args struct {
-		a []*v1alpha1.Tag
-		b []*v1alpha1.Tag
-	}
+func Test_customPreCompare_tags(t *testing.T) {
 	tests := []struct {
-		name        string
-		args        args
-		wantAdded   []*v1alpha1.Tag
-		wantRemoved []string
+		name      string
+		a         []*v1alpha1.Tag
+		b         []*v1alpha1.Tag
+		wantDelta bool
 	}{
 		{
-			name: "nil arrays",
-			args: args{
-				a: nil,
-				b: nil,
-			},
-			wantAdded:   nil,
-			wantRemoved: nil,
+			name:      "nil tags",
+			a:         nil,
+			b:         nil,
+			wantDelta: false,
 		},
 		{
-			name: "empty arrays",
-			args: args{
-				a: []*v1alpha1.Tag{},
-				b: []*v1alpha1.Tag{},
-			},
-			wantAdded:   nil,
-			wantRemoved: nil,
+			name:      "equal tags",
+			a:         []*v1alpha1.Tag{Tag1, Tag2},
+			b:         []*v1alpha1.Tag{Tag1, Tag2},
+			wantDelta: false,
 		},
 		{
-			name: "added tags",
-			args: args{
-				a: []*v1alpha1.Tag{Tag1, Tag2},
-				b: []*v1alpha1.Tag{},
-			},
-			wantAdded:   []*v1alpha1.Tag{Tag1, Tag2},
-			wantRemoved: nil,
+			name:      "equal tags in a different order",
+			a:         []*v1alpha1.Tag{Tag2, Tag1},
+			b:         []*v1alpha1.Tag{Tag1, Tag2},
+			wantDelta: false,
 		},
 		{
-			name: "removed tags",
-			args: args{
-				a: nil,
-				b: []*v1alpha1.Tag{Tag1, Tag2},
-			},
-			wantAdded:   nil,
-			wantRemoved: []string{"k1", "k2"},
+			name:      "tag value updated",
+			a:         []*v1alpha1.Tag{Tag1, Tag2Updated},
+			b:         []*v1alpha1.Tag{Tag1, Tag2},
+			wantDelta: true,
 		},
 		{
-			name: "updated tags",
-			args: args{
-				a: []*v1alpha1.Tag{Tag1, Tag2Updated},
-				b: []*v1alpha1.Tag{Tag1, Tag2},
-			},
-			wantAdded:   []*v1alpha1.Tag{Tag2Updated},
-			wantRemoved: nil,
+			name:      "tag added",
+			a:         []*v1alpha1.Tag{Tag1, Tag3},
+			b:         []*v1alpha1.Tag{Tag1},
+			wantDelta: true,
 		},
 		{
-			name: "added, updated and removed tags",
-			args: args{
-				a: []*v1alpha1.Tag{Tag2Updated, Tag3},
-				// remove Tag1, update Tag2 and add Tag3
-				b: []*v1alpha1.Tag{Tag1, Tag2},
-			},
-			wantAdded:   []*v1alpha1.Tag{Tag2Updated, Tag3},
-			wantRemoved: []string{"k1"},
+			name:      "tag removed",
+			a:         []*v1alpha1.Tag{Tag1},
+			b:         []*v1alpha1.Tag{Tag1, Tag2},
+			wantDelta: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAdded, gotRemoved := computeTagsDelta(tt.args.a, tt.args.b)
-			if !reflect.DeepEqual(gotAdded, tt.wantAdded) {
-				t.Errorf("computeTagsDelta() gotAdded = %v, want %v", gotAdded, tt.wantAdded)
+			a, b := newTestTable(), newTestTable()
+			a.ko.Spec.Tags = tt.a
+			b.ko.Spec.Tags = tt.b
+			delta := compare.NewDelta()
+			customPreCompare(delta, a, b)
+			require.Equal(t, tt.wantDelta, delta.DifferentAt("Spec.Tags"))
+		})
+	}
+}
+
+// recordingHTTPClient records every request it receives and answers each one
+// with the same empty successful response as okHTTPClient.
+type recordingHTTPClient struct {
+	calls []recordedCall
+}
+
+type recordedCall struct {
+	target string
+	body   []byte
+}
+
+func (c *recordingHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	c.calls = append(c.calls, recordedCall{target: req.Header.Get("X-Amz-Target"), body: body})
+	return okHTTPClient{}.Do(req)
+}
+
+func Test_syncTableTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		latestTags  []*v1alpha1.Tag
+		desiredTags []*v1alpha1.Tag
+		wantUntag   []string
+		wantTag     map[string]string
+	}{
+		{
+			name:        "identical tags issue no API calls",
+			latestTags:  []*v1alpha1.Tag{Tag1, Tag2},
+			desiredTags: []*v1alpha1.Tag{Tag2, Tag1},
+		},
+		{
+			name:        "removed tag is untagged",
+			latestTags:  []*v1alpha1.Tag{Tag1, Tag2},
+			desiredTags: []*v1alpha1.Tag{Tag1},
+			wantUntag:   []string{"k2"},
+		},
+		{
+			name:        "added tag is tagged",
+			latestTags:  []*v1alpha1.Tag{Tag1},
+			desiredTags: []*v1alpha1.Tag{Tag1, Tag3},
+			wantTag:     map[string]string{"k3": "v3"},
+		},
+		{
+			name:        "updated tag value is re-tagged without untagging",
+			latestTags:  []*v1alpha1.Tag{Tag1, Tag2},
+			desiredTags: []*v1alpha1.Tag{Tag1, Tag2Updated},
+			wantTag:     map[string]string{"k2": "v2-updated"},
+		},
+		{
+			name:        "added, updated and removed tags",
+			latestTags:  []*v1alpha1.Tag{Tag1, Tag2},
+			desiredTags: []*v1alpha1.Tag{Tag2Updated, Tag3},
+			wantUntag:   []string{"k1"},
+			wantTag:     map[string]string{"k2": "v2-updated", "k3": "v3"},
+		},
+		{
+			name:        "remove multiple tags verifies UntagResource key order",
+			latestTags:  []*v1alpha1.Tag{Tag1, Tag2, Tag3},
+			desiredTags: nil,
+			wantUntag:   []string{"k1", "k2", "k3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &recordingHTTPClient{}
+			rm := &resourceManager{
+				metrics: ackmetrics.NewMetrics("dynamodb"),
+				sdkapi: svcsdk.NewFromConfig(aws.Config{
+					Region:           "us-west-2",
+					Credentials:      fakeCredentialsProvider{},
+					HTTPClient:       client,
+					RetryMaxAttempts: 1,
+				}),
 			}
-			if !reflect.DeepEqual(gotRemoved, tt.wantRemoved) {
-				t.Errorf("computeTagsDelta() gotRemoved = %v, want %v", gotRemoved, tt.wantRemoved)
+			desired, latest := newTestTable(), newTestTable()
+			desired.ko.Spec.Tags = tt.desiredTags
+			latest.ko.Spec.Tags = tt.latestTags
+
+			err := rm.syncTableTags(context.Background(), desired, latest)
+			require.NoError(t, err)
+
+			var gotUntag []string
+			var gotTag map[string]string
+			for _, call := range client.calls {
+				switch call.target {
+				case "DynamoDB_20120810.UntagResource":
+					var in struct {
+						TagKeys []string
+					}
+					require.NoError(t, json.Unmarshal(call.body, &in))
+					gotUntag = in.TagKeys
+				case "DynamoDB_20120810.TagResource":
+					var in struct {
+						Tags []struct {
+							Key   string
+							Value string
+						}
+					}
+					require.NoError(t, json.Unmarshal(call.body, &in))
+					gotTag = map[string]string{}
+					for _, tag := range in.Tags {
+						gotTag[tag.Key] = tag.Value
+					}
+				default:
+					t.Fatalf("unexpected API call %q", call.target)
+				}
 			}
+			require.Equal(t, tt.wantUntag, gotUntag)
+			require.Equal(t, tt.wantTag, gotTag)
 		})
 	}
 }

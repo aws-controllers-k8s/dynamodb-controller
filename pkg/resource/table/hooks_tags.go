@@ -16,8 +16,8 @@ package table
 import (
 	"context"
 
+	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	ackutil "github.com/aws-controllers-k8s/runtime/pkg/util"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
@@ -37,17 +37,24 @@ func (rm *resourceManager) syncTableTags(
 	exit := rlog.Trace("rm.syncTableTags")
 	defer exit(err)
 
-	added, removed := computeTagsDelta(desired.ko.Spec.Tags, latest.ko.Spec.Tags)
+	from, fromOrder := convertToOrderedACKTags(latest.ko.Spec.Tags)
+	to, toOrder := convertToOrderedACKTags(desired.ko.Spec.Tags)
+	added, _, removed := ackcompare.GetTagsDifference(from, to)
+	toAdd := fromACKTags(added, toOrder)
+	toDelete := fromACKTags(removed, fromOrder)
 
-	// There are no API calls to update an existing tag. To update a tag we will have to first
-	// delete it and then recreate it with the new value.
+	// Value changes are handled by TagResource alone (GetTagsDifference upsert semantics).
 
-	if len(removed) > 0 {
+	if len(toDelete) > 0 {
+		tagKeys := make([]string, 0, len(toDelete))
+		for _, t := range toDelete {
+			tagKeys = append(tagKeys, *t.Key)
+		}
 		_, err = rm.sdkapi.UntagResource(
 			ctx,
 			&svcsdk.UntagResourceInput{
 				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
-				TagKeys:     removed,
+				TagKeys:     tagKeys,
 			},
 		)
 		rm.metrics.RecordAPICall("GET", "UntagResource", err)
@@ -56,30 +63,20 @@ func (rm *resourceManager) syncTableTags(
 		}
 	}
 
-	if len(added) > 0 {
+	if len(toAdd) > 0 {
 		_, err = rm.sdkapi.TagResource(
 			ctx,
 			&svcsdk.TagResourceInput{
 				ResourceArn: (*string)(latest.ko.Status.ACKResourceMetadata.ARN),
-				Tags:        sdkTagsFromResourceTags(added),
+				Tags:        sdkTagsFromResourceTags(toAdd),
 			},
 		)
-		rm.metrics.RecordAPICall("GET", "UntagResource", err)
+		rm.metrics.RecordAPICall("GET", "TagResource", err)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// equalTags returns true if two Tag arrays are equal regardless of the order
-// of their elements.
-func equalTags(
-	a []*v1alpha1.Tag,
-	b []*v1alpha1.Tag,
-) bool {
-	added, removed := computeTagsDelta(a, b)
-	return len(added) == 0 && len(removed) == 0
 }
 
 // resourceTagsFromSDKTags transforms a *svcsdk.Tag array to a *v1alpha1.Tag array.
@@ -104,35 +101,6 @@ func sdkTagsFromResourceTags(rTags []*v1alpha1.Tag) []svcsdktypes.Tag {
 		}
 	}
 	return tags
-}
-
-// computeTagsDelta compares two Tag arrays and return three different list
-// containing the added, updated and removed tags.
-// The removed tags only contains the Key of tags
-func computeTagsDelta(
-	a []*v1alpha1.Tag,
-	b []*v1alpha1.Tag,
-) (added []*v1alpha1.Tag, removed []string) {
-	var visitedIndexes []string
-mainLoop:
-	for _, aElement := range b {
-		visitedIndexes = append(visitedIndexes, *aElement.Key)
-		for _, bElement := range a {
-			if equalStrings(aElement.Key, bElement.Key) {
-				if !equalStrings(aElement.Value, bElement.Value) {
-					added = append(added, bElement)
-				}
-				continue mainLoop
-			}
-		}
-		removed = append(removed, *aElement.Key)
-	}
-	for _, bElement := range a {
-		if !ackutil.InStrings(*bElement.Key, visitedIndexes) {
-			added = append(added, bElement)
-		}
-	}
-	return added, removed
 }
 
 // getResourceTagsPagesWithContext queries the list of tags of a given resource.
