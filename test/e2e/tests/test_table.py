@@ -25,9 +25,9 @@ from acktest import tags
 from acktest.aws.identity import get_region, get_account_id
 from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
-from e2e import (CRD_GROUP, CRD_VERSION, condition, get_resource_tags,
+from e2e import (CRD_GROUP, CRD_VERSION, condition,
                  load_dynamodb_resource, service_marker, table,
-                 wait_for_cr_status)
+                 wait_for_cr_status, wait_for_resource_tags)
 from e2e.replacement_values import REPLACEMENT_VALUES
 
 RESOURCE_PLURAL = "tables"
@@ -296,16 +296,21 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-        table_tags = get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"])
-        tags.assert_ack_system_tags(
-            tags=table_tags,
-        )
         tags_dict = tags.to_dict(
             new_tags,
             key_member_name="key",
             value_member_name="value"
+        )
+        # Poll instead of a fixed sleep: when many tables are reconciling at
+        # once, DynamoDB throttles the controller's describe calls and the
+        # patched generation can take longer than 90s to reconcile.
+        table_tags = wait_for_resource_tags(
+            cr["status"]["ackResourceMetadata"]["arn"],
+            tags_dict,
+        )
+        tags.assert_ack_system_tags(
+            tags=table_tags,
         )
         tags.assert_equal_without_ack_tags(
             expected=tags_dict,
@@ -332,16 +337,18 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-        table_tags = get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"])
-        tags.assert_ack_system_tags(
-            tags=table_tags,
-        )
         tags_dict = tags.to_dict(
             new_tags,
             key_member_name="key",
             value_member_name="value"
+        )
+        table_tags = wait_for_resource_tags(
+            cr["status"]["ackResourceMetadata"]["arn"],
+            tags_dict,
+        )
+        tags.assert_ack_system_tags(
+            tags=table_tags,
         )
         tags.assert_equal_without_ack_tags(
             expected=tags_dict,
