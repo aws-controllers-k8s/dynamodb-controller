@@ -285,7 +285,7 @@ func (rm *resourceManager) customUpdateTable(
 				return nil, err
 			}
 		case delta.DifferentAt("Spec.WarmThroughput"):
-			if err := rm.syncTableWarmThroughput(ctx, desired); err != nil {
+			if err := rm.syncTableWarmThroughput(ctx, desired, latest); err != nil {
 				return nil, err
 			}
 		// Create any new GSIs once all existing GSI have been updated.
@@ -499,31 +499,33 @@ func (rm *resourceManager) syncTableOnDemandThroughput(
 }
 
 // syncTableWarmThroughput updates a given table warm throughput settings.
-// Only the members set in the desired spec are sent to AWS.
+// Only the members set in the desired spec are sent to AWS. Each field is
+// clamped to max(desired, latest) because warm throughput can only be
+// increased; sending a value lower than what AWS already reports would be
+// rejected and cause an error loop.
 func (rm *resourceManager) syncTableWarmThroughput(
 	ctx context.Context,
-	r *resource,
+	desired *resource,
+	latest *resource,
 ) (err error) {
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTableWarmThroughput")
 	defer exit(err)
 
-	if r.ko.Spec.WarmThroughput == nil {
+	if desired.ko.Spec.WarmThroughput == nil {
+		return nil
+	}
+	var latestWT *v1alpha1.WarmThroughput
+	if latest != nil && latest.ko.Spec.WarmThroughput != nil {
+		latestWT = latest.ko.Spec.WarmThroughput
+	}
+	clamped := clampWarmThroughput(desired.ko.Spec.WarmThroughput, latestWT)
+	if clamped == nil {
 		return nil
 	}
 	input := &svcsdk.UpdateTableInput{
-		TableName:      aws.String(*r.ko.Spec.TableName),
-		WarmThroughput: &svcsdktypes.WarmThroughput{},
-	}
-	if r.ko.Spec.WarmThroughput.ReadUnitsPerSecond != nil {
-		input.WarmThroughput.ReadUnitsPerSecond = aws.Int64(
-			*r.ko.Spec.WarmThroughput.ReadUnitsPerSecond,
-		)
-	}
-	if r.ko.Spec.WarmThroughput.WriteUnitsPerSecond != nil {
-		input.WarmThroughput.WriteUnitsPerSecond = aws.Int64(
-			*r.ko.Spec.WarmThroughput.WriteUnitsPerSecond,
-		)
+		TableName:      aws.String(*desired.ko.Spec.TableName),
+		WarmThroughput: clamped,
 	}
 
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
@@ -532,6 +534,40 @@ func (rm *resourceManager) syncTableWarmThroughput(
 		return err
 	}
 	return nil
+}
+
+// clampWarmThroughput returns an SDK WarmThroughput where each field is set to
+// max(desired, latest). Fields that are nil in desired are omitted (not
+// managed). If desired is nil the result is nil.
+func clampWarmThroughput(
+	desired *v1alpha1.WarmThroughput,
+	latest *v1alpha1.WarmThroughput,
+) *svcsdktypes.WarmThroughput {
+	if desired == nil {
+		return nil
+	}
+	out := &svcsdktypes.WarmThroughput{}
+	hasField := false
+	if desired.ReadUnitsPerSecond != nil {
+		val := *desired.ReadUnitsPerSecond
+		if latest != nil && latest.ReadUnitsPerSecond != nil && *latest.ReadUnitsPerSecond > val {
+			val = *latest.ReadUnitsPerSecond
+		}
+		out.ReadUnitsPerSecond = aws.Int64(val)
+		hasField = true
+	}
+	if desired.WriteUnitsPerSecond != nil {
+		val := *desired.WriteUnitsPerSecond
+		if latest != nil && latest.WriteUnitsPerSecond != nil && *latest.WriteUnitsPerSecond > val {
+			val = *latest.WriteUnitsPerSecond
+		}
+		out.WriteUnitsPerSecond = aws.Int64(val)
+		hasField = true
+	}
+	if !hasField {
+		return nil
+	}
+	return out
 }
 
 // syncTableProvisionedThroughput updates a given table provisioned throughputs

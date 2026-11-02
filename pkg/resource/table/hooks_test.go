@@ -27,6 +27,7 @@ import (
 	ackmetrics "github.com/aws-controllers-k8s/runtime/pkg/metrics"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
@@ -776,6 +777,7 @@ func Test_warmThroughputNeedsIncrease(t *testing.T) {
 		{"write increase needed", wt(nil, aws.Int64(6000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
 		{"unset member unmanaged", wt(nil, aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), false},
 		{"latest member missing", wt(aws.Int64(13000), nil), wt(nil, aws.Int64(5000)), true},
+		{"mixed: read increase write decrease", wt(aws.Int64(14000), aws.Int64(3000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -783,3 +785,104 @@ func Test_warmThroughputNeedsIncrease(t *testing.T) {
 		})
 	}
 }
+
+func Test_clampWarmThroughput(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	cases := []struct {
+		name    string
+		desired *v1alpha1.WarmThroughput
+		latest  *v1alpha1.WarmThroughput
+		want    *svcsdktypes.WarmThroughput
+	}{
+		{
+			name:    "desired nil returns nil",
+			desired: nil,
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want:    nil,
+		},
+		{
+			name:    "latest nil uses desired",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  nil,
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+		{
+			name:    "both desired higher than latest",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+		{
+			name:    "mixed: read increase write clamped to latest",
+			desired: wt(aws.Int64(14000), aws.Int64(3000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+		},
+		{
+			name:    "desired field nil omitted from output",
+			desired: wt(aws.Int64(14000), nil),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(14000),
+			},
+		},
+		{
+			name:    "both desired fields nil returns nil",
+			desired: wt(nil, nil),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want:    nil,
+		},
+		{
+			name:    "equal values passes desired",
+			desired: wt(aws.Int64(13000), aws.Int64(5000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+		},
+		{
+			name:    "latest member nil uses desired",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  wt(nil, nil),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := clampWarmThroughput(tc.desired, tc.latest)
+			if tc.want == nil {
+				require.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				if tc.want.ReadUnitsPerSecond != nil {
+					require.NotNil(t, got.ReadUnitsPerSecond)
+					require.Equal(t, *tc.want.ReadUnitsPerSecond, *got.ReadUnitsPerSecond)
+				} else {
+					require.Nil(t, got.ReadUnitsPerSecond)
+				}
+				if tc.want.WriteUnitsPerSecond != nil {
+					require.NotNil(t, got.WriteUnitsPerSecond)
+					require.Equal(t, *tc.want.WriteUnitsPerSecond, *got.WriteUnitsPerSecond)
+				} else {
+					require.Nil(t, got.WriteUnitsPerSecond)
+				}
+			}
+		})
+	}
+}
+
