@@ -1162,17 +1162,37 @@ class TestTable:
             timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=15,
         )
+        # GSI warm throughput should also be at least the requested values
+        table.wait_until(
+            table_name,
+            table.gsi_warm_throughput_matcher("gsi-wt", 13000, 5000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
         assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
 
         cr = k8s.get_resource(ref)
         assert cr["spec"]["warmThroughput"]["readUnitsPerSecond"] >= 13000
         assert cr["spec"]["warmThroughput"]["writeUnitsPerSecond"] >= 5000
 
-        # Update: warm throughput can only be increased
+        # Update: warm throughput can only be increased (table and GSI)
         cr["spec"]["warmThroughput"] = {
             "readUnitsPerSecond": 14000,
             "writeUnitsPerSecond": 6000,
         }
+        cr["spec"]["globalSecondaryIndexes"] = [
+            {
+                "indexName": "gsi-wt",
+                "keySchema": [
+                    {"attributeName": "SK", "keyType": "HASH"},
+                ],
+                "projection": {"projectionType": "ALL"},
+                "warmThroughput": {
+                    "readUnitsPerSecond": 14000,
+                    "writeUnitsPerSecond": 6000,
+                },
+            }
+        ]
         k8s.patch_custom_resource(ref, cr)
         time.sleep(CREATE_WAIT_AFTER_SECONDS)
 
@@ -1182,15 +1202,34 @@ class TestTable:
             timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
             interval_seconds=15,
         )
+        table.wait_until(
+            table_name,
+            table.gsi_warm_throughput_matcher("gsi-wt", 14000, 6000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
         assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
 
         cr = k8s.get_resource(ref)
         assert cr["spec"]["warmThroughput"]["readUnitsPerSecond"] >= 14000
         assert cr["spec"]["warmThroughput"]["writeUnitsPerSecond"] >= 6000
 
-        aws_wt = table.get(table_name)["WarmThroughput"]
+        aws_table = table.get(table_name)
+        aws_wt = aws_table["WarmThroughput"]
         assert aws_wt["ReadUnitsPerSecond"] >= 14000
         assert aws_wt["WriteUnitsPerSecond"] >= 6000
+
+        # Verify GSI warm throughput status is surfaced
+        gsi_descs = cr.get("status", {}).get("globalSecondaryIndexesDescriptions", [])
+        for gsi_desc in gsi_descs:
+            if gsi_desc.get("indexName") == "gsi-wt":
+                gsi_wt = gsi_desc.get("warmThroughput")
+                assert gsi_wt is not None, "GSI WarmThroughput should be in status"
+                assert gsi_wt.get("readUnitsPerSecond", 0) >= 14000
+                assert gsi_wt.get("writeUnitsPerSecond", 0) >= 6000
+                break
+        else:
+            assert False, "gsi-wt not found in globalSecondaryIndexesDescriptions"
 
     def test_resource_policy(self, table_resource_policy):
         (ref, res, resource_policy) = table_resource_policy

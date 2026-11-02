@@ -288,6 +288,10 @@ func (rm *resourceManager) customUpdateTable(
 			if err := rm.syncTableWarmThroughput(ctx, desired, latest); err != nil {
 				return nil, err
 			}
+		case delta.DifferentAt("Spec.GlobalSecondaryIndexes.WarmThroughput"):
+			if err := rm.syncGSIWarmThroughput(ctx, desired, latest); err != nil {
+				return nil, err
+			}
 		// Create any new GSIs once all existing GSI have been updated.
 		case delta.DifferentAt("Spec.GlobalSecondaryIndexes") && len(addedGSIs) > 0:
 			if err := rm.addGSIs(ctx, desired, latest, addedGSIs); err != nil {
@@ -499,10 +503,11 @@ func (rm *resourceManager) syncTableOnDemandThroughput(
 }
 
 // syncTableWarmThroughput updates a given table warm throughput settings.
-// Only the members set in the desired spec are sent to AWS. Each field is
-// clamped to max(desired, latest) because warm throughput can only be
-// increased; sending a value lower than what AWS already reports would be
-// rejected and cause an error loop.
+// Only members where the desired value is strictly greater than the latest
+// observed value are included in the request. Sending a value equal to or
+// lower than what AWS already reports is at best a no-op and at worst a
+// ValidationException (decrease) or InternalFailure (empty struct). Omitting
+// a member tells AWS to keep the current value.
 func (rm *resourceManager) syncTableWarmThroughput(
 	ctx context.Context,
 	desired *resource,
@@ -519,13 +524,13 @@ func (rm *resourceManager) syncTableWarmThroughput(
 	if latest != nil && latest.ko.Spec.WarmThroughput != nil {
 		latestWT = latest.ko.Spec.WarmThroughput
 	}
-	clamped := clampWarmThroughput(desired.ko.Spec.WarmThroughput, latestWT)
-	if clamped == nil {
+	update := buildWarmThroughputUpdate(desired.ko.Spec.WarmThroughput, latestWT)
+	if update == nil {
 		return nil
 	}
 	input := &svcsdk.UpdateTableInput{
 		TableName:      aws.String(*desired.ko.Spec.TableName),
-		WarmThroughput: clamped,
+		WarmThroughput: update,
 	}
 
 	_, err = rm.sdkapi.UpdateTable(ctx, input)
@@ -536,10 +541,13 @@ func (rm *resourceManager) syncTableWarmThroughput(
 	return nil
 }
 
-// clampWarmThroughput returns an SDK WarmThroughput where each field is set to
-// max(desired, latest). Fields that are nil in desired are omitted (not
-// managed). If desired is nil the result is nil.
-func clampWarmThroughput(
+// buildWarmThroughputUpdate returns an SDK WarmThroughput containing only the
+// members that need an increase (desired > latest). Members where the desired
+// value is nil, equal to, or lower than the latest are omitted — AWS keeps the
+// current value when a member is absent. Returns nil when no member needs an
+// increase; callers must skip the UpdateTable call in that case because sending
+// WarmThroughput{} triggers an InternalFailure (500).
+func buildWarmThroughputUpdate(
 	desired *v1alpha1.WarmThroughput,
 	latest *v1alpha1.WarmThroughput,
 ) *svcsdktypes.WarmThroughput {
@@ -548,26 +556,30 @@ func clampWarmThroughput(
 	}
 	out := &svcsdktypes.WarmThroughput{}
 	hasField := false
-	if desired.ReadUnitsPerSecond != nil {
-		val := *desired.ReadUnitsPerSecond
-		if latest != nil && latest.ReadUnitsPerSecond != nil && *latest.ReadUnitsPerSecond > val {
-			val = *latest.ReadUnitsPerSecond
-		}
-		out.ReadUnitsPerSecond = aws.Int64(val)
+	if int64NeedsIncrease(desired.ReadUnitsPerSecond, latestInt64(latest, true)) {
+		out.ReadUnitsPerSecond = desired.ReadUnitsPerSecond
 		hasField = true
 	}
-	if desired.WriteUnitsPerSecond != nil {
-		val := *desired.WriteUnitsPerSecond
-		if latest != nil && latest.WriteUnitsPerSecond != nil && *latest.WriteUnitsPerSecond > val {
-			val = *latest.WriteUnitsPerSecond
-		}
-		out.WriteUnitsPerSecond = aws.Int64(val)
+	if int64NeedsIncrease(desired.WriteUnitsPerSecond, latestInt64(latest, false)) {
+		out.WriteUnitsPerSecond = desired.WriteUnitsPerSecond
 		hasField = true
 	}
 	if !hasField {
 		return nil
 	}
 	return out
+}
+
+// latestInt64 extracts the read or write member from a possibly-nil
+// WarmThroughput.
+func latestInt64(wt *v1alpha1.WarmThroughput, read bool) *int64 {
+	if wt == nil {
+		return nil
+	}
+	if read {
+		return wt.ReadUnitsPerSecond
+	}
+	return wt.WriteUnitsPerSecond
 }
 
 // syncTableProvisionedThroughput updates a given table provisioned throughputs
@@ -754,6 +766,14 @@ func customPreCompare(
 
 	if warmThroughputNeedsIncrease(a.ko.Spec.WarmThroughput, b.ko.Spec.WarmThroughput) {
 		delta.Add("Spec.WarmThroughput", a.ko.Spec.WarmThroughput, b.ko.Spec.WarmThroughput)
+	}
+
+	// Check for GSI warm throughput increases separately from the generic GSI
+	// equality check, which intentionally excludes warm throughput (AWS sets
+	// defaults and may raise values on its own).
+	if gsiWarmThroughputNeedsIncrease(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+		delta.Add("Spec.GlobalSecondaryIndexes.WarmThroughput",
+			a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
 	}
 
 	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
@@ -1066,4 +1086,85 @@ func int64NeedsIncrease(desired *int64, latest *int64) bool {
 		return false
 	}
 	return latest == nil || *latest < *desired
+}
+
+// gsiWarmThroughputNeedsIncrease returns true if any desired GSI's warm
+// throughput has a member that needs increasing relative to the matching
+// latest GSI.
+func gsiWarmThroughputNeedsIncrease(
+	desired []*v1alpha1.GlobalSecondaryIndex,
+	latest []*v1alpha1.GlobalSecondaryIndex,
+) bool {
+	for _, d := range desired {
+		if d == nil || d.WarmThroughput == nil || d.IndexName == nil {
+			continue
+		}
+		var latestWT *v1alpha1.WarmThroughput
+		for _, l := range latest {
+			if l != nil && l.IndexName != nil && *l.IndexName == *d.IndexName {
+				latestWT = l.WarmThroughput
+				break
+			}
+		}
+		if warmThroughputNeedsIncrease(d.WarmThroughput, latestWT) {
+			return true
+		}
+	}
+	return false
+}
+
+// syncGSIWarmThroughput updates warm throughput for GSIs that need an
+// increase. Only one GSI update can be performed per UpdateTable call,
+// so this issues one call per GSI and requeues after the first success.
+func (rm *resourceManager) syncGSIWarmThroughput(
+	ctx context.Context,
+	desired *resource,
+	latest *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncGSIWarmThroughput")
+	defer func() { exit(err) }()
+
+	if !canUpdateTableGSIs(latest) {
+		return requeueWaitGSIReady
+	}
+
+	for _, desiredGSI := range desired.ko.Spec.GlobalSecondaryIndexes {
+		if desiredGSI == nil || desiredGSI.WarmThroughput == nil || desiredGSI.IndexName == nil {
+			continue
+		}
+		var latestWT *v1alpha1.WarmThroughput
+		for _, latestGSI := range latest.ko.Spec.GlobalSecondaryIndexes {
+			if latestGSI != nil && latestGSI.IndexName != nil && *latestGSI.IndexName == *desiredGSI.IndexName {
+				latestWT = latestGSI.WarmThroughput
+				break
+			}
+		}
+		update := buildWarmThroughputUpdate(desiredGSI.WarmThroughput, latestWT)
+		if update == nil {
+			continue
+		}
+
+		input := &svcsdk.UpdateTableInput{
+			TableName: aws.String(*desired.ko.Spec.TableName),
+			GlobalSecondaryIndexUpdates: []svcsdktypes.GlobalSecondaryIndexUpdate{
+				{
+					Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+						IndexName:      desiredGSI.IndexName,
+						WarmThroughput: update,
+					},
+				},
+			},
+		}
+
+		_, err = rm.sdkapi.UpdateTable(ctx, input)
+		rm.metrics.RecordAPICall("UPDATE", "UpdateTable", err)
+		if err != nil {
+			return err
+		}
+		// Only one GSI update per call; requeue so the next GSI is
+		// processed after this one settles.
+		return requeueWaitGSIReady
+	}
+	return nil
 }

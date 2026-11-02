@@ -1,4 +1,4 @@
-# Table used to test table-level warm throughput
+# Table used to test table-level and GSI-level warm throughput
 apiVersion: dynamodb.services.k8s.aws/v1alpha1
 kind: Table
 metadata:
@@ -9,9 +9,21 @@ spec:
   attributeDefinitions:
     - attributeName: PK
       attributeType: S
+    - attributeName: SK
+      attributeType: S
   keySchema:
     - attributeName: PK
       keyType: HASH
   warmThroughput:
     readUnitsPerSecond: 13000
     writeUnitsPerSecond: 5000
+  globalSecondaryIndexes:
+    - indexName: gsi-wt
+      keySchema:
+        - attributeName: SK
+          keyType: HASH
+      projection:
+        projectionType: ALL
+      warmThroughput:
+        readUnitsPerSecond: 13000
+        writeUnitsPerSecond: 5000

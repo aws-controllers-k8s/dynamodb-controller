@@ -1,6 +1,5 @@
 ignore:
   shape_names:
-  - GlobalSecondaryIndexWarmThroughputDescription
   - OnDemandThroughputOverride
   field_paths:
   # Replica of Spec.BillingMode
@@ -10,11 +9,7 @@ ignore:
   - TableDescription.TableClassSummary
   # Deferring proper Spec/mutable implementation; exclude from the CRD for now
   - TableDescription.MultiRegionConsistency
-  # Only table-level WarmThroughput is supported; GSI and replica level
-  # warm throughput are deferred.
-  - GlobalSecondaryIndex.WarmThroughput
-  - CreateGlobalSecondaryIndexAction.WarmThroughput
-  - UpdateGlobalSecondaryIndexAction.WarmThroughput
+  # Replica-level warm throughput is read-only status; exclude from the CRD.
   - ReplicaDescription.WarmThroughput
 operations:
   UpdateGlobalTable:

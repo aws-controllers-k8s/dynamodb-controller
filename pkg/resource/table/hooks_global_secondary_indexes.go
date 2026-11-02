@@ -244,12 +244,23 @@ func (rm *resourceManager) updateGSIs(
 	}
 
 	for _, updatedGSI := range updatedGSIs {
+		updateAction := &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+			IndexName:             aws.String(*updatedGSI.IndexName),
+			OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
+			ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+		}
+		// Warm throughput can only be increased. Find the matching latest
+		// GSI's warm throughput and only send members that need an increase.
+		var latestWT *v1alpha1.WarmThroughput
+		for _, latestGSI := range latest.ko.Spec.GlobalSecondaryIndexes {
+			if latestGSI.IndexName != nil && *latestGSI.IndexName == *updatedGSI.IndexName {
+				latestWT = latestGSI.WarmThroughput
+				break
+			}
+		}
+		updateAction.WarmThroughput = buildWarmThroughputUpdate(updatedGSI.WarmThroughput, latestWT)
 		update := svcsdktypes.GlobalSecondaryIndexUpdate{
-			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
-				IndexName:             aws.String(*updatedGSI.IndexName),
-				OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
-				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
-			},
+			Update: updateAction,
 		}
 		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
 		// We can only remove, update or add one GSI at once. Hence we return the update call input
@@ -308,6 +319,7 @@ func (rm *resourceManager) addGSIs(
 				KeySchema:             newSDKKeySchemaArray(addedGSI.KeySchema),
 				OnDemandThroughput:    newSDKOnDemandThroughput(addedGSI.OnDemandThroughput),
 				ProvisionedThroughput: newSDKProvisionedThroughput(addedGSI.ProvisionedThroughput),
+				WarmThroughput:        newSDKWarmThroughput(addedGSI.WarmThroughput),
 			},
 		}
 		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
@@ -411,4 +423,20 @@ func newSDKOnDemandThroughput(odt *v1alpha1.OnDemandThroughput) *svcsdktypes.OnD
 		onDemandThroughput.MaxWriteRequestUnits = aws.Int64(*odt.MaxWriteRequestUnits)
 	}
 	return onDemandThroughput
+}
+
+// newSDKWarmThroughput converts a CRD WarmThroughput to an SDK WarmThroughput
+// for use in create operations where the full desired value should be sent.
+func newSDKWarmThroughput(wt *v1alpha1.WarmThroughput) *svcsdktypes.WarmThroughput {
+	if wt == nil {
+		return nil
+	}
+	out := &svcsdktypes.WarmThroughput{}
+	if wt.ReadUnitsPerSecond != nil {
+		out.ReadUnitsPerSecond = aws.Int64(*wt.ReadUnitsPerSecond)
+	}
+	if wt.WriteUnitsPerSecond != nil {
+		out.WriteUnitsPerSecond = aws.Int64(*wt.WriteUnitsPerSecond)
+	}
+	return out
 }

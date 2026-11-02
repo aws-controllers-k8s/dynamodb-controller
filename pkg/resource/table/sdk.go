@@ -182,6 +182,16 @@ func (rm *resourceManager) sdkFind(
 				}
 				f4elem.ProvisionedThroughput = f4elemf9
 			}
+			if f4iter.WarmThroughput != nil {
+				f4elemf10 := &svcapitypes.WarmThroughput{}
+				if f4iter.WarmThroughput.ReadUnitsPerSecond != nil {
+					f4elemf10.ReadUnitsPerSecond = f4iter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if f4iter.WarmThroughput.WriteUnitsPerSecond != nil {
+					f4elemf10.WriteUnitsPerSecond = f4iter.WarmThroughput.WriteUnitsPerSecond
+				}
+				f4elem.WarmThroughput = f4elemf10
+			}
 			f4 = append(f4, f4elem)
 		}
 		ko.Spec.GlobalSecondaryIndexes = f4
@@ -302,6 +312,19 @@ func (rm *resourceManager) sdkFind(
 							f13elemf0elemf1.ReadCapacityUnits = f13elemf0iter.ProvisionedThroughputOverride.ReadCapacityUnits
 						}
 						f13elemf0elem.ProvisionedThroughputOverride = f13elemf0elemf1
+					}
+					if f13elemf0iter.WarmThroughput != nil {
+						f13elemf0elemf2 := &svcapitypes.GlobalSecondaryIndexWarmThroughputDescription{}
+						if f13elemf0iter.WarmThroughput.ReadUnitsPerSecond != nil {
+							f13elemf0elemf2.ReadUnitsPerSecond = f13elemf0iter.WarmThroughput.ReadUnitsPerSecond
+						}
+						if f13elemf0iter.WarmThroughput.Status != "" {
+							f13elemf0elemf2.Status = aws.String(string(f13elemf0iter.WarmThroughput.Status))
+						}
+						if f13elemf0iter.WarmThroughput.WriteUnitsPerSecond != nil {
+							f13elemf0elemf2.WriteUnitsPerSecond = f13elemf0iter.WarmThroughput.WriteUnitsPerSecond
+						}
+						f13elemf0elem.WarmThroughput = f13elemf0elemf2
 					}
 					f13elemf0 = append(f13elemf0, f13elemf0elem)
 				}
@@ -441,6 +464,19 @@ func (rm *resourceManager) sdkFind(
 			if fIter.Backfilling != nil {
 				fElem.Backfilling = fIter.Backfilling
 			}
+			if fIter.WarmThroughput != nil {
+				wtDesc := &svcapitypes.GlobalSecondaryIndexWarmThroughputDescription{}
+				if fIter.WarmThroughput.ReadUnitsPerSecond != nil {
+					wtDesc.ReadUnitsPerSecond = fIter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if fIter.WarmThroughput.WriteUnitsPerSecond != nil {
+					wtDesc.WriteUnitsPerSecond = fIter.WarmThroughput.WriteUnitsPerSecond
+				}
+				if fIter.WarmThroughput.Status != "" {
+					wtDesc.Status = aws.String(string(fIter.WarmThroughput.Status))
+				}
+				fElem.WarmThroughput = wtDesc
+			}
 			f = append(f, fElem)
 		}
 		ko.Status.GlobalSecondaryIndexesDescriptions = f
@@ -491,6 +527,13 @@ func (rm *resourceManager) sdkFind(
 	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
 	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
 		return &resource{ko}, requeueWaitWhileUpdating
+	}
+	// GSI warm throughput updates run independently; each GSI has its own
+	// WarmThroughput.Status. Requeue if any GSI is still UPDATING.
+	for _, gsi := range resp.Table.GlobalSecondaryIndexes {
+		if gsi.WarmThroughput != nil && gsi.WarmThroughput.Status == svcsdktypes.IndexStatusUpdating {
+			return &resource{ko}, requeueWaitWhileUpdating
+		}
 	}
 
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
@@ -644,6 +687,16 @@ func (rm *resourceManager) sdkCreate(
 				}
 				f4elem.ProvisionedThroughput = f4elemf9
 			}
+			if f4iter.WarmThroughput != nil {
+				f4elemf10 := &svcapitypes.WarmThroughput{}
+				if f4iter.WarmThroughput.ReadUnitsPerSecond != nil {
+					f4elemf10.ReadUnitsPerSecond = f4iter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if f4iter.WarmThroughput.WriteUnitsPerSecond != nil {
+					f4elemf10.WriteUnitsPerSecond = f4iter.WarmThroughput.WriteUnitsPerSecond
+				}
+				f4elem.WarmThroughput = f4elemf10
+			}
 			f4 = append(f4, f4elem)
 		}
 		ko.Spec.GlobalSecondaryIndexes = f4
@@ -764,6 +817,19 @@ func (rm *resourceManager) sdkCreate(
 							f13elemf0elemf1.ReadCapacityUnits = f13elemf0iter.ProvisionedThroughputOverride.ReadCapacityUnits
 						}
 						f13elemf0elem.ProvisionedThroughputOverride = f13elemf0elemf1
+					}
+					if f13elemf0iter.WarmThroughput != nil {
+						f13elemf0elemf2 := &svcapitypes.GlobalSecondaryIndexWarmThroughputDescription{}
+						if f13elemf0iter.WarmThroughput.ReadUnitsPerSecond != nil {
+							f13elemf0elemf2.ReadUnitsPerSecond = f13elemf0iter.WarmThroughput.ReadUnitsPerSecond
+						}
+						if f13elemf0iter.WarmThroughput.Status != "" {
+							f13elemf0elemf2.Status = aws.String(string(f13elemf0iter.WarmThroughput.Status))
+						}
+						if f13elemf0iter.WarmThroughput.WriteUnitsPerSecond != nil {
+							f13elemf0elemf2.WriteUnitsPerSecond = f13elemf0iter.WarmThroughput.WriteUnitsPerSecond
+						}
+						f13elemf0elem.WarmThroughput = f13elemf0elemf2
 					}
 					f13elemf0 = append(f13elemf0, f13elemf0elem)
 				}
@@ -980,6 +1046,16 @@ func (rm *resourceManager) newCreateRequestPayload(
 					f3elemf4.WriteCapacityUnits = f3iter.ProvisionedThroughput.WriteCapacityUnits
 				}
 				f3elem.ProvisionedThroughput = f3elemf4
+			}
+			if f3iter.WarmThroughput != nil {
+				f3elemf5 := &svcsdktypes.WarmThroughput{}
+				if f3iter.WarmThroughput.ReadUnitsPerSecond != nil {
+					f3elemf5.ReadUnitsPerSecond = f3iter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if f3iter.WarmThroughput.WriteUnitsPerSecond != nil {
+					f3elemf5.WriteUnitsPerSecond = f3iter.WarmThroughput.WriteUnitsPerSecond
+				}
+				f3elem.WarmThroughput = f3elemf5
 			}
 			f3 = append(f3, *f3elem)
 		}

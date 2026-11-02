@@ -786,7 +786,7 @@ func Test_warmThroughputNeedsIncrease(t *testing.T) {
 	}
 }
 
-func Test_clampWarmThroughput(t *testing.T) {
+func Test_buildWarmThroughputUpdate(t *testing.T) {
 	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
 		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
 	}
@@ -821,12 +821,11 @@ func Test_clampWarmThroughput(t *testing.T) {
 			},
 		},
 		{
-			name:    "mixed: read increase write clamped to latest",
+			name:    "mixed: read increase write skipped",
 			desired: wt(aws.Int64(14000), aws.Int64(3000)),
 			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
 			want: &svcsdktypes.WarmThroughput{
-				ReadUnitsPerSecond:  aws.Int64(14000),
-				WriteUnitsPerSecond: aws.Int64(5000),
+				ReadUnitsPerSecond: aws.Int64(14000),
 			},
 		},
 		{
@@ -844,13 +843,10 @@ func Test_clampWarmThroughput(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "equal values passes desired",
+			name:    "equal values returns nil",
 			desired: wt(aws.Int64(13000), aws.Int64(5000)),
 			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
-			want: &svcsdktypes.WarmThroughput{
-				ReadUnitsPerSecond:  aws.Int64(13000),
-				WriteUnitsPerSecond: aws.Int64(5000),
-			},
+			want:    nil,
 		},
 		{
 			name:    "latest member nil uses desired",
@@ -864,7 +860,7 @@ func Test_clampWarmThroughput(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := clampWarmThroughput(tc.desired, tc.latest)
+			got := buildWarmThroughputUpdate(tc.desired, tc.latest)
 			if tc.want == nil {
 				require.Nil(t, got)
 			} else {
@@ -886,3 +882,71 @@ func Test_clampWarmThroughput(t *testing.T) {
 	}
 }
 
+func Test_gsiWarmThroughputNeedsIncrease(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	gsi := func(name string, warmTP *v1alpha1.WarmThroughput) *v1alpha1.GlobalSecondaryIndex {
+		return &v1alpha1.GlobalSecondaryIndex{IndexName: aws.String(name), WarmThroughput: warmTP}
+	}
+	cases := []struct {
+		name    string
+		desired []*v1alpha1.GlobalSecondaryIndex
+		latest  []*v1alpha1.GlobalSecondaryIndex
+		want    bool
+	}{
+		{
+			name:    "nil desired",
+			desired: nil,
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "no warm throughput on desired GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", nil)},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "increase needed on one GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(14000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    true,
+		},
+		{
+			name:    "equal values no increase needed",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "desired lower no increase needed",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(12000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name: "one GSI needs increase out of two",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(14000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: true,
+		},
+		{
+			name:    "new GSI with warm throughput, no matching latest",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi-new", wt(aws.Int64(13000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{},
+			want:    true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, gsiWarmThroughputNeedsIncrease(tc.desired, tc.latest))
+		})
+	}
+}

@@ -74,3 +74,49 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 		})
 	}
 }
+
+func Test_newSDKWarmThroughput(t *testing.T) {
+	tests := []struct {
+		name string
+		wt   *v1alpha1.WarmThroughput
+		want *svcsdktypes.WarmThroughput
+	}{
+		{
+			name: "nil returns nil",
+			wt:   nil,
+			want: nil,
+		},
+		{
+			name: "both fields set",
+			wt: &v1alpha1.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+		},
+		{
+			name: "read only",
+			wt: &v1alpha1.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(13000),
+			},
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(13000),
+			},
+		},
+		{
+			name: "both nil fields",
+			wt:   &v1alpha1.WarmThroughput{},
+			want: &svcsdktypes.WarmThroughput{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := newSDKWarmThroughput(tt.wt); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("newSDKWarmThroughput() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
