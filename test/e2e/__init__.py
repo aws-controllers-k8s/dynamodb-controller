@@ -18,6 +18,7 @@ import logging
 from typing import Dict, Any
 from pathlib import Path
 
+from acktest import tags as acktags
 from acktest.k8s import resource as k8s
 from acktest.resources import load_resource_file
 from acktest.aws.identity import get_region
@@ -79,3 +80,26 @@ def get_resource_tags(resource_arn: str):
         next_token = resp['NextToken']
     
     return tags
+
+def wait_for_resource_tags(
+    resource_arn: str,
+    expected: Dict[str, str],
+    timeout_seconds: int = 300,
+    interval_seconds: int = 5,
+):
+    """
+    Polls the resource's tags until the non-ACK tags equal expected, or until
+    timeout_seconds pass, and returns the last tags read. Callers assert on the
+    result, so a timeout still fails with the usual tag assertion message.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        resource_tags = get_resource_tags(resource_arn)
+        if acktags.to_dict(acktags.clean(resource_tags)) == expected:
+            return resource_tags
+        if time.monotonic() >= deadline:
+            logging.error(
+                f"Tags on {resource_arn} did not match {expected} within {timeout_seconds}s"
+            )
+            return resource_tags
+        time.sleep(interval_seconds)
