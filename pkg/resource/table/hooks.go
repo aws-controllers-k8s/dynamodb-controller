@@ -776,12 +776,13 @@ func customPreCompare(
 			a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
 	}
 
-	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
-		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
-	} else if a.ko.Spec.Tags != nil && b.ko.Spec.Tags != nil {
-		if !equalTags(a.ko.Spec.Tags, b.ko.Spec.Tags) {
-			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
-		}
+	aTags, _ := convertToOrderedACKTags(a.ko.Spec.Tags)
+	bTags, _ := convertToOrderedACKTags(b.ko.Spec.Tags)
+	// a = desired, b = latest; GetTagsDifference(from=b, to=a) so that
+	// added = keys in desired not in latest, removed = keys in latest not in desired.
+	added, _, removed := ackcompare.GetTagsDifference(bTags, aTags)
+	if len(added) > 0 || len(removed) > 0 {
+    delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	}
 	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
 		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
