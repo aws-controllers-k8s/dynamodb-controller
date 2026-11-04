@@ -782,7 +782,7 @@ func customPreCompare(
 	// added = keys in desired not in latest, removed = keys in latest not in desired.
 	added, _, removed := ackcompare.GetTagsDifference(bTags, aTags)
 	if len(added) > 0 || len(removed) > 0 {
-    delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	}
 	if a.ko.Spec.TimeToLive == nil && b.ko.Spec.TimeToLive != nil {
 		a.ko.Spec.TimeToLive = &v1alpha1.TimeToLiveSpecification{
