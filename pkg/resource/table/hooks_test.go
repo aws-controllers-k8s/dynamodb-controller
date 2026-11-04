@@ -405,6 +405,9 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 				a: &resource{
 					ko: &v1alpha1.Table{
 						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("externalId"), KeyType: aws.String("HASH")},
+							},
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("externalId"),
@@ -455,6 +458,10 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 				a: &resource{
 					ko: &v1alpha1.Table{
 						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("externalId"), KeyType: aws.String("HASH")},
+								{AttributeName: aws.String("id"), KeyType: aws.String("RANGE")},
+							},
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("externalId"),
@@ -493,6 +500,10 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 				a: &resource{
 					ko: &v1alpha1.Table{
 						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("externalId"), KeyType: aws.String("HASH")},
+								{AttributeName: aws.String("id"), KeyType: aws.String("RANGE")},
+							},
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("externalId"),
@@ -531,6 +542,9 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 				a: &resource{
 					ko: &v1alpha1.Table{
 						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("id"), KeyType: aws.String("HASH")},
+							},
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("id"),
@@ -565,6 +579,10 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 				a: &resource{
 					ko: &v1alpha1.Table{
 						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("id"), KeyType: aws.String("HASH")},
+								{AttributeName: aws.String("externalId"), KeyType: aws.String("RANGE")},
+							},
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("id"),
@@ -584,6 +602,98 @@ func Test_newResourceDelta_customDeltaFunction_AttributeDefinitions(t *testing.T
 							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
 								{
 									AttributeName: aws.String("id"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			// Regression test for
+			// https://github.com/aws-controllers-k8s/community/issues/3011.
+			// An attribute definition in the desired spec that is not referenced
+			// by the key schema or any index (e.g. orphaned after removing the
+			// last GSI that used it) is not part of DynamoDB's server-side state.
+			// It must be ignored when diffing, otherwise the resource requeues
+			// forever and never reaches ACK.ResourceSynced=True.
+			name: "unreferenced attribute definition in desired is ignored",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("Bill"), KeyType: aws.String("HASH")},
+							},
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("Bill"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("Customer"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("Bill"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			// An attribute definition referenced by a GSI (not the table key
+			// schema) must still count as referenced, so a real difference is
+			// detected.
+			name: "attribute referenced only by a GSI is compared",
+			args: args{
+				a: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							KeySchema: []*v1alpha1.KeySchemaElement{
+								{AttributeName: aws.String("Bill"), KeyType: aws.String("HASH")},
+							},
+							GlobalSecondaryIndexes: []*v1alpha1.GlobalSecondaryIndex{
+								{
+									IndexName: aws.String("GSI1"),
+									KeySchema: []*v1alpha1.KeySchemaElement{
+										{AttributeName: aws.String("Customer"), KeyType: aws.String("HASH")},
+									},
+								},
+							},
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("Bill"),
+									AttributeType: aws.String("S"),
+								},
+								{
+									AttributeName: aws.String("Customer"),
+									AttributeType: aws.String("S"),
+								},
+							},
+						},
+					},
+				},
+				b: &resource{
+					ko: &v1alpha1.Table{
+						Spec: v1alpha1.TableSpec{
+							AttributeDefinitions: []*v1alpha1.AttributeDefinition{
+								{
+									AttributeName: aws.String("Bill"),
 									AttributeType: aws.String("S"),
 								},
 							},
@@ -846,4 +956,11 @@ func Test_deleteGSIs_requeuesAfterSingleDelete(t *testing.T) {
 	require.Equal(t, requeueWaitGSIReady, err,
 		"a successful GSI deletion must requeue so the table settles before "+
 			"customUpdateTable attempts any further table property update")
+}
+
+func Test_referencedAttributeDefinitions_nilInputs(t *testing.T) {
+	require.Nil(t, referencedAttributeDefinitions(nil),
+		"a nil resource must yield nil rather than panic")
+	require.Nil(t, referencedAttributeDefinitions(&resource{}),
+		"a resource with a nil ko must yield nil rather than panic")
 }
