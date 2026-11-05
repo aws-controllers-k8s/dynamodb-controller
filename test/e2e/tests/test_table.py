@@ -25,9 +25,9 @@ from acktest import tags
 from acktest.aws.identity import get_region, get_account_id
 from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
-from e2e import (CRD_GROUP, CRD_VERSION, condition, get_resource_tags,
+from e2e import (CRD_GROUP, CRD_VERSION, condition,
                  load_dynamodb_resource, service_marker, table,
-                 wait_for_cr_status)
+                 wait_for_cr_status, wait_for_resource_tags)
 from e2e.replacement_values import REPLACEMENT_VALUES
 
 RESOURCE_PLURAL = "tables"
@@ -309,16 +309,21 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-        table_tags = get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"])
-        tags.assert_ack_system_tags(
-            tags=table_tags,
-        )
         tags_dict = tags.to_dict(
             new_tags,
             key_member_name="key",
             value_member_name="value"
+        )
+        # Poll instead of a fixed sleep: when many tables are reconciling at
+        # once, DynamoDB throttles the controller's describe calls and the
+        # patched generation can take longer than 90s to reconcile.
+        table_tags = wait_for_resource_tags(
+            cr["status"]["ackResourceMetadata"]["arn"],
+            tags_dict,
+        )
+        tags.assert_ack_system_tags(
+            tags=table_tags,
         )
         tags.assert_equal_without_ack_tags(
             expected=tags_dict,
@@ -345,16 +350,18 @@ class TestTable:
 
         # Patch k8s resource
         k8s.patch_custom_resource(ref, cr)
-        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-        table_tags = get_resource_tags(cr["status"]["ackResourceMetadata"]["arn"])
-        tags.assert_ack_system_tags(
-            tags=table_tags,
-        )
         tags_dict = tags.to_dict(
             new_tags,
             key_member_name="key",
             value_member_name="value"
+        )
+        table_tags = wait_for_resource_tags(
+            cr["status"]["ackResourceMetadata"]["arn"],
+            tags_dict,
+        )
+        tags.assert_ack_system_tags(
+            tags=table_tags,
         )
         tags.assert_equal_without_ack_tags(
             expected=tags_dict,
@@ -838,6 +845,43 @@ class TestTable:
             timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
             interval_seconds=15,
         )
+
+    def test_delete_gsi_keep_attribute_definition(self, table_gsi):
+        """Removing the last GSI that references an attribute while leaving
+        that attribute in spec.attributeDefinitions must still converge.
+
+        DynamoDB drops the now-unreferenced definition server-side, so the
+        desired spec keeps an attribute the observed table no longer has.
+        The controller must ignore unreferenced definitions in its delta and
+        reach ACK.ResourceSynced=True instead of requeueing forever.
+        See https://github.com/aws-controllers-k8s/community/issues/3011.
+        """
+        (ref, res) = table_gsi
+
+        table_name = res["spec"]["tableName"]
+
+        # Check DynamoDB Table exists
+        assert self.table_exists(table_name)
+
+        # Get CR latest revision
+        cr = k8s.wait_resource_consumed_by_controller(ref)
+
+        # Remove office-per-city, the only GSI, but deliberately keep its
+        # "City" attribute definition in the spec.
+        cr["spec"]["globalSecondaryIndexes"] = []
+
+        # Patch k8s resource
+        k8s.patch_custom_resource(ref, cr)
+
+        table.wait_until(
+            table_name,
+            table.gsi_matches([]),
+            timeout_seconds=MODIFY_WAIT_AFTER_SECONDS*40,
+            interval_seconds=15,
+        )
+
+        # The orphaned definition must not leave the resource out of sync.
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
 
     def test_create_update_gsi(self, table_gsi):
         (ref, res) = table_gsi
