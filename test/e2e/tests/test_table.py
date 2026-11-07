@@ -1275,6 +1275,43 @@ class TestTable:
         else:
             assert False, "gsi-wt not found in globalSecondaryIndexesDescriptions"
 
+        # Add a new GSI with warm throughput to the existing table. It must be
+        # created by the add-GSI path with its warm throughput, not updated.
+        cr = k8s.get_resource(ref)
+        cr["spec"]["attributeDefinitions"].append(
+            {"attributeName": "GPK", "attributeType": "S"}
+        )
+        cr["spec"]["globalSecondaryIndexes"].append(
+            {
+                "indexName": "gsi-wt-new",
+                "keySchema": [
+                    {"attributeName": "GPK", "keyType": "HASH"},
+                ],
+                "projection": {"projectionType": "ALL"},
+                "warmThroughput": {
+                    "readUnitsPerSecond": 13000,
+                    "writeUnitsPerSecond": 5000,
+                },
+            }
+        )
+        k8s.patch_custom_resource(ref, cr)
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+        table.wait_until(
+            table_name,
+            table.gsi_warm_throughput_matcher("gsi-wt-new", 13000, 5000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        aws_gsi_names = {
+            gsi["IndexName"]
+            for gsi in table.get(table_name).get("GlobalSecondaryIndexes", [])
+        }
+        assert "gsi-wt" in aws_gsi_names
+        assert "gsi-wt-new" in aws_gsi_names
+
     def test_resource_policy(self, table_resource_policy):
         (ref, res, resource_policy) = table_resource_policy
         table_name = res["spec"]["tableName"]

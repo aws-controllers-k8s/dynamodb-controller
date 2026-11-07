@@ -1152,7 +1152,8 @@ func int64NeedsIncrease(desired *int64, latest *int64) bool {
 
 // gsiWarmThroughputNeedsIncrease returns true if any desired GSI's warm
 // throughput has a member that needs increasing relative to the matching
-// latest GSI.
+// latest GSI. Desired GSIs with no match in latest are skipped: they are
+// created by addGSIs, which sets their warm throughput at creation.
 func gsiWarmThroughputNeedsIncrease(
 	desired []*v1alpha1.GlobalSecondaryIndex,
 	latest []*v1alpha1.GlobalSecondaryIndex,
@@ -1162,11 +1163,16 @@ func gsiWarmThroughputNeedsIncrease(
 			continue
 		}
 		var latestWT *v1alpha1.WarmThroughput
+		found := false
 		for _, l := range latest {
 			if l != nil && l.IndexName != nil && *l.IndexName == *d.IndexName {
 				latestWT = l.WarmThroughput
+				found = true
 				break
 			}
+		}
+		if !found {
+			continue
 		}
 		if warmThroughputNeedsIncrease(d.WarmThroughput, latestWT) {
 			return true
@@ -1178,6 +1184,7 @@ func gsiWarmThroughputNeedsIncrease(
 // syncGSIWarmThroughput updates warm throughput for GSIs that need an
 // increase. Only one GSI update can be performed per UpdateTable call,
 // so this issues one call per GSI and requeues after the first success.
+// GSIs not yet in latest are skipped; they are created by addGSIs.
 func (rm *resourceManager) syncGSIWarmThroughput(
 	ctx context.Context,
 	desired *resource,
@@ -1196,11 +1203,16 @@ func (rm *resourceManager) syncGSIWarmThroughput(
 			continue
 		}
 		var latestWT *v1alpha1.WarmThroughput
+		found := false
 		for _, latestGSI := range latest.ko.Spec.GlobalSecondaryIndexes {
 			if latestGSI != nil && latestGSI.IndexName != nil && *latestGSI.IndexName == *desiredGSI.IndexName {
 				latestWT = latestGSI.WarmThroughput
+				found = true
 				break
 			}
+		}
+		if !found {
+			continue
 		}
 		update := buildWarmThroughputUpdate(desiredGSI.WarmThroughput, latestWT)
 		if update == nil {

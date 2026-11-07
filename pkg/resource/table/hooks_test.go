@@ -1143,7 +1143,29 @@ func Test_gsiWarmThroughputNeedsIncrease(t *testing.T) {
 			name:    "new GSI with warm throughput, no matching latest",
 			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi-new", wt(aws.Int64(13000), aws.Int64(5000)))},
 			latest:  []*v1alpha1.GlobalSecondaryIndex{},
-			want:    true,
+			want:    false,
+		},
+		{
+			name: "one existing GSI in sync and one new GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: false,
+		},
+		{
+			name: "one existing GSI needs increase and one new GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(14000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: true,
 		},
 	}
 	for _, tc := range cases {
