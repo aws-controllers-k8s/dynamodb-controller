@@ -185,6 +185,9 @@ type TableSpec struct {
 	// Represents the settings used to enable or disable Time to Live for the specified
 	// table.
 	TimeToLive *TimeToLiveSpecification `json:"timeToLive,omitempty"`
+	// Represents the warm throughput (in read units per second and write units
+	// per second) for creating a table.
+	WarmThroughput *WarmThroughput `json:"warmThroughput,omitempty"`
 }
 
 // TableStatus defines the observed state of Table

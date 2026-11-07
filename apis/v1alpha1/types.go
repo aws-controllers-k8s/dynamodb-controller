@@ -165,6 +165,11 @@ type CreateGlobalSecondaryIndexAction struct {
 	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
 	// in the Amazon DynamoDB Developer Guide.
 	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	// Provides visibility into the number of read and write operations your table
+	// or secondary index can instantaneously support. The settings can be modified
+	// using the UpdateTable operation to meet the throughput requirements of an
+	// upcoming peak event.
+	WarmThroughput *WarmThroughput `json:"warmThroughput,omitempty"`
 }
 
 // Represents a replica to be added.
@@ -264,6 +269,11 @@ type GlobalSecondaryIndex struct {
 	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
 	// in the Amazon DynamoDB Developer Guide.
 	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	// Provides visibility into the number of read and write operations your table
+	// or secondary index can instantaneously support. The settings can be modified
+	// using the UpdateTable operation to meet the throughput requirements of an
+	// upcoming peak event.
+	WarmThroughput *WarmThroughput `json:"warmThroughput,omitempty"`
 }
 
 // Represents the auto scaling settings of a global secondary index for a global
@@ -292,6 +302,8 @@ type GlobalSecondaryIndexDescription struct {
 	// Represents the provisioned throughput settings for the table, consisting
 	// of read and write capacity units, along with data about increases and decreases.
 	ProvisionedThroughput *ProvisionedThroughputDescription `json:"provisionedThroughput,omitempty"`
+	// The description of the warm throughput value on a global secondary index.
+	WarmThroughput *GlobalSecondaryIndexWarmThroughputDescription `json:"warmThroughput,omitempty"`
 }
 
 // Represents the properties of a global secondary index for the table when
@@ -332,6 +344,13 @@ type GlobalSecondaryIndexUpdate struct {
 	// Represents the new provisioned throughput settings to be applied to a global
 	// secondary index.
 	Update *UpdateGlobalSecondaryIndexAction `json:"update,omitempty"`
+}
+
+// The description of the warm throughput value on a global secondary index.
+type GlobalSecondaryIndexWarmThroughputDescription struct {
+	ReadUnitsPerSecond  *int64  `json:"readUnitsPerSecond,omitempty"`
+	Status              *string `json:"status,omitempty"`
+	WriteUnitsPerSecond *int64  `json:"writeUnitsPerSecond,omitempty"`
 }
 
 // Contains details about the global table.
@@ -544,6 +563,8 @@ type ReplicaGlobalSecondaryIndexDescription struct {
 	// Replica-specific provisioned throughput settings. If not specified, uses
 	// the source table's provisioned throughput settings.
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`
+	// The description of the warm throughput value on a global secondary index.
+	WarmThroughput *GlobalSecondaryIndexWarmThroughputDescription `json:"warmThroughput,omitempty"`
 }
 
 // Represents the properties of a global secondary index.
@@ -748,6 +769,17 @@ type TableDescription struct {
 	TableName           *string              `json:"tableName,omitempty"`
 	TableSizeBytes      *int64               `json:"tableSizeBytes,omitempty"`
 	TableStatus         *string              `json:"tableStatus,omitempty"`
+	// Represents the warm throughput value (in read units per second and write
+	// units per second) of the base table.
+	WarmThroughput *TableWarmThroughputDescription `json:"warmThroughput,omitempty"`
+}
+
+// Represents the warm throughput value (in read units per second and write
+// units per second) of the base table.
+type TableWarmThroughputDescription struct {
+	ReadUnitsPerSecond  *int64  `json:"readUnitsPerSecond,omitempty"`
+	Status              *string `json:"status,omitempty"`
+	WriteUnitsPerSecond *int64  `json:"writeUnitsPerSecond,omitempty"`
 }
 
 // Describes a tag. A tag is a key-value pair. You can add up to 50 tags to
@@ -799,6 +831,11 @@ type UpdateGlobalSecondaryIndexAction struct {
 	// Account, and Table Quotas (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html)
 	// in the Amazon DynamoDB Developer Guide.
 	ProvisionedThroughput *ProvisionedThroughput `json:"provisionedThroughput,omitempty"`
+	// Provides visibility into the number of read and write operations your table
+	// or secondary index can instantaneously support. The settings can be modified
+	// using the UpdateTable operation to meet the throughput requirements of an
+	// upcoming peak event.
+	WarmThroughput *WarmThroughput `json:"warmThroughput,omitempty"`
 }
 
 // Represents a replica to be modified.
@@ -810,4 +847,13 @@ type UpdateReplicationGroupMemberAction struct {
 	ProvisionedThroughputOverride *ProvisionedThroughputOverride `json:"provisionedThroughputOverride,omitempty"`
 	RegionName                    *string                        `json:"regionName,omitempty"`
 	TableClassOverride            *string                        `json:"tableClassOverride,omitempty"`
+}
+
+// Provides visibility into the number of read and write operations your table
+// or secondary index can instantaneously support. The settings can be modified
+// using the UpdateTable operation to meet the throughput requirements of an
+// upcoming peak event.
+type WarmThroughput struct {
+	ReadUnitsPerSecond  *int64 `json:"readUnitsPerSecond,omitempty"`
+	WriteUnitsPerSecond *int64 `json:"writeUnitsPerSecond,omitempty"`
 }

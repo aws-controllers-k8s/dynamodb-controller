@@ -20,6 +20,19 @@
 			if fIter.Backfilling != nil {
 				fElem.Backfilling = fIter.Backfilling
 			}
+			if fIter.WarmThroughput != nil {
+				wtDesc := &svcapitypes.GlobalSecondaryIndexWarmThroughputDescription{}
+				if fIter.WarmThroughput.ReadUnitsPerSecond != nil {
+					wtDesc.ReadUnitsPerSecond = fIter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if fIter.WarmThroughput.WriteUnitsPerSecond != nil {
+					wtDesc.WriteUnitsPerSecond = fIter.WarmThroughput.WriteUnitsPerSecond
+				}
+				if fIter.WarmThroughput.Status != "" {
+					wtDesc.Status = aws.String(string(fIter.WarmThroughput.Status))
+				}
+				fElem.WarmThroughput = wtDesc
+			}
 			f = append(f, fElem)
 		}
 		ko.Status.GlobalSecondaryIndexesDescriptions = f
@@ -65,6 +78,18 @@
 	}
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
 		return &resource{ko}, requeueWaitWhileUpdating
+	}
+	// Warm throughput updates may be in progress while TableStatus stays
+	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
+	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
+	// GSI warm throughput updates run independently; each GSI has its own
+	// WarmThroughput.Status. Requeue if any GSI is still UPDATING.
+	for _, gsi := range resp.Table.GlobalSecondaryIndexes {
+		if gsi.WarmThroughput != nil && gsi.WarmThroughput.Status == svcsdktypes.IndexStatusUpdating {
+			return &resource{ko}, requeueWaitWhileUpdating
+		}
 	}
 
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
