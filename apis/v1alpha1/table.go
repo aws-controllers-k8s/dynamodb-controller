@@ -277,6 +277,9 @@ type TableStatus struct {
 	//    information.
 	// +kubebuilder:validation:Optional
 	TableStatus *string `json:"tableStatus,omitempty"`
+	// Describes the warm throughput value of the base table.
+	// +kubebuilder:validation:Optional
+	WarmThroughputDescription *TableWarmThroughputDescription `json:"warmThroughputDescription,omitempty"`
 }
 
 // Table is the Schema for the Tables API

@@ -866,6 +866,18 @@ spec:
                      * ARCHIVED - The table has been archived. See the ArchivalReason for more
                      information.
                 type: string
+              warmThroughputDescription:
+                description: Describes the warm throughput value of the base table.
+                properties:
+                  readUnitsPerSecond:
+                    format: int64
+                    type: integer
+                  status:
+                    type: string
+                  writeUnitsPerSecond:
+                    format: int64
+                    type: integer
+                type: object
             type: object
         type: object
     served: true

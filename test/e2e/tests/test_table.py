@@ -1258,6 +1258,13 @@ class TestTable:
         assert cr["spec"]["warmThroughput"]["readUnitsPerSecond"] >= 14000
         assert cr["spec"]["warmThroughput"]["writeUnitsPerSecond"] >= 6000
 
+        # Table-level warm throughput (including its status) is surfaced
+        wt_desc = cr.get("status", {}).get("warmThroughputDescription")
+        assert wt_desc is not None, "warmThroughputDescription should be in status"
+        assert wt_desc.get("readUnitsPerSecond", 0) >= 14000
+        assert wt_desc.get("writeUnitsPerSecond", 0) >= 6000
+        assert wt_desc.get("status")
+
         aws_table = table.get(table_name)
         aws_wt = aws_table["WarmThroughput"]
         assert aws_wt["ReadUnitsPerSecond"] >= 14000
@@ -1274,6 +1281,44 @@ class TestTable:
                 break
         else:
             assert False, "gsi-wt not found in globalSecondaryIndexesDescriptions"
+
+        # Change a GSI's throughput and raise its warm throughput in a single
+        # patch. AWS requires WarmThroughput to be the only operation for an
+        # index, so the controller must split these into separate UpdateTable
+        # calls rather than going terminal on a ValidationException.
+        cr = k8s.get_resource(ref)
+        for gsi in cr["spec"]["globalSecondaryIndexes"]:
+            if gsi["indexName"] == "gsi-wt":
+                gsi["onDemandThroughput"] = {
+                    "maxReadRequestUnits": 20000,
+                    "maxWriteRequestUnits": 10000,
+                }
+                gsi["warmThroughput"] = {
+                    "readUnitsPerSecond": 15000,
+                    "writeUnitsPerSecond": 7000,
+                }
+                break
+        else:
+            assert False, "gsi-wt not found in spec.globalSecondaryIndexes"
+        k8s.patch_custom_resource(ref, cr)
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+        table.wait_until(
+            table_name,
+            table.gsi_on_demand_throughput_matcher("gsi-wt", 20000, 10000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
+        table.wait_until(
+            table_name,
+            table.gsi_warm_throughput_matcher("gsi-wt", 15000, 7000),
+            timeout_seconds=SLOW_MODIFY_WAIT_AFTER_SECONDS,
+            interval_seconds=15,
+        )
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+        terminal = k8s.get_resource_condition(ref, "ACK.Terminal")
+        assert terminal is None or terminal.get("status") != "True", \
+            f"table must not be terminal after a combined GSI update: {terminal}"
 
         # Add a new GSI with warm throughput to the existing table. It must be
         # created by the add-GSI path with its warm throughput, not updated.

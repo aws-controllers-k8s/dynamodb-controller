@@ -483,6 +483,23 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.GlobalSecondaryIndexesDescriptions = nil
 	}
+	// Table.WarmThroughput maps to Spec.WarmThroughput by name in the
+	// generated code; surface the full description (including Status) here.
+	if resp.Table.WarmThroughput != nil {
+		wtDesc := &svcapitypes.TableWarmThroughputDescription{}
+		if resp.Table.WarmThroughput.ReadUnitsPerSecond != nil {
+			wtDesc.ReadUnitsPerSecond = resp.Table.WarmThroughput.ReadUnitsPerSecond
+		}
+		if resp.Table.WarmThroughput.WriteUnitsPerSecond != nil {
+			wtDesc.WriteUnitsPerSecond = resp.Table.WarmThroughput.WriteUnitsPerSecond
+		}
+		if resp.Table.WarmThroughput.Status != "" {
+			wtDesc.Status = aws.String(string(resp.Table.WarmThroughput.Status))
+		}
+		ko.Status.WarmThroughputDescription = wtDesc
+	} else {
+		ko.Status.WarmThroughputDescription = nil
+	}
 	if resp.Table.SSEDescription != nil {
 		f := &svcapitypes.SSESpecification{}
 		if resp.Table.SSEDescription.Status != "" {
@@ -527,13 +544,6 @@ func (rm *resourceManager) sdkFind(
 	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
 	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
 		return &resource{ko}, requeueWaitWhileUpdating
-	}
-	// GSI warm throughput updates run independently; each GSI has its own
-	// WarmThroughput.Status. Requeue if any GSI is still UPDATING.
-	for _, gsi := range resp.Table.GlobalSecondaryIndexes {
-		if gsi.WarmThroughput != nil && gsi.WarmThroughput.Status == svcsdktypes.IndexStatusUpdating {
-			return &resource{ko}, requeueWaitWhileUpdating
-		}
 	}
 
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {

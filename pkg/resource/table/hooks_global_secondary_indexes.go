@@ -28,10 +28,17 @@ import (
 )
 
 // canUpdateTableGSIs return true if it's possible to update table GSIs.
-// we can only perform one GSI create/update/delete at once.
+// we can only perform one GSI create/update/delete at once. GSIs can be
+// updated only when every index is ACTIVE and no index has a warm throughput
+// update in progress (a GSI's WarmThroughput.Status can be UPDATING while its
+// IndexStatus stays ACTIVE).
 func canUpdateTableGSIs(r *resource) bool {
 	for _, gsiDescription := range r.ko.Status.GlobalSecondaryIndexesDescriptions {
 		if *gsiDescription.IndexStatus != string(svcsdktypes.IndexStatusActive) {
+			return false
+		}
+		if gsiDescription.WarmThroughput != nil && gsiDescription.WarmThroughput.Status != nil &&
+			*gsiDescription.WarmThroughput.Status == string(svcsdktypes.IndexStatusUpdating) {
 			return false
 		}
 	}
@@ -237,6 +244,7 @@ func (rm *resourceManager) updateGSIs(
 	}
 
 	gsiUpdatesInQueue := len(updatedGSIs) - 1
+	warmPending := false
 
 	input := &svcsdk.UpdateTableInput{
 		TableName:            aws.String(*latest.ko.Spec.TableName),
@@ -249,16 +257,19 @@ func (rm *resourceManager) updateGSIs(
 			OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
 			ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
 		}
-		// Warm throughput can only be increased. Find the matching latest
-		// GSI's warm throughput and only send members that need an increase.
+		// AWS requires WarmThroughput to be the only operation in the request
+		// for an index, so it is never sent alongside a throughput change.
+		// Warm throughput is raised on a later reconcile by
+		// syncGSIWarmThroughput; here we only note whether that is needed so
+		// we requeue instead of falling through in the same reconcile.
 		var latestWT *v1alpha1.WarmThroughput
 		for _, latestGSI := range latest.ko.Spec.GlobalSecondaryIndexes {
-			if latestGSI.IndexName != nil && *latestGSI.IndexName == *updatedGSI.IndexName {
+			if latestGSI != nil && latestGSI.IndexName != nil && *latestGSI.IndexName == *updatedGSI.IndexName {
 				latestWT = latestGSI.WarmThroughput
 				break
 			}
 		}
-		updateAction.WarmThroughput = buildWarmThroughputUpdate(updatedGSI.WarmThroughput, latestWT)
+		warmPending = warmThroughputNeedsIncrease(updatedGSI.WarmThroughput, latestWT)
 		update := svcsdktypes.GlobalSecondaryIndexUpdate{
 			Update: updateAction,
 		}
@@ -278,7 +289,7 @@ func (rm *resourceManager) updateGSIs(
 		return err
 	}
 
-	if gsiUpdatesInQueue > 0 {
+	if gsiUpdatesInQueue > 0 || warmPending {
 		return requeueWaitGSIReady
 	}
 

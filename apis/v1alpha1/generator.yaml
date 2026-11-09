@@ -73,6 +73,14 @@ resources:
       WarmThroughput:
         compare:
           is_ignored: true
+      # Table-level warm throughput as reported by AWS, including Status.
+      # Set in sdk_read_one_post_set_output: generated code maps
+      # Table.WarmThroughput to Spec.WarmThroughput by name.
+      WarmThroughputDescription:
+        is_read_only: true
+        from:
+          operation: DescribeTable
+          path: Table.WarmThroughput
       SSESpecification.KMSMasterKeyID:
         references:
           service_name: kms

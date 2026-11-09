@@ -1181,3 +1181,87 @@ func Test_referencedAttributeDefinitions_nilInputs(t *testing.T) {
 	require.Nil(t, referencedAttributeDefinitions(&resource{}),
 		"a resource with a nil ko must yield nil rather than panic")
 }
+
+// Test_updateGSIs_splitsWarmThroughputFromThroughputUpdate guards against
+// sending WarmThroughput in the same UpdateGlobalSecondaryIndexAction as a
+// throughput change. AWS rejects that with
+//
+//	ValidationException: ... WarmThroughput must be the only operation in the request for index: <name>
+//
+// which is a terminal code for this resource. updateGSIs must send only the
+// throughput change and requeue when a warm throughput raise is still pending,
+// leaving that raise to syncGSIWarmThroughput on a later reconcile.
+func Test_updateGSIs_splitsWarmThroughputFromThroughputUpdate(t *testing.T) {
+	wt := func(r, w int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: aws.Int64(r), WriteUnitsPerSecond: aws.Int64(w)}
+	}
+	gsi := func(rcu, wcu int64, warm *v1alpha1.WarmThroughput) *v1alpha1.GlobalSecondaryIndex {
+		return &v1alpha1.GlobalSecondaryIndex{
+			IndexName: aws.String("gsi1"),
+			ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(rcu),
+				WriteCapacityUnits: aws.Int64(wcu),
+			},
+			WarmThroughput: warm,
+		}
+	}
+	tests := []struct {
+		name        string
+		desiredWarm *v1alpha1.WarmThroughput
+		wantErr     error
+	}{
+		{
+			name:        "warm throughput raise pending requeues",
+			desiredWarm: wt(14000, 6000),
+			wantErr:     requeueWaitGSIReady,
+		},
+		{
+			name:        "warm throughput unchanged returns nil",
+			desiredWarm: wt(13000, 5000),
+			wantErr:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &recordingHTTPClient{}
+			rm := &resourceManager{
+				metrics: ackmetrics.NewMetrics("dynamodb"),
+				sdkapi: svcsdk.NewFromConfig(aws.Config{
+					Region:           "us-west-2",
+					Credentials:      fakeCredentialsProvider{},
+					HTTPClient:       client,
+					RetryMaxAttempts: 1,
+				}),
+			}
+			desired, latest := newTestTable(), newTestTable()
+			latest.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{gsi(5, 5, wt(13000, 5000))}
+			latest.ko.Status.GlobalSecondaryIndexesDescriptions = []*v1alpha1.GlobalSecondaryIndexDescription{{
+				IndexName:   aws.String("gsi1"),
+				IndexStatus: aws.String("ACTIVE"),
+				WarmThroughput: &v1alpha1.GlobalSecondaryIndexWarmThroughputDescription{
+					ReadUnitsPerSecond:  aws.Int64(13000),
+					WriteUnitsPerSecond: aws.Int64(5000),
+					Status:              aws.String("ACTIVE"),
+				},
+			}}
+			desired.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{gsi(10, 10, tt.desiredWarm)}
+
+			err := rm.updateGSIs(context.Background(), desired, latest, desired.ko.Spec.GlobalSecondaryIndexes)
+			require.Equal(t, tt.wantErr, err)
+
+			require.Len(t, client.calls, 1)
+			require.Equal(t, "DynamoDB_20120810.UpdateTable", client.calls[0].target)
+			var body struct {
+				GlobalSecondaryIndexUpdates []struct {
+					Update map[string]json.RawMessage
+				}
+			}
+			require.NoError(t, json.Unmarshal(client.calls[0].body, &body))
+			require.Len(t, body.GlobalSecondaryIndexUpdates, 1)
+			update := body.GlobalSecondaryIndexUpdates[0].Update
+			require.Contains(t, update, "ProvisionedThroughput")
+			require.NotContains(t, update, "WarmThroughput",
+				"WarmThroughput must not be combined with a throughput change for the same index")
+		})
+	}
+}
