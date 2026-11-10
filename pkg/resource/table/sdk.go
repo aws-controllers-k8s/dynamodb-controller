@@ -365,6 +365,19 @@ func (rm *resourceManager) sdkFind(
 				}
 				f13elem.ReplicaTableClassSummary = f13elemf8
 			}
+			if f13iter.WarmThroughput != nil {
+				f13elemf9 := &svcapitypes.TableWarmThroughputDescription{}
+				if f13iter.WarmThroughput.ReadUnitsPerSecond != nil {
+					f13elemf9.ReadUnitsPerSecond = f13iter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if f13iter.WarmThroughput.Status != "" {
+					f13elemf9.Status = aws.String(string(f13iter.WarmThroughput.Status))
+				}
+				if f13iter.WarmThroughput.WriteUnitsPerSecond != nil {
+					f13elemf9.WriteUnitsPerSecond = f13iter.WarmThroughput.WriteUnitsPerSecond
+				}
+				f13elem.WarmThroughput = f13elemf9
+			}
 			f13 = append(f13, f13elem)
 		}
 		ko.Status.Replicas = f13
@@ -879,6 +892,19 @@ func (rm *resourceManager) sdkCreate(
 					f13elemf8.TableClass = aws.String(string(f13iter.ReplicaTableClassSummary.TableClass))
 				}
 				f13elem.ReplicaTableClassSummary = f13elemf8
+			}
+			if f13iter.WarmThroughput != nil {
+				f13elemf9 := &svcapitypes.TableWarmThroughputDescription{}
+				if f13iter.WarmThroughput.ReadUnitsPerSecond != nil {
+					f13elemf9.ReadUnitsPerSecond = f13iter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if f13iter.WarmThroughput.Status != "" {
+					f13elemf9.Status = aws.String(string(f13iter.WarmThroughput.Status))
+				}
+				if f13iter.WarmThroughput.WriteUnitsPerSecond != nil {
+					f13elemf9.WriteUnitsPerSecond = f13iter.WarmThroughput.WriteUnitsPerSecond
+				}
+				f13elem.WarmThroughput = f13elemf9
 			}
 			f13 = append(f13, f13elem)
 		}

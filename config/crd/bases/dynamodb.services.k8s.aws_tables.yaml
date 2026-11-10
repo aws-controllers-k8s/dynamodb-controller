@@ -814,6 +814,20 @@ spec:
                         tableClass:
                           type: string
                       type: object
+                    warmThroughput:
+                      description: |-
+                        Represents the warm throughput value (in read units per second and write
+                        units per second) of the base table.
+                      properties:
+                        readUnitsPerSecond:
+                          format: int64
+                          type: integer
+                        status:
+                          type: string
+                        writeUnitsPerSecond:
+                          format: int64
+                          type: integer
+                      type: object
                   type: object
                 type: array
               restoreSummary:

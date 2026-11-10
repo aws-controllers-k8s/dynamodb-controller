@@ -534,6 +534,9 @@ type ReplicaDescription struct {
 	ReplicaStatusPercentProgress  *string                        `json:"replicaStatusPercentProgress,omitempty"`
 	// Contains details of the table class.
 	ReplicaTableClassSummary *TableClassSummary `json:"replicaTableClassSummary,omitempty"`
+	// Represents the warm throughput value (in read units per second and write
+	// units per second) of the base table.
+	WarmThroughput *TableWarmThroughputDescription `json:"warmThroughput,omitempty"`
 }
 
 // Represents the properties of a replica global secondary index.

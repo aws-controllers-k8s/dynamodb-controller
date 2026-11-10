@@ -9,8 +9,6 @@ ignore:
   - TableDescription.TableClassSummary
   # Deferring proper Spec/mutable implementation; exclude from the CRD for now
   - TableDescription.MultiRegionConsistency
-  # Replica-level warm throughput is read-only status; exclude from the CRD.
-  - ReplicaDescription.WarmThroughput
 operations:
   UpdateGlobalTable:
     operation_type:
