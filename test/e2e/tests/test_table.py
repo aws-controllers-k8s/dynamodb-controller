@@ -27,7 +27,8 @@ from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
 from e2e import (CRD_GROUP, CRD_VERSION, condition,
                  load_dynamodb_resource, service_marker, table,
-                 wait_for_cr_status, wait_for_resource_tags)
+                 wait_for_cr_status, wait_for_resource_tags,
+                 wait_resource_consumed)
 from e2e.replacement_values import REPLACEMENT_VALUES
 
 RESOURCE_PLURAL = "tables"
@@ -83,9 +84,8 @@ def create_table(name: str, resource_template):
 
     # Create table
     k8s.create_custom_resource(table_reference, resource_data)
-    table_resource = k8s.wait_resource_consumed_by_controller(table_reference)
+    table_resource = wait_resource_consumed(table_reference)
 
-    assert table_resource is not None
     assert k8s.get_resource_exists(table_reference)
 
     wait_for_cr_status(
@@ -229,9 +229,8 @@ def table_resource_policy():
 
     # Create table
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = wait_resource_consumed(ref)
 
-    assert cr is not None
     assert k8s.get_resource_exists(ref)
 
     # Wait for the resource to be synced (table created and policy applied)

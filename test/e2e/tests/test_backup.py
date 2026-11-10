@@ -26,6 +26,7 @@ from e2e import (
     CRD_VERSION,
     load_dynamodb_resource,
     wait_for_cr_status,
+    wait_resource_consumed,
 )
 from e2e.replacement_values import REPLACEMENT_VALUES
 from e2e import condition
@@ -54,9 +55,8 @@ def dynamodb_table():
 
     # Create table
     k8s.create_custom_resource(table_reference, resource_data)
-    table_resource = k8s.wait_resource_consumed_by_controller(table_reference)
+    table_resource = wait_resource_consumed(table_reference)
 
-    assert table_resource is not None
     assert k8s.get_resource_exists(table_reference)
 
     wait_for_cr_status(
@@ -113,9 +113,8 @@ class TestBackup:
             resource_name, namespace="default",
         )
         k8s.create_custom_resource(ref, resource_data)
-        cr = k8s.wait_resource_consumed_by_controller(ref)
+        cr = wait_resource_consumed(ref)
 
-        assert cr is not None
         assert k8s.get_resource_exists(ref)
 
         wait_for_cr_status(
