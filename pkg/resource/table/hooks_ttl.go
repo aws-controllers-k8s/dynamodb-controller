@@ -15,6 +15,7 @@ package table
 
 import (
 	"context"
+	"strings"
 
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,6 +23,7 @@ import (
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 )
 
 // syncTTL updates a dynamodb table's TimeToLive property.
@@ -33,6 +35,10 @@ func (rm *resourceManager) syncTTL(
 	rlog := ackrtlog.FromContext(ctx)
 	exit := rlog.Trace("rm.syncTTL")
 	defer func(err error) { exit(err) }(err)
+
+	if !isTTLEnabled(desired.ko.Spec.TimeToLive) && !isTTLEnabled(latest.ko.Spec.TimeToLive) {
+		return nil
+	}
 
 	ttlSpec := &svcsdktypes.TimeToLiveSpecification{}
 	if desired.ko.Spec.TimeToLive != nil {
@@ -90,4 +96,26 @@ func (rm *resourceManager) getResourceTTLWithContext(ctx context.Context, tableN
 		AttributeName: res.TimeToLiveDescription.AttributeName,
 		Enabled:       &isEnabled,
 	}, nil
+}
+
+func isTTLEnabled(ttl *v1alpha1.TimeToLiveSpecification) bool {
+	return ttl != nil && aws.ToBool(ttl.Enabled)
+}
+
+// equalTTL ignores AttributeName when both sides are disabled.
+func equalTTL(a, b *v1alpha1.TimeToLiveSpecification) bool {
+	aEnabled, bEnabled := isTTLEnabled(a), isTTLEnabled(b)
+	if aEnabled != bEnabled {
+		return false
+	}
+	if !aEnabled {
+		return true
+	}
+	return aws.ToString(a.AttributeName) == aws.ToString(b.AttributeName)
+}
+
+func isTTLAlreadyDisabledError(err error) bool {
+	awsErr, ok := ackerr.AWSError(err)
+	return ok && awsErr.ErrorCode() == "ValidationException" &&
+		strings.HasPrefix(awsErr.ErrorMessage(), "TimeToLive is already disabled")
 }
