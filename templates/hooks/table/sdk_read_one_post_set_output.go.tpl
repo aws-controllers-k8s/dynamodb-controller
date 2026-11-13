@@ -20,11 +20,41 @@
 			if fIter.Backfilling != nil {
 				fElem.Backfilling = fIter.Backfilling
 			}
+			if fIter.WarmThroughput != nil {
+				wtDesc := &svcapitypes.GlobalSecondaryIndexWarmThroughputDescription{}
+				if fIter.WarmThroughput.ReadUnitsPerSecond != nil {
+					wtDesc.ReadUnitsPerSecond = fIter.WarmThroughput.ReadUnitsPerSecond
+				}
+				if fIter.WarmThroughput.WriteUnitsPerSecond != nil {
+					wtDesc.WriteUnitsPerSecond = fIter.WarmThroughput.WriteUnitsPerSecond
+				}
+				if fIter.WarmThroughput.Status != "" {
+					wtDesc.Status = aws.String(string(fIter.WarmThroughput.Status))
+				}
+				fElem.WarmThroughput = wtDesc
+			}
 			f = append(f, fElem)
 		}
 		ko.Status.GlobalSecondaryIndexesDescriptions = f
 	} else {
 		ko.Status.GlobalSecondaryIndexesDescriptions = nil
+	}
+	// Table.WarmThroughput maps to Spec.WarmThroughput by name in the
+	// generated code; surface the full description (including Status) here.
+	if resp.Table.WarmThroughput != nil {
+		wtDesc := &svcapitypes.TableWarmThroughputDescription{}
+		if resp.Table.WarmThroughput.ReadUnitsPerSecond != nil {
+			wtDesc.ReadUnitsPerSecond = resp.Table.WarmThroughput.ReadUnitsPerSecond
+		}
+		if resp.Table.WarmThroughput.WriteUnitsPerSecond != nil {
+			wtDesc.WriteUnitsPerSecond = resp.Table.WarmThroughput.WriteUnitsPerSecond
+		}
+		if resp.Table.WarmThroughput.Status != "" {
+			wtDesc.Status = aws.String(string(resp.Table.WarmThroughput.Status))
+		}
+		ko.Status.WarmThroughputDescription = wtDesc
+	} else {
+		ko.Status.WarmThroughputDescription = nil
 	}
 	if resp.Table.SSEDescription != nil {
 		f := &svcapitypes.SSESpecification{}
@@ -64,6 +94,11 @@
 		return &resource{ko}, err
 	}
 	if isTableUpdating(&resource{ko}) || isTableContributorInsightsUpdating(&resource{ko}) {
+		return &resource{ko}, requeueWaitWhileUpdating
+	}
+	// Warm throughput updates may be in progress while TableStatus stays
+	// ACTIVE; wait so we don't issue another UpdateTable based on stale values.
+	if resp.Table.WarmThroughput != nil && resp.Table.WarmThroughput.Status == svcsdktypes.TableStatusUpdating {
 		return &resource{ko}, requeueWaitWhileUpdating
 	}
 

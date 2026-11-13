@@ -74,3 +74,102 @@ func Test_newSDKProvisionedThroughput(t *testing.T) {
 		})
 	}
 }
+
+func Test_newSDKWarmThroughput(t *testing.T) {
+	tests := []struct {
+		name string
+		wt   *v1alpha1.WarmThroughput
+		want *svcsdktypes.WarmThroughput
+	}{
+		{
+			name: "nil returns nil",
+			wt:   nil,
+			want: nil,
+		},
+		{
+			name: "both fields set",
+			wt: &v1alpha1.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+			},
+		},
+		{
+			name: "read only",
+			wt: &v1alpha1.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(13000),
+			},
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(13000),
+			},
+		},
+		{
+			name: "both nil fields",
+			wt:   &v1alpha1.WarmThroughput{},
+			want: &svcsdktypes.WarmThroughput{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := newSDKWarmThroughput(tt.wt); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("newSDKWarmThroughput() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_canUpdateTableGSIs(t *testing.T) {
+	gsi := func(indexStatus string, wtStatus *string) *v1alpha1.GlobalSecondaryIndexDescription {
+		d := &v1alpha1.GlobalSecondaryIndexDescription{
+			IndexName:   aws.String("gsi1"),
+			IndexStatus: aws.String(indexStatus),
+		}
+		if wtStatus != nil {
+			d.WarmThroughput = &v1alpha1.GlobalSecondaryIndexWarmThroughputDescription{
+				ReadUnitsPerSecond:  aws.Int64(13000),
+				WriteUnitsPerSecond: aws.Int64(5000),
+				Status:              wtStatus,
+			}
+		}
+		return d
+	}
+	tests := []struct {
+		name string
+		gsis []*v1alpha1.GlobalSecondaryIndexDescription
+		want bool
+	}{
+		{
+			name: "all ACTIVE with nil warm throughput",
+			gsis: []*v1alpha1.GlobalSecondaryIndexDescription{gsi("ACTIVE", nil)},
+			want: true,
+		},
+		{
+			name: "ACTIVE with warm throughput ACTIVE",
+			gsis: []*v1alpha1.GlobalSecondaryIndexDescription{gsi("ACTIVE", aws.String("ACTIVE"))},
+			want: true,
+		},
+		{
+			name: "ACTIVE with warm throughput UPDATING",
+			gsis: []*v1alpha1.GlobalSecondaryIndexDescription{gsi("ACTIVE", aws.String("UPDATING"))},
+			want: false,
+		},
+		{
+			name: "index status UPDATING",
+			gsis: []*v1alpha1.GlobalSecondaryIndexDescription{gsi("UPDATING", nil)},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &resource{ko: &v1alpha1.Table{
+				Status: v1alpha1.TableStatus{GlobalSecondaryIndexesDescriptions: tt.gsis},
+			}}
+			if got := canUpdateTableGSIs(r); got != tt.want {
+				t.Errorf("canUpdateTableGSIs() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

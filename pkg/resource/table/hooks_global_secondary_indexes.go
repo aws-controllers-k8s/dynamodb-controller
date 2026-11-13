@@ -28,10 +28,17 @@ import (
 )
 
 // canUpdateTableGSIs return true if it's possible to update table GSIs.
-// we can only perform one GSI create/update/delete at once.
+// we can only perform one GSI create/update/delete at once. GSIs can be
+// updated only when every index is ACTIVE and no index has a warm throughput
+// update in progress (a GSI's WarmThroughput.Status can be UPDATING while its
+// IndexStatus stays ACTIVE).
 func canUpdateTableGSIs(r *resource) bool {
 	for _, gsiDescription := range r.ko.Status.GlobalSecondaryIndexesDescriptions {
 		if *gsiDescription.IndexStatus != string(svcsdktypes.IndexStatusActive) {
+			return false
+		}
+		if gsiDescription.WarmThroughput != nil && gsiDescription.WarmThroughput.Status != nil &&
+			*gsiDescription.WarmThroughput.Status == string(svcsdktypes.IndexStatusUpdating) {
 			return false
 		}
 	}
@@ -237,6 +244,7 @@ func (rm *resourceManager) updateGSIs(
 	}
 
 	gsiUpdatesInQueue := len(updatedGSIs) - 1
+	warmPending := false
 
 	input := &svcsdk.UpdateTableInput{
 		TableName:            aws.String(*latest.ko.Spec.TableName),
@@ -244,12 +252,26 @@ func (rm *resourceManager) updateGSIs(
 	}
 
 	for _, updatedGSI := range updatedGSIs {
+		updateAction := &svcsdktypes.UpdateGlobalSecondaryIndexAction{
+			IndexName:             aws.String(*updatedGSI.IndexName),
+			OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
+			ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+		}
+		// AWS requires WarmThroughput to be the only operation in the request
+		// for an index, so it is never sent alongside a throughput change.
+		// Warm throughput is raised on a later reconcile by
+		// syncGSIWarmThroughput; here we only note whether that is needed so
+		// we requeue instead of falling through in the same reconcile.
+		var latestWT *v1alpha1.WarmThroughput
+		for _, latestGSI := range latest.ko.Spec.GlobalSecondaryIndexes {
+			if latestGSI != nil && latestGSI.IndexName != nil && *latestGSI.IndexName == *updatedGSI.IndexName {
+				latestWT = latestGSI.WarmThroughput
+				break
+			}
+		}
+		warmPending = warmThroughputNeedsIncrease(updatedGSI.WarmThroughput, latestWT)
 		update := svcsdktypes.GlobalSecondaryIndexUpdate{
-			Update: &svcsdktypes.UpdateGlobalSecondaryIndexAction{
-				IndexName:             aws.String(*updatedGSI.IndexName),
-				OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
-				ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
-			},
+			Update: updateAction,
 		}
 		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
 		// We can only remove, update or add one GSI at once. Hence we return the update call input
@@ -267,7 +289,7 @@ func (rm *resourceManager) updateGSIs(
 		return err
 	}
 
-	if gsiUpdatesInQueue > 0 {
+	if gsiUpdatesInQueue > 0 || warmPending {
 		return requeueWaitGSIReady
 	}
 
@@ -308,6 +330,7 @@ func (rm *resourceManager) addGSIs(
 				KeySchema:             newSDKKeySchemaArray(addedGSI.KeySchema),
 				OnDemandThroughput:    newSDKOnDemandThroughput(addedGSI.OnDemandThroughput),
 				ProvisionedThroughput: newSDKProvisionedThroughput(addedGSI.ProvisionedThroughput),
+				WarmThroughput:        newSDKWarmThroughput(addedGSI.WarmThroughput),
 			},
 		}
 		input.GlobalSecondaryIndexUpdates = append(input.GlobalSecondaryIndexUpdates, update)
@@ -411,4 +434,20 @@ func newSDKOnDemandThroughput(odt *v1alpha1.OnDemandThroughput) *svcsdktypes.OnD
 		onDemandThroughput.MaxWriteRequestUnits = aws.Int64(*odt.MaxWriteRequestUnits)
 	}
 	return onDemandThroughput
+}
+
+// newSDKWarmThroughput converts a CRD WarmThroughput to an SDK WarmThroughput
+// for use in create operations where the full desired value should be sent.
+func newSDKWarmThroughput(wt *v1alpha1.WarmThroughput) *svcsdktypes.WarmThroughput {
+	if wt == nil {
+		return nil
+	}
+	out := &svcsdktypes.WarmThroughput{}
+	if wt.ReadUnitsPerSecond != nil {
+		out.ReadUnitsPerSecond = aws.Int64(*wt.ReadUnitsPerSecond)
+	}
+	if wt.WriteUnitsPerSecond != nil {
+		out.WriteUnitsPerSecond = aws.Int64(*wt.WriteUnitsPerSecond)
+	}
+	return out
 }

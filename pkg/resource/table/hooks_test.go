@@ -27,6 +27,7 @@ import (
 	ackmetrics "github.com/aws-controllers-k8s/runtime/pkg/metrics"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
@@ -958,9 +959,309 @@ func Test_deleteGSIs_requeuesAfterSingleDelete(t *testing.T) {
 			"customUpdateTable attempts any further table property update")
 }
 
+func Test_warmThroughputNeedsIncrease(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	cases := []struct {
+		name    string
+		desired *v1alpha1.WarmThroughput
+		latest  *v1alpha1.WarmThroughput
+		want    bool
+	}{
+		{"desired nil is unmanaged", nil, wt(aws.Int64(12000), aws.Int64(4000)), false},
+		{"desired nil latest nil", nil, nil, false},
+		{"desired set latest nil", wt(aws.Int64(13000), nil), nil, true},
+		{"desired empty latest nil", wt(nil, nil), nil, false},
+		{"equal values in sync", wt(aws.Int64(13000), aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), false},
+		{"AWS raised above desired in sync", wt(aws.Int64(13000), aws.Int64(5000)), wt(aws.Int64(20000), aws.Int64(9000)), false},
+		{"read increase needed", wt(aws.Int64(14000), aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
+		{"write increase needed", wt(nil, aws.Int64(6000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
+		{"unset member unmanaged", wt(nil, aws.Int64(5000)), wt(aws.Int64(13000), aws.Int64(5000)), false},
+		{"latest member missing", wt(aws.Int64(13000), nil), wt(nil, aws.Int64(5000)), true},
+		{"mixed: read increase write decrease", wt(aws.Int64(14000), aws.Int64(3000)), wt(aws.Int64(13000), aws.Int64(5000)), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, warmThroughputNeedsIncrease(tc.desired, tc.latest))
+		})
+	}
+}
+
+func Test_buildWarmThroughputUpdate(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	cases := []struct {
+		name    string
+		desired *v1alpha1.WarmThroughput
+		latest  *v1alpha1.WarmThroughput
+		want    *svcsdktypes.WarmThroughput
+	}{
+		{
+			name:    "desired nil returns nil",
+			desired: nil,
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want:    nil,
+		},
+		{
+			name:    "latest nil uses desired",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  nil,
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+		{
+			name:    "both desired higher than latest",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+		{
+			name:    "mixed: read increase write skipped",
+			desired: wt(aws.Int64(14000), aws.Int64(3000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(14000),
+			},
+		},
+		{
+			name:    "desired field nil omitted from output",
+			desired: wt(aws.Int64(14000), nil),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond: aws.Int64(14000),
+			},
+		},
+		{
+			name:    "both desired fields nil returns nil",
+			desired: wt(nil, nil),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want:    nil,
+		},
+		{
+			name:    "equal values returns nil",
+			desired: wt(aws.Int64(13000), aws.Int64(5000)),
+			latest:  wt(aws.Int64(13000), aws.Int64(5000)),
+			want:    nil,
+		},
+		{
+			name:    "latest member nil uses desired",
+			desired: wt(aws.Int64(14000), aws.Int64(6000)),
+			latest:  wt(nil, nil),
+			want: &svcsdktypes.WarmThroughput{
+				ReadUnitsPerSecond:  aws.Int64(14000),
+				WriteUnitsPerSecond: aws.Int64(6000),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildWarmThroughputUpdate(tc.desired, tc.latest)
+			if tc.want == nil {
+				require.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				if tc.want.ReadUnitsPerSecond != nil {
+					require.NotNil(t, got.ReadUnitsPerSecond)
+					require.Equal(t, *tc.want.ReadUnitsPerSecond, *got.ReadUnitsPerSecond)
+				} else {
+					require.Nil(t, got.ReadUnitsPerSecond)
+				}
+				if tc.want.WriteUnitsPerSecond != nil {
+					require.NotNil(t, got.WriteUnitsPerSecond)
+					require.Equal(t, *tc.want.WriteUnitsPerSecond, *got.WriteUnitsPerSecond)
+				} else {
+					require.Nil(t, got.WriteUnitsPerSecond)
+				}
+			}
+		})
+	}
+}
+
+func Test_gsiWarmThroughputNeedsIncrease(t *testing.T) {
+	wt := func(r, w *int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: r, WriteUnitsPerSecond: w}
+	}
+	gsi := func(name string, warmTP *v1alpha1.WarmThroughput) *v1alpha1.GlobalSecondaryIndex {
+		return &v1alpha1.GlobalSecondaryIndex{IndexName: aws.String(name), WarmThroughput: warmTP}
+	}
+	cases := []struct {
+		name    string
+		desired []*v1alpha1.GlobalSecondaryIndex
+		latest  []*v1alpha1.GlobalSecondaryIndex
+		want    bool
+	}{
+		{
+			name:    "nil desired",
+			desired: nil,
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "no warm throughput on desired GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", nil)},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "increase needed on one GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(14000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    true,
+		},
+		{
+			name:    "equal values no increase needed",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name:    "desired lower no increase needed",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(12000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000)))},
+			want:    false,
+		},
+		{
+			name: "one GSI needs increase out of two",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(14000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: true,
+		},
+		{
+			name:    "new GSI with warm throughput, no matching latest",
+			desired: []*v1alpha1.GlobalSecondaryIndex{gsi("gsi-new", wt(aws.Int64(13000), aws.Int64(5000)))},
+			latest:  []*v1alpha1.GlobalSecondaryIndex{},
+			want:    false,
+		},
+		{
+			name: "one existing GSI in sync and one new GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: false,
+		},
+		{
+			name: "one existing GSI needs increase and one new GSI",
+			desired: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(14000), aws.Int64(5000))),
+				gsi("gsi2", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			latest: []*v1alpha1.GlobalSecondaryIndex{
+				gsi("gsi1", wt(aws.Int64(13000), aws.Int64(5000))),
+			},
+			want: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, gsiWarmThroughputNeedsIncrease(tc.desired, tc.latest))
+		})
+	}
+}
+
 func Test_referencedAttributeDefinitions_nilInputs(t *testing.T) {
 	require.Nil(t, referencedAttributeDefinitions(nil),
 		"a nil resource must yield nil rather than panic")
 	require.Nil(t, referencedAttributeDefinitions(&resource{}),
 		"a resource with a nil ko must yield nil rather than panic")
+}
+
+// Test_updateGSIs_splitsWarmThroughputFromThroughputUpdate guards against
+// sending WarmThroughput in the same UpdateGlobalSecondaryIndexAction as a
+// throughput change. AWS rejects that with
+//
+//	ValidationException: ... WarmThroughput must be the only operation in the request for index: <name>
+//
+// which is a terminal code for this resource. updateGSIs must send only the
+// throughput change and requeue when a warm throughput raise is still pending,
+// leaving that raise to syncGSIWarmThroughput on a later reconcile.
+func Test_updateGSIs_splitsWarmThroughputFromThroughputUpdate(t *testing.T) {
+	wt := func(r, w int64) *v1alpha1.WarmThroughput {
+		return &v1alpha1.WarmThroughput{ReadUnitsPerSecond: aws.Int64(r), WriteUnitsPerSecond: aws.Int64(w)}
+	}
+	gsi := func(rcu, wcu int64, warm *v1alpha1.WarmThroughput) *v1alpha1.GlobalSecondaryIndex {
+		return &v1alpha1.GlobalSecondaryIndex{
+			IndexName: aws.String("gsi1"),
+			ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(rcu),
+				WriteCapacityUnits: aws.Int64(wcu),
+			},
+			WarmThroughput: warm,
+		}
+	}
+	tests := []struct {
+		name        string
+		desiredWarm *v1alpha1.WarmThroughput
+		wantErr     error
+	}{
+		{
+			name:        "warm throughput raise pending requeues",
+			desiredWarm: wt(14000, 6000),
+			wantErr:     requeueWaitGSIReady,
+		},
+		{
+			name:        "warm throughput unchanged returns nil",
+			desiredWarm: wt(13000, 5000),
+			wantErr:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &recordingHTTPClient{}
+			rm := &resourceManager{
+				metrics: ackmetrics.NewMetrics("dynamodb"),
+				sdkapi: svcsdk.NewFromConfig(aws.Config{
+					Region:           "us-west-2",
+					Credentials:      fakeCredentialsProvider{},
+					HTTPClient:       client,
+					RetryMaxAttempts: 1,
+				}),
+			}
+			desired, latest := newTestTable(), newTestTable()
+			latest.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{gsi(5, 5, wt(13000, 5000))}
+			latest.ko.Status.GlobalSecondaryIndexesDescriptions = []*v1alpha1.GlobalSecondaryIndexDescription{{
+				IndexName:   aws.String("gsi1"),
+				IndexStatus: aws.String("ACTIVE"),
+				WarmThroughput: &v1alpha1.GlobalSecondaryIndexWarmThroughputDescription{
+					ReadUnitsPerSecond:  aws.Int64(13000),
+					WriteUnitsPerSecond: aws.Int64(5000),
+					Status:              aws.String("ACTIVE"),
+				},
+			}}
+			desired.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{gsi(10, 10, tt.desiredWarm)}
+
+			err := rm.updateGSIs(context.Background(), desired, latest, desired.ko.Spec.GlobalSecondaryIndexes)
+			require.Equal(t, tt.wantErr, err)
+
+			require.Len(t, client.calls, 1)
+			require.Equal(t, "DynamoDB_20120810.UpdateTable", client.calls[0].target)
+			var body struct {
+				GlobalSecondaryIndexUpdates []struct {
+					Update map[string]json.RawMessage
+				}
+			}
+			require.NoError(t, json.Unmarshal(client.calls[0].body, &body))
+			require.Len(t, body.GlobalSecondaryIndexUpdates, 1)
+			update := body.GlobalSecondaryIndexUpdates[0].Update
+			require.Contains(t, update, "ProvisionedThroughput")
+			require.NotContains(t, update, "WarmThroughput",
+				"WarmThroughput must not be combined with a throughput change for the same index")
+		})
+	}
 }
