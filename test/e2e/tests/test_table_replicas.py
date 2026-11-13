@@ -24,7 +24,8 @@ from acktest import tags
 from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
 from e2e import (CRD_GROUP, CRD_VERSION, condition,
-                 load_dynamodb_resource, service_marker, table)
+                 load_dynamodb_resource, service_marker, table,
+                 wait_resource_consumed)
 from e2e.replacement_values import REPLACEMENT_VALUES
 from acktest.k8s import condition
 
@@ -66,9 +67,8 @@ def create_table_with_replicas(name: str, resource_template, regions=None):
         name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = wait_resource_consumed(ref)
 
-    assert cr is not None
     assert k8s.get_resource_exists(ref)
 
     return (ref, cr)
@@ -124,9 +124,8 @@ def create_table_with_invalid_replicas(name: str):
         name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = wait_resource_consumed(ref)
 
-    assert cr is not None
     assert k8s.get_resource_exists(ref)
 
     return (ref, cr)
@@ -164,7 +163,7 @@ def table_replicas_gsi():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = wait_resource_consumed(ref)
 
     table.wait_until(
         table_name,
@@ -197,16 +196,7 @@ def table_multiple_replicas_gsis():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    # A table with multiple replicas and GSIs can take several minutes for the
-    # controller to first reconcile, so allow up to 5 minutes for the CR to be
-    # consumed (the acktest default is only ~30s). Fail loudly if it never is,
-    # rather than yielding cr=None and crashing downstream with a TypeError.
-    cr = k8s.wait_resource_consumed_by_controller(
-        ref, wait_periods=30, period_length=10,
-    )
-    assert cr is not None, (
-        f"controller never consumed {table_name} within the wait window"
-    )
+    cr = wait_resource_consumed(ref)
 
     table.wait_until(
         table_name,
@@ -239,7 +229,7 @@ def table_multiple_replicas_gsis_provisioned():
         table_name, namespace="default",
     )
     k8s.create_custom_resource(ref, resource_data)
-    cr = k8s.wait_resource_consumed_by_controller(ref)
+    cr = wait_resource_consumed(ref)
 
     table.wait_until(
         table_name,

@@ -64,6 +64,17 @@ def wait_for_cr_status(
 
     assert actual_status == desired_status
 
+def wait_resource_consumed(
+    reference: k8s.CustomResourceReference,
+    wait_periods: int = 30,
+    period_length: int = 10,
+):
+    cr = k8s.wait_resource_consumed_by_controller(
+        reference, wait_periods=wait_periods, period_length=period_length,
+    )
+    assert cr is not None, f"controller never consumed {reference.name}"
+    return cr
+
 def get_resource_tags(resource_arn: str):
     region = get_region()
     ddb_client = boto3.client('dynamodb', region_name=region)
