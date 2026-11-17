@@ -226,6 +226,7 @@ func (rm *resourceManager) customUpdateTable(
 	addedGSIs, updatedGSIs, removedGSIs := computeGlobalSecondaryIndexDelta(
 		latest.ko.Spec.GlobalSecondaryIndexes,
 		desired.ko.Spec.GlobalSecondaryIndexes,
+		isGSIProvisionedThroughputManagedByExternalAutoscaler(desired.ko),
 	)
 
 	// Delete GSIs that have been removed first to avoid errors when updating table properties
@@ -385,9 +386,12 @@ func (rm *resourceManager) newUpdateTablePayload(
 
 		// If billing mode is changing from PAY_PER_REQUEST to PROVISIONED we need to include all GSI updates
 		if latestBillingMode == svcsdktypes.BillingModePayPerRequest && input.BillingMode == svcsdktypes.BillingModeProvisioned {
+			// Switching to PROVISIONED requires an initial capacity for every
+			// index, so throughput is always compared here.
 			_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
 				latest.ko.Spec.GlobalSecondaryIndexes,
 				desired.ko.Spec.GlobalSecondaryIndexes,
+				false,
 			)
 
 			// DynamoDB API fails if GSI updates are empty. Only set GlobalSecondaryIndexUpdates
@@ -746,7 +750,7 @@ func customPreCompare(
 			b.ko.Spec.GlobalSecondaryIndexes,
 		)
 	} else if a.ko.Spec.GlobalSecondaryIndexes != nil && b.ko.Spec.GlobalSecondaryIndexes != nil {
-		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes, isGSIProvisionedThroughputManagedByExternalAutoscaler(a.ko)) {
 			delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
 		}
 	}
@@ -1257,6 +1261,10 @@ func isTableProvisionedThroughputManagedByExternalAutoscaler(table *svcapitypes.
 		return false
 	}
 	return managedBy == svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
+}
+
+func isGSIProvisionedThroughputManagedByExternalAutoscaler(table *svcapitypes.Table) bool {
+	return table.Annotations[svcapitypes.GSIProvisionedThroughputManagedByAnnotation] == svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
 }
 
 func customPostCompare(

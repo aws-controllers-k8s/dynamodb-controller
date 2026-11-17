@@ -36,6 +36,22 @@ var (
 	// the value is not one of the above, the controller will default to managing the provisioned throughput
 	// as if the annotation was set to "controller".
 	TableProvisionedThroughputManagedByAnnotation = fmt.Sprintf("%s/table-provisioned-throughput-managed-by", GroupVersion.Group)
+
+	// GSIProvisionedThroughputManagedByAnnotation is the annotation key used to set the management
+	// style for the provisioned throughput of every global secondary index of a DynamoDB table.
+	// This annotation can only be set on a table custom resource and accepts the same values as
+	// TableProvisionedThroughputManagedByAnnotation.
+	//
+	// - 'external-autoscaler': The controller ignores `provisionedThroughput` of every entry in
+	// 							`spec.globalSecondaryIndexes` when comparing desired and latest
+	// 							state, and never sends it in UpdateTable GSI updates. The values
+	// 							are still used when an index is created.
+	//
+	// - 'ack-dynamodb-controller': The controller reconciles the provisioned throughput of every
+	// 							global secondary index with the values of the spec.
+	//
+	// By default the provisioned throughput of the indexes is managed by the controller.
+	GSIProvisionedThroughputManagedByAnnotation = fmt.Sprintf("%s/gsi-provisioned-throughput-managed-by", GroupVersion.Group)
 )
 
 const (

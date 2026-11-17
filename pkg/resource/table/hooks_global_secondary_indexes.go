@@ -48,10 +48,12 @@ func canUpdateTableGSIs(r *resource) bool {
 // computeGlobalSecondaryIndexDelta compares two GlobalSecondaryIndex arrays and
 // return three different list containing the added, updated and removed
 // GlobalSecondaryIndex. The removed array only contains the IndexName of the
-// GlobalSecondaryIndex.
+// GlobalSecondaryIndex. When ignoreProvisionedThroughput is true, indexes that
+// only differ in ProvisionedThroughput are not reported as updated.
 func computeGlobalSecondaryIndexDelta(
 	a []*v1alpha1.GlobalSecondaryIndex,
 	b []*v1alpha1.GlobalSecondaryIndex,
+	ignoreProvisionedThroughput bool,
 ) (added, updated []*v1alpha1.GlobalSecondaryIndex, removed []string) {
 	var visitedIndexes []string
 loopA:
@@ -59,7 +61,7 @@ loopA:
 		visitedIndexes = append(visitedIndexes, *aElement.IndexName)
 		for _, bElement := range b {
 			if *aElement.IndexName == *bElement.IndexName {
-				if !equalGlobalSecondaryIndexes(aElement, bElement) {
+				if !equalGlobalSecondaryIndexes(aElement, bElement, ignoreProvisionedThroughput) {
 					updated = append(updated, bElement)
 				}
 				continue loopA
@@ -81,23 +83,26 @@ loopA:
 func equalGlobalSecondaryIndexesArrays(
 	a []*v1alpha1.GlobalSecondaryIndex,
 	b []*v1alpha1.GlobalSecondaryIndex,
+	ignoreProvisionedThroughput bool,
 ) bool {
-	added, updated, removed := computeGlobalSecondaryIndexDelta(a, b)
+	added, updated, removed := computeGlobalSecondaryIndexDelta(a, b, ignoreProvisionedThroughput)
 	return len(added) == 0 && len(updated) == 0 && len(removed) == 0
 }
 
 // equalGlobalSecondaryIndexes returns whether two GlobalSecondaryIndex objects are
-// equal or not.
+// equal or not. ProvisionedThroughput is skipped when ignoreProvisionedThroughput
+// is true.
 func equalGlobalSecondaryIndexes(
 	a *v1alpha1.GlobalSecondaryIndex,
 	b *v1alpha1.GlobalSecondaryIndex,
+	ignoreProvisionedThroughput bool,
 ) bool {
-	if ackcompare.HasNilDifference(a.ProvisionedThroughput, b.ProvisionedThroughput) {
+	if !ignoreProvisionedThroughput && ackcompare.HasNilDifference(a.ProvisionedThroughput, b.ProvisionedThroughput) {
 		if !isPayPerRequestMode(a, b) {
 			return false
 		}
 	}
-	if a.ProvisionedThroughput != nil && b.ProvisionedThroughput != nil {
+	if !ignoreProvisionedThroughput && a.ProvisionedThroughput != nil && b.ProvisionedThroughput != nil {
 		if !equalInt64s(a.ProvisionedThroughput.ReadCapacityUnits, b.ProvisionedThroughput.ReadCapacityUnits) {
 			return false
 		}
@@ -251,11 +256,17 @@ func (rm *resourceManager) updateGSIs(
 		AttributeDefinitions: newSDKAttributesDefinition(desired.ko.Spec.AttributeDefinitions),
 	}
 
+	throughputManagedExternally := isGSIProvisionedThroughputManagedByExternalAutoscaler(desired.ko)
+
 	for _, updatedGSI := range updatedGSIs {
 		updateAction := &svcsdktypes.UpdateGlobalSecondaryIndexAction{
-			IndexName:             aws.String(*updatedGSI.IndexName),
-			OnDemandThroughput:    newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
-			ProvisionedThroughput: newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput),
+			IndexName:          aws.String(*updatedGSI.IndexName),
+			OnDemandThroughput: newSDKOnDemandThroughput(updatedGSI.OnDemandThroughput),
+		}
+		// An external autoscaler owns the index capacity, so sending the
+		// spec value would undo its last scaling action.
+		if !throughputManagedExternally {
+			updateAction.ProvisionedThroughput = newSDKProvisionedThroughput(updatedGSI.ProvisionedThroughput)
 		}
 		// AWS requires WarmThroughput to be the only operation in the request
 		// for an index, so it is never sent alongside a throughput change.
