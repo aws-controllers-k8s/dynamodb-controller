@@ -32,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
+	svcapitypes "github.com/aws-controllers-k8s/dynamodb-controller/apis/v1alpha1"
 )
 
 var (
@@ -1264,4 +1265,209 @@ func Test_updateGSIs_splitsWarmThroughputFromThroughputUpdate(t *testing.T) {
 				"WarmThroughput must not be combined with a throughput change for the same index")
 		})
 	}
+}
+
+func Test_compareProvisionedThroughput(t *testing.T) {
+	type managementType int
+	const (
+		managedByDefault managementType = iota
+		managedByACKController
+		managedByExternalAutoscaler
+	)
+
+	// Helper to create table with given throughput parameters
+	createTable := func(rpu, wpu *int64) *v1alpha1.Table {
+		if rpu == nil && wpu == nil {
+			return &v1alpha1.Table{
+				Spec: v1alpha1.TableSpec{
+					ProvisionedThroughput: nil,
+				},
+			}
+		}
+		return &v1alpha1.Table{
+			Spec: v1alpha1.TableSpec{
+				ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+					ReadCapacityUnits:  rpu,
+					WriteCapacityUnits: wpu,
+				},
+			},
+		}
+	}
+
+	// Helper function to apply management type to a table
+	applyManagement := func(table *v1alpha1.Table, mgmt managementType) *v1alpha1.Table {
+		switch mgmt {
+		case managedByACKController:
+			if table.Annotations == nil {
+				table.Annotations = make(map[string]string)
+			}
+			table.Annotations[svcapitypes.TableProvisionedThroughputManagedByAnnotation] = svcapitypes.TableProvisionedThroughputManagedByACKController
+			return table
+		case managedByExternalAutoscaler:
+			if table.Annotations == nil {
+				table.Annotations = make(map[string]string)
+			}
+			table.Annotations[svcapitypes.TableProvisionedThroughputManagedByAnnotation] = svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
+			return table
+		default:
+			return table // managedByDefault
+		}
+	}
+
+	tests := []struct {
+		name        string
+		mgmt        managementType
+		aRpu, aWpu  *int64 // Table A provisioned throughput (nil means no throughput spec)
+		bRpu, bWpu  *int64 // Table B provisioned throughput (nil means no throughput spec)
+		expectDelta bool
+	}{
+		// ManagedByDefault scenarios
+		{"default: both nil ProvisionedThroughput", managedByDefault, nil, nil, nil, nil, false},
+		{"default: (a) nil ProvisionedThroughput", managedByDefault, nil, nil, aws.Int64(5), aws.Int64(5), true},
+		{"default: (b) nil ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), nil, nil, true},
+		{"default: equal ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"default: different ProvisionedThroughput", managedByDefault, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), true},
+
+		// ManagedByACKController scenarios
+		{"ack: both nil ProvisionedThroughput", managedByACKController, nil, nil, nil, nil, false},
+		{"ack: (a) nil ProvisionedThroughput", managedByACKController, nil, nil, aws.Int64(5), aws.Int64(5), true},
+		{"ack: (b) nil ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), nil, nil, true},
+		{"ack: equal ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"ack: different ProvisionedThroughput", managedByACKController, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), true},
+
+		// ManagedByExternalAutoscaler scenarios (delta should be false for changes)
+		{"external: both nil ProvisionedThroughput", managedByExternalAutoscaler, nil, nil, nil, nil, false},
+		{"external: (a) nil ProvisionedThroughput", managedByExternalAutoscaler, nil, nil, aws.Int64(5), aws.Int64(5), false},
+		{"external: (b) nil ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), nil, nil, false},
+		{"external: equal ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), aws.Int64(5), aws.Int64(5), false},
+		{"external: different ProvisionedThroughput", managedByExternalAutoscaler, aws.Int64(5), aws.Int64(5), aws.Int64(10), aws.Int64(5), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create tables
+			tableA := createTable(tt.aRpu, tt.aWpu)
+			tableB := createTable(tt.bRpu, tt.bWpu)
+
+			// Apply management type
+			tableA = applyManagement(tableA, tt.mgmt)
+			tableB = applyManagement(tableB, tt.mgmt)
+
+			// Test comparison
+			delta := newResourceDelta(&resource{tableA}, &resource{tableB})
+			if tt.expectDelta != delta.DifferentAt("Spec.ProvisionedThroughput") {
+				t.Errorf("customPostCompare() has delta at ProvisionedThroughput = %v, want %v", delta.DifferentAt("Spec.ProvisionedThroughput"), tt.expectDelta)
+			}
+		})
+	}
+}
+
+func Test_gsiProvisionedThroughputManagedByExternalAutoscaler(t *testing.T) {
+	gsi := func(rcu, wcu int64, maxRead *int64) *v1alpha1.GlobalSecondaryIndex {
+		g := &v1alpha1.GlobalSecondaryIndex{
+			IndexName: aws.String("gsi1"),
+			ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(rcu),
+				WriteCapacityUnits: aws.Int64(wcu),
+			},
+		}
+		if maxRead != nil {
+			g.OnDemandThroughput = &v1alpha1.OnDemandThroughput{MaxReadRequestUnits: maxRead}
+		}
+		return g
+	}
+	tests := []struct {
+		name        string
+		annotation  string
+		desired     *v1alpha1.GlobalSecondaryIndex
+		latest      *v1alpha1.GlobalSecondaryIndex
+		expectDelta bool
+	}{
+		{
+			name:        "no annotation, throughput drift is reconciled",
+			desired:     gsi(5000, 5000, nil),
+			latest:      gsi(10, 76, nil),
+			expectDelta: true,
+		},
+		{
+			name:        "managed by controller, throughput drift is reconciled",
+			annotation:  svcapitypes.TableProvisionedThroughputManagedByACKController,
+			desired:     gsi(5000, 5000, nil),
+			latest:      gsi(10, 76, nil),
+			expectDelta: true,
+		},
+		{
+			name:        "external autoscaler, throughput drift is ignored",
+			annotation:  svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler,
+			desired:     gsi(5000, 5000, nil),
+			latest:      gsi(10, 76, nil),
+			expectDelta: false,
+		},
+		{
+			name:        "external autoscaler, other GSI changes are still reconciled",
+			annotation:  svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler,
+			desired:     gsi(5000, 5000, aws.Int64(100)),
+			latest:      gsi(10, 76, nil),
+			expectDelta: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired, latest := newTestTable(), newTestTable()
+			if tt.annotation != "" {
+				desired.ko.Annotations = map[string]string{
+					svcapitypes.GSIProvisionedThroughputManagedByAnnotation: tt.annotation,
+				}
+			}
+			desired.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{tt.desired}
+			latest.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{tt.latest}
+
+			delta := newResourceDelta(desired, latest)
+			require.Equal(t, tt.expectDelta, delta.DifferentAt("Spec.GlobalSecondaryIndexes"))
+		})
+	}
+}
+
+func Test_updateGSIs_externalAutoscalerOmitsProvisionedThroughput(t *testing.T) {
+	client := &recordingHTTPClient{}
+	rm := &resourceManager{
+		metrics: ackmetrics.NewMetrics("dynamodb"),
+		sdkapi: svcsdk.NewFromConfig(aws.Config{
+			Region:           "us-west-2",
+			Credentials:      fakeCredentialsProvider{},
+			HTTPClient:       client,
+			RetryMaxAttempts: 1,
+		}),
+	}
+	desired, latest := newTestTable(), newTestTable()
+	desired.ko.Annotations = map[string]string{
+		svcapitypes.GSIProvisionedThroughputManagedByAnnotation: svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler,
+	}
+	latest.ko.Status.GlobalSecondaryIndexesDescriptions = []*v1alpha1.GlobalSecondaryIndexDescription{{
+		IndexName:   aws.String("gsi1"),
+		IndexStatus: aws.String("ACTIVE"),
+	}}
+	desired.ko.Spec.GlobalSecondaryIndexes = []*v1alpha1.GlobalSecondaryIndex{{
+		IndexName: aws.String("gsi1"),
+		ProvisionedThroughput: &v1alpha1.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5000),
+			WriteCapacityUnits: aws.Int64(5000),
+		},
+		OnDemandThroughput: &v1alpha1.OnDemandThroughput{MaxReadRequestUnits: aws.Int64(100)},
+	}}
+
+	err := rm.updateGSIs(context.Background(), desired, latest, desired.ko.Spec.GlobalSecondaryIndexes)
+	require.NoError(t, err)
+
+	require.Len(t, client.calls, 1)
+	var body struct {
+		GlobalSecondaryIndexUpdates []struct {
+			Update map[string]json.RawMessage
+		}
+	}
+	require.NoError(t, json.Unmarshal(client.calls[0].body, &body))
+	require.Len(t, body.GlobalSecondaryIndexUpdates, 1)
+	update := body.GlobalSecondaryIndexUpdates[0].Update
+	require.NotContains(t, update, "ProvisionedThroughput")
+	require.Contains(t, update, "OnDemandThroughput")
 }

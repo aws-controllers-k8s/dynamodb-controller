@@ -226,6 +226,7 @@ func (rm *resourceManager) customUpdateTable(
 	addedGSIs, updatedGSIs, removedGSIs := computeGlobalSecondaryIndexDelta(
 		latest.ko.Spec.GlobalSecondaryIndexes,
 		desired.ko.Spec.GlobalSecondaryIndexes,
+		isGSIProvisionedThroughputManagedByExternalAutoscaler(desired.ko),
 	)
 
 	// Delete GSIs that have been removed first to avoid errors when updating table properties
@@ -385,9 +386,12 @@ func (rm *resourceManager) newUpdateTablePayload(
 
 		// If billing mode is changing from PAY_PER_REQUEST to PROVISIONED we need to include all GSI updates
 		if latestBillingMode == svcsdktypes.BillingModePayPerRequest && input.BillingMode == svcsdktypes.BillingModeProvisioned {
+			// Switching to PROVISIONED requires an initial capacity for every
+			// index, so throughput is always compared here.
 			_, updatedGSIs, _ := computeGlobalSecondaryIndexDelta(
 				latest.ko.Spec.GlobalSecondaryIndexes,
 				desired.ko.Spec.GlobalSecondaryIndexes,
+				false,
 			)
 
 			// DynamoDB API fails if GSI updates are empty. Only set GlobalSecondaryIndexUpdates
@@ -746,7 +750,7 @@ func customPreCompare(
 			b.ko.Spec.GlobalSecondaryIndexes,
 		)
 	} else if a.ko.Spec.GlobalSecondaryIndexes != nil && b.ko.Spec.GlobalSecondaryIndexes != nil {
-		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes) {
+		if !equalGlobalSecondaryIndexesArrays(a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes, isGSIProvisionedThroughputManagedByExternalAutoscaler(a.ko)) {
 			delta.Add("Spec.GlobalSecondaryIndexes", a.ko.Spec.GlobalSecondaryIndexes, b.ko.Spec.GlobalSecondaryIndexes)
 		}
 	}
@@ -1241,4 +1245,49 @@ func (rm *resourceManager) syncGSIWarmThroughput(
 		return requeueWaitGSIReady
 	}
 	return nil
+}
+
+func getTableProvisionedThroughputManagedByAnnotation(table *svcapitypes.Table) (string, bool) {
+	if len(table.Annotations) == 0 {
+		return "", false
+	}
+	managedBy, ok := table.Annotations[svcapitypes.TableProvisionedThroughputManagedByAnnotation]
+	return managedBy, ok
+}
+
+func isTableProvisionedThroughputManagedByExternalAutoscaler(table *svcapitypes.Table) bool {
+	managedBy, ok := getTableProvisionedThroughputManagedByAnnotation(table)
+	if !ok {
+		return false
+	}
+	return managedBy == svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
+}
+
+func isGSIProvisionedThroughputManagedByExternalAutoscaler(table *svcapitypes.Table) bool {
+	return table.Annotations[svcapitypes.GSIProvisionedThroughputManagedByAnnotation] == svcapitypes.TableProvisionedThroughputManagedByExternalAutoscaler
+}
+
+func customPostCompare(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	// We only want to compare the ProvisionedThroughput field if and only if the
+	// ProvisionedThroughput is managed by the controller, meaning that in the case
+	// where the ProvisionedThroughput is managed by an external entity, we do not
+	// want to compare the ProvisionedThroughput field.
+	// When managed by an external entity, an annotation is set on the
+	// table resource to indicate that the ProvisionedThroughput is managed
+	// externally.
+	if isTableProvisionedThroughputManagedByExternalAutoscaler(a.ko) && delta.DifferentAt("Spec.ProvisionedThroughput") {
+		// We need to unset the ProvisionedThroughput field in the delta so that the
+		// controller does not attempt to reconcile it.
+		newDiffs := make([]*ackcompare.Difference, 0)
+		for _, d := range delta.Differences {
+			if !d.Path.Contains("Spec.ProvisionedThroughput") {
+				newDiffs = append(newDiffs, d)
+			}
+		}
+		delta.Differences = newDiffs
+	}
 }
